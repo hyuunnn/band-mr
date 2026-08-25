@@ -1,0 +1,30 @@
+package com.bandmr.app.data
+
+import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import com.bandmr.app.separation.Tier
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore by preferencesDataStore(name = "settings")
+
+class SettingsStore(private val context: Context) {
+
+    private val aiKey = booleanPreferencesKey("ai_enabled")
+    private val tierKey = stringPreferencesKey("model_tier")
+
+    val aiEnabled: Flow<Boolean> = context.dataStore.data.map { it[aiKey] ?: false }
+
+    val modelTier: Flow<String> = context.dataStore.data.map { it[tierKey] ?: Tier.BALANCED.id }
+
+    suspend fun setAiEnabled(value: Boolean) {
+        context.dataStore.edit { it[aiKey] = value }
+    }
+
+    suspend fun setModelTier(id: String) {
+        context.dataStore.edit { it[tierKey] = id }
+    }
+}
