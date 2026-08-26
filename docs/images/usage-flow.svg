@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="250" viewBox="0 0 980 250">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7C4DFF"/>
+    </marker>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8E5BFF"/><stop offset="1" stop-color="#6A3BE8"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="980" height="250" rx="18" fill="#ffffff"/>
+
+  <g font-family="-apple-system,'Segoe UI',sans-serif">
+    <!-- 1 -->
+    <circle cx="90" cy="92" r="34" fill="url(#g1)"/>
+    <text x="90" y="102" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">1</text>
+    <text x="90" y="156" font-size="15" font-weight="bold" fill="#1a1a28" text-anchor="middle">곡 추가</text>
+    <text x="90" y="176" font-size="11.5" fill="#66667e" text-anchor="middle">기기의 음원 파일</text>
+    <text x="90" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">선택</text>
+
+    <line x1="132" y1="92" x2="172" y2="92" stroke="#7C4DFF" stroke-width="2.5" marker-end="url(#ar)"/>
+
+    <!-- 2 -->
+    <circle cx="222" cy="92" r="34" fill="url(#g1)"/>
+    <text x="222" y="102" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">2</text>
+    <text x="222" y="156" font-size="15" font-weight="bold" fill="#1a1a28" text-anchor="middle">모델 받기</text>
+    <text x="222" y="176" font-size="11.5" fill="#66667e" text-anchor="middle">최초 1회 · 약 236MB</text>
+    <text x="222" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">(AI ON 사용 시)</text>
+
+    <line x1="264" y1="92" x2="304" y2="92" stroke="#7C4DFF" stroke-width="2.5" marker-end="url(#ar)"/>
+
+    <!-- 3 -->
+    <circle cx="354" cy="92" r="34" fill="url(#g1)"/>
+    <text x="354" y="102" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">3</text>
+    <text x="354" y="156" font-size="15" font-weight="bold" fill="#1a1a28" text-anchor="middle">AI 분리</text>
+    <text x="354" y="176" font-size="11.5" fill="#66667e" text-anchor="middle">보컬·드럼·베이스·기타</text>
+    <text x="354" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">몇십 초 ~ 수분</text>
+
+    <line x1="396" y1="92" x2="436" y2="92" stroke="#7C4DFF" stroke-width="2.5" marker-end="url(#ar)"/>
+
+    <!-- 4 -->
+    <circle cx="486" cy="92" r="34" fill="url(#g1)"/>
+    <text x="486" y="102" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">4</text>
+    <text x="486" y="156" font-size="15" font-weight="bold" fill="#1a1a28" text-anchor="middle">스텝 체크</text>
+    <text x="486" y="176" font-size="11.5" fill="#66667e" text-anchor="middle">제거할 소리 선택 ·</text>
+    <text x="486" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">키 ±12반음 조절</text>
+
+    <line x1="528" y1="92" x2="568" y2="92" stroke="#7C4DFF" stroke-width="2.5" marker-end="url(#ar)"/>
+
+    <!-- 5 -->
+    <circle cx="618" cy="92" r="34" fill="url(#g1)"/>
+    <text x="618" y="102" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">5</text>
+    <text x="618" y="156" font-size="15" font-weight="bold" fill="#1a1a28" text-anchor="middle">합주 연습!</text>
+    <text x="618" y="176" font-size="11.5" fill="#66667e" text-anchor="middle">반주에 맞춰 연주 ·</text>
+    <text x="618" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">백그라운드 재생 지원</text>
+
+    <!-- 부가 기능 -->
+    <line x1="660" y1="92" x2="700" y2="92" stroke="#c9c9d6" stroke-width="2" stroke-dasharray="5 4"/>
+    <rect x="708" y="52" width="240" height="86" rx="14" fill="#F6F3FF" stroke="#DDD2FF"/>
+    <text x="828" y="78" font-size="13" font-weight="bold" fill="#5B3FBF" text-anchor="middle">부가 기능</text>
+    <text x="828" y="98" font-size="11.5" fill="#44445e" text-anchor="middle">현재 설정으로 믹스 WAV 내보내기</text>
+    <text x="828" y="116" font-size="11.5" fill="#44445e" text-anchor="middle">스템별 WAV 개별 저장</text>
+
+    <text x="490" y="212" font-size="13.5" fill="#33334a" text-anchor="middle">AI를 끄면(실시간 모드) 다운로드 없이 즉시 사용 가능 — 신호처리 근사 제거</text>
+  </g>
+</svg>

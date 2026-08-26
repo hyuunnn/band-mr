@@ -5,6 +5,8 @@
 > 스템 분리에는 [Demucs](https://github.com/facebookresearch/demucs) (MIT, Meta Platforms)의
 > htdemucs 가중치를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
 
+📊 **그림으로 보는 소개 페이지**: [docs/index.html](docs/index.html)
+
 ## 주요 기능
 
 | 기능 | 설명 |
@@ -16,6 +18,8 @@
 | 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 236MB) 선택 다운로드 |
 
+![앱 화면 구성 — 라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
+
 ## 재생 정책
 
 - **오디오 포커스**: 다른 앱(전화, 내비게이션 등)이 오디오를 요청하면 자동으로 일시정지됩니다.
@@ -23,6 +27,11 @@
 - **백그라운드**: 플레이어 화면을 닫아도 재생이 계속되며, 알림에서 재생/일시정지·종료할 수 있습니다.
 
 ## AI ON/OFF 동작 방식
+
+![두 가지 재생 엔진 아키텍처](docs/images/architecture.svg)
+
+<details>
+<summary>텍스트로 보기</summary>
 
 ```
 AI OFF (실시간, 절전)
@@ -33,9 +42,13 @@ AI OFF (실시간, 절전)
                                 └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MediaCodec 디코딩 ──▶ Demucs ONNX 추론(4스템)
+  원본 파일 ──▶ MediaCodec 디코딩 ──▶ Demucs ONNX 추론(4스텝)
              ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치
 ```
+
+</details>
+
+![시작하는 5단계](docs/images/usage-flow.svg)
 
 - **AI OFF**: 즉시 반응하고 배터리를 거의 쓰지 않지만, 신호처리 특성상 완전히 분리되진 않습니다(특히 기타).
 - **AI ON**: 곡당 한 번만 처리하면 캐시로 재사용되며, 체크한 스템이 정확히 제거됩니다.

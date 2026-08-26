@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="450" viewBox="0 0 980 450">
+  <rect x="0" y="0" width="980" height="450" rx="18" fill="#ffffff"/>
+
+  <!-- ======== 폰 1: 라이브러리 ======== -->
+  <g transform="translate(25,15)">
+    <rect x="0" y="0" width="290" height="370" rx="26" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
+    <text x="20" y="38" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#ffffff">밴드 MR</text>
+    <g transform="translate(258,26)">
+      <circle cx="0" cy="0" r="8" fill="none" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="0" y1="-11" x2="0" y2="-7" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="0" y1="11" x2="0" y2="7" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="-11" y1="0" x2="-7" y2="0" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="11" y1="0" x2="7" y2="0" stroke="#bbbbcc" stroke-width="2"/>
+    </g>
+
+    <!-- 곡 카드 -->
+    <g font-family="-apple-system,'Segoe UI',sans-serif">
+      <rect x="14" y="58" width="262" height="56" rx="12" fill="#181822"/>
+      <circle cx="42" cy="86" r="12" fill="#7C4DFF" opacity="0.85"/>
+      <text x="66" y="82" font-size="13" fill="#ffffff">Wonderwall</text>
+      <text x="66" y="100" font-size="11" fill="#8888a0">3:42 · AI 분리됨</text>
+
+      <rect x="14" y="124" width="262" height="56" rx="12" fill="#181822"/>
+      <circle cx="42" cy="152" r="12" fill="#7C4DFF" opacity="0.55"/>
+      <text x="66" y="148" font-size="13" fill="#ffffff">Don't Look Back in Anger</text>
+      <text x="66" y="166" font-size="11" fill="#8888a0">4:47</text>
+
+      <rect x="14" y="190" width="262" height="56" rx="12" fill="#181822"/>
+      <circle cx="42" cy="218" r="12" fill="#7C4DFF" opacity="0.55"/>
+      <text x="66" y="214" font-size="13" fill="#ffffff">Champagne Supernova</text>
+      <text x="66" y="232" font-size="11" fill="#8888a0">7:27 · AI 분리됨</text>
+    </g>
+
+    <!-- FAB -->
+    <rect x="176" y="300" width="100" height="40" rx="20" fill="#7C4DFF"/>
+    <text x="226" y="325" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">＋ 곡 추가</text>
+
+    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">① 라이브러리 — 곡 추가</text>
+  </g>
+
+  <!-- ======== 폰 2: 플레이어 ======== -->
+  <g transform="translate(348,15)">
+    <rect x="0" y="0" width="290" height="370" rx="26" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
+    <polyline points="26,32 18,24 26,16" fill="none" stroke="#bbbbcc" stroke-width="2"/>
+    <text x="145" y="29" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#ccccdd" text-anchor="middle">플레이어</text>
+    <text x="145" y="62" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">Wonderwall</text>
+
+    <!-- 진행바 -->
+    <rect x="24" y="84" width="242" height="5" rx="2.5" fill="#26262f"/>
+    <rect x="24" y="84" width="92" height="5" rx="2.5" fill="#CFBCFF"/>
+    <circle cx="116" cy="86.5" r="6" fill="#CFBCFF"/>
+    <text x="24" y="106" font-family="monospace" font-size="10" fill="#8888a0">1:12</text>
+    <text x="266" y="106" font-family="monospace" font-size="10" fill="#8888a0" text-anchor="end">3:42</text>
+
+    <!-- 재생 버튼 -->
+    <circle cx="145" cy="138" r="24" fill="#7C4DFF"/>
+    <rect x="137" y="128" width="6" height="20" rx="2" fill="#ffffff"/>
+    <rect x="147" y="128" width="6" height="20" rx="2" fill="#ffffff"/>
+
+    <!-- 제거할 소리 -->
+    <text x="24" y="188" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" font-weight="bold" fill="#ccccdd">제거할 소리</text>
+    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="12">
+      <rect x="24" y="198" width="242" height="30" rx="8" fill="#181822"/>
+      <rect x="32" y="204" width="17" height="17" rx="4" fill="#7C4DFF"/>
+      <path d="M36 212 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
+      <text x="58" y="217" fill="#ffffff">보컬</text>
+      <text x="258" y="217" font-size="10" fill="#8888a0" text-anchor="end">제거됨</text>
+
+      <rect x="24" y="232" width="242" height="30" rx="8" fill="#181822"/>
+      <rect x="32" y="238" width="17" height="17" rx="4" fill="#7C4DFF"/>
+      <path d="M36 246 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
+      <text x="58" y="251" fill="#ffffff">드럼</text>
+
+      <rect x="24" y="266" width="242" height="30" rx="8" fill="#181822"/>
+      <rect x="32" y="272" width="17" height="17" rx="4" fill="none" stroke="#55556a" stroke-width="2"/>
+      <text x="58" y="285" fill="#aaaaBB">베이스 (연주함)</text>
+
+      <rect x="24" y="300" width="242" height="30" rx="8" fill="#181822"/>
+      <rect x="32" y="306" width="17" height="17" rx="4" fill="#7C4DFF"/>
+      <path d="M36 314 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
+      <text x="58" y="319" fill="#ffffff">기타 / 키보드</text>
+    </g>
+
+    <!-- 키 조절 -->
+    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="11">
+      <text x="24" y="352" fill="#ccccdd">키 조절</text>
+      <rect x="80" y="344" width="150" height="5" rx="2.5" fill="#26262f"/>
+      <circle cx="115" cy="346.5" r="6" fill="#CFBCFF"/>
+      <text x="244" y="353" fill="#CFBCFF" text-anchor="end">-2 반음</text>
+    </g>
+
+    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스텝 제거 · 키 조절</text>
+  </g>
+
+  <!-- ======== 폰 3: 설정 ======== -->
+  <g transform="translate(671,15)">
+    <rect x="0" y="0" width="290" height="370" rx="26" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
+    <polyline points="26,32 18,24 26,16" fill="none" stroke="#bbbbcc" stroke-width="2"/>
+    <text x="145" y="29" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#ccccdd" text-anchor="middle">설정</text>
+    <text x="20" y="60" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" font-weight="bold" fill="#ffffff">AI 분리 모델</text>
+    <text x="20" y="76" font-family="-apple-system,'Segoe UI',sans-serif" font-size="10" fill="#8888a0">한 번만 받으면 오프라인에서도 사용</text>
+
+    <g font-family="-apple-system,'Segoe UI',sans-serif">
+      <rect x="14" y="88" width="262" height="72" rx="12" fill="#181822"/>
+      <circle cx="34" cy="108" r="8" fill="none" stroke="#CFBCFF" stroke-width="2"/>
+      <circle cx="34" cy="108" r="3.5" fill="#CFBCFF"/>
+      <text x="50" y="104" font-size="12" fill="#ffffff">균형형 (권장)</text>
+      <text x="50" y="119" font-size="10" fill="#8888a0">약 236MB · 속도·품질 균형</text>
+      <text x="266" y="112" font-size="11" fill="#64FFDA" text-anchor="end">✓ 다운로드됨</text>
+
+      <rect x="14" y="168" width="262" height="72" rx="12" fill="#181822"/>
+      <circle cx="34" cy="188" r="8" fill="none" stroke="#55556a" stroke-width="2"/>
+      <text x="50" y="184" font-size="12" fill="#ffffff">경량 우선</text>
+      <text x="50" y="199" font-size="10" fill="#8888a0">약 236MB · 빠르고 저발열</text>
+      <rect x="196" y="180" width="70" height="26" rx="13" fill="#7C4DFF"/>
+      <text x="231" y="197" font-size="11" fill="#ffffff" text-anchor="middle">받기</text>
+
+      <rect x="14" y="248" width="262" height="72" rx="12" fill="#181822"/>
+      <circle cx="34" cy="268" r="8" fill="none" stroke="#55556a" stroke-width="2"/>
+      <text x="50" y="264" font-size="12" fill="#ffffff">품질 우선</text>
+      <text x="50" y="279" font-size="10" fill="#8888a0">약 236MB · RAM 4GB 이상 권장</text>
+      <rect x="24" y="304" width="160" height="5" rx="2.5" fill="#26262f"/>
+      <rect x="24" y="304" width="102" height="5" rx="2.5" fill="#CFBCFF"/>
+      <text x="192" y="310" font-size="10" fill="#8888a0">64%</text>
+    </g>
+
+    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">③ 설정 — AI 모델 다운로드 (최초 1회)</text>
+  </g>
+</svg>
