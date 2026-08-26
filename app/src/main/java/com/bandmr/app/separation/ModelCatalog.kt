@@ -14,6 +14,12 @@ enum class Tier(
     /** 추론 세그먼트 길이(샘플). 메모리 사용량과 비례 */
     val segmentSamples: Int,
     val url: String,
+    /**
+     * 모델 파일 SHA-256 해시(64자 hex). 다운로드 후 무결성 검증에 사용.
+     * 직접 변환·호스팅한 뒤 `shasum -a 256 <파일>` 등으로 구해 채워 넣을 것.
+     * null이면 크기 기반의 느슨한 검증만 수행.
+     */
+    val sha256: String? = null,
 ) {
     LIGHT(
         "light", "경량 우선",

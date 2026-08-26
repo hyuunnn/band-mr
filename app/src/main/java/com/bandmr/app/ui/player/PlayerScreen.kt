@@ -27,7 +27,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -73,6 +72,11 @@ fun PlayerScreen(songId: Long) {
         // 권한 여부와 무관하게 진행 (거부 시 알림만 숨김)
         SeparationService.start(Locator.context, songId)
     }
+    val playbackNotifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        com.bandmr.app.playback.PlaybackService.start(Locator.context)
+    }
 
     LaunchedEffect(song?.id, song?.separatedTier, aiOn) {
         val s = song ?: return@LaunchedEffect
@@ -82,17 +86,23 @@ fun PlayerScreen(songId: Long) {
     }
 
     val playing by ctrl.isPlaying.collectAsState()
+
+    // 백그라운드 재생: 재생 시작 시 포그라운드 서비스 기동 (알림 권한은 있으면 좋음)
     LaunchedEffect(playing) {
+        if (!playing) return@LaunchedEffect
+        val granted = Build.VERSION.SDK_INT < 33 || androidx.core.content.ContextCompat.checkSelfPermission(
+            Locator.context, Manifest.permission.POST_NOTIFICATIONS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            com.bandmr.app.playback.PlaybackService.start(Locator.context)
+        } else {
+            playbackNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    LaunchedEffect(Unit) {
         while (true) {
             posMs = ctrl.positionMs()
             delay(200)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            ctrl.stashPositionForReload()
-            ctrl.release()
         }
     }
 

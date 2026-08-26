@@ -9,8 +9,15 @@
 | 스텝별 제거 | 보컬·드럼·베이스·기타(키보드 포함)를 체크하여 재생에서 제거 |
 | AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
 | 키 조절 | ±12반음 (옥타브 포함), 세로톤 유지 피치 시프트 |
+| 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
-| 모델 3종 | 경량(약30MB) / 균형(약56MB) / 품질(약110MB) 선택 다운로드 |
+| 모델 3종 | 경량(약30MB) / 균형(약56MB) / 품질(약110MB) 선택 다운로드 (SHA-256 무결성 검증 지원) |
+
+## 재생 정책
+
+- **오디오 포커스**: 다른 앱(전화, 내비게이션 등)이 오디오를 요청하면 자동으로 일시정지됩니다.
+- **이어폰 분리**: 이어폰/블루투스가 분리되면 즉시 일시정지됩니다.
+- **백그라운드**: 플레이어 화면을 닫아도 재생이 계속되며, 알림에서 재생/일시정지·종료할 수 있습니다.
 
 ## AI ON/OFF 동작 방식
 
@@ -85,6 +92,13 @@ m.save_model_to_file('htdemucs-fp16.onnx')"
 
 Hugging Face 등에 업로드하고 `ModelCatalog.kt`의 `LIGHT/BALANCED/QUALITY.url`을 실제 주소로 바꾸세요.
 
+선택적으로 SHA-256 해시를 채워 넣으면 다운로드 무결성이 검증됩니다:
+
+```bash
+shasum -a 256 htdemucs-fp16.onnx
+# ModelCatalog.kt의 해당 Tier에 sha256 = "<64자 해시>" 추가
+```
+
 > 변환 시 `dynamic_axes` 없이 고정 길이로 export했다면, 각 등급의 `segmentSamples`를 export에 사용한 값과 일치시켜야 합니다.
 
 ## 프로젝트 구조
@@ -98,13 +112,15 @@ app/src/main/java/com/bandmr/app/
 │   ├── MrAudioProcessor.kt    # Media3 AudioProcessor (AI OFF 실시간 DSP)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터
 │   ├── StemMixPlayer.kt       # 스템 4개 동기 재생 믹서 (AudioTrack)
-│   ├── PlayerController.kt    # 두 엔진 전환/위치 보존/파라미터 적용
-│   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기
+│   ├── PlayerController.kt    # 두 엔진 전환/위치 보존/오디오 포커스/파라미터 적용
+│   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
+├── playback/
+│   └── PlaybackService.kt     # 백그라운드 재생 포그라운드 서비스 + 알림 컨트롤
 ├── separation/
-│   ├── ModelCatalog.kt        # 모델 3종 정의 (URL 교체 필요)
-│   ├── ModelManager.kt        # 다운로드/삭제/상태
-│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw PCM
-│   ├── DemucsSeparator.kt     # ONNX 추론 + 오버랩 크로스페이드
+│   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 교체 필요)
+│   ├── ModelManager.kt        # 다운로드(SHA-256 검증)/삭제/상태
+│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw PCM (안티에일리어싱 리샘플)
+│   ├── DemucsSeparator.kt     # ONNX 추론 + 정규화 + 오버랩 크로스페이드
 │   ├── SeparationService.kt   # Foreground Service + 진행 알림
 │   └── SepBus.kt              # 서비스↔UI 상태 버스
 ├── export/Exporter.kt         # 믹스/스템 내보내기
@@ -112,8 +128,16 @@ app/src/main/java/com/bandmr/app/
 └── ui/                        # Compose 화면들
 ```
 
+## 테스트
+
+```bash
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/STFT/리샘플러/청크 수학 단위 테스트
+```
+
 ## 알려진 한계
 
-- 비AI 모드의 기타/드럼 제거는 근사 처리입니다(정확한 분리는 AI 모드 사용).
+- 비AI 모드의 기타 제거는 근사 처리입니다(정확한 분리는 AI 모드 사용).
+- 비AI 모드의 드럼 제거는 STFT 기반 HPSS 근사로, 실제 트랜지언트 일부가 함께 약해질 수 있습니다.
 - 피치 시프터는 실시간용 그레놀라 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
 - 품질 우선 모델은 메모리를 많이 사용하므로 RAM 4GB 이상 기기를 권장합니다.
+- 알림 컨트롤은 MediaSession 없이 구현되어 블루투스 헤드셋 버튼/잠금화면 연동은 제한적입니다.

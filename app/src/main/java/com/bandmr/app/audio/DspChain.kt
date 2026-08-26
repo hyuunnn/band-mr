@@ -22,7 +22,7 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
             }
         }
 
-    private val spectral = SpectralStage(sampleRate)
+    private val spectral = SpectralStage(sampleRate, channels)
 
     // 보컬: 저역 유지(LP) + 사이드 신호 하이패스
     private val vocKeepLpL = Biquad()

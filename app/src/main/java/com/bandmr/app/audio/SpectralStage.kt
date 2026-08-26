@@ -4,13 +4,17 @@ package com.bandmr.app.audio
  * STFT 기반 스펙트럼 처리 스테이지.
  *  - 드럼 제거: 주파수축 중간값 필터링(HPSS)으로 타앵 성분 억제
  *  - 베이스 제거: f0 검출 후 배음 콤 노칭
- * 블록 지연(block=1024, hop=512)이 있으며 출력 FIFO로 흡수한다.
+ *
+ * 블록 지연(block=1024, hop=512 프레임)이 있으며 출력 FIFO로 흡수한다.
+ * 분석/합성 모두 sqrt-Hann을 쓰며 hop=block/2에서 COLA 조건(합=1)을 만족한다.
  */
-class SpectralStage(private val sampleRate: Int) {
+class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
 
     private val n = BLOCK
     private val bins = n / 2 + 1
     private val hop = n / 2
+    /** 1=모노, 2=스테레오 (인터리브 처리) */
+    private val chCount = if (channels >= 2) 2 else 1
 
     private val fft = Fft(n)
     private val window = FloatArray(n).also { w ->
@@ -20,8 +24,8 @@ class SpectralStage(private val sampleRate: Int) {
         }
     }
 
-    // 입력 프레임 버퍼 (interleaved stereo)
-    private var pending = FloatArray(n * 2)
+    // 입력 프레임 버퍼 (interleaved)
+    private var pending = FloatArray(n * chCount)
     private var pendingLen = 0
 
     // 시간축 중간값용 크기 스펙트럼 히스토리 (채널별)
@@ -30,8 +34,9 @@ class SpectralStage(private val sampleRate: Int) {
     private var histFill = 0
     private var histPos = 0
 
-    // OLA 상태
-    private val olaTail = Array(2) { FloatArray(n * 2) }
+    // 채널별 OLA 상태와 역변환 결과
+    private val olaTail = Array(2) { FloatArray(n) }
+    private val specCh = Array(2) { FloatArray(n) }
 
     // 출력 FIFO (상대 인덱스 관리)
     private var outBuf = FloatArray(BLOCK * 8)
@@ -43,12 +48,11 @@ class SpectralStage(private val sampleRate: Int) {
     private val im = FloatArray(n)
     private val mags = FloatArray(bins)
     private val medV = FloatArray(bins)
-    private val frameOut = FloatArray(n * 2)
+    private val ilace = FloatArray(hop * chCount)
     private val scratch = FloatArray(MEDIAN_FREQ)
 
     /** 베이스 f0 검출용 저역 통과 상태 */
-    private var lpStateL = 0f
-    private var lpStateR = 0f
+    private var lpState = 0f
     private val detBuf = FloatArray(n)
 
     /**
@@ -62,14 +66,15 @@ class SpectralStage(private val sampleRate: Int) {
         }
         var pos = offset
         var remaining = count
+        val frameBytes = n * chCount
         while (remaining > 0) {
-            val space = n * 2 - pendingLen
+            val space = frameBytes - pendingLen
             val take = minOf(space, remaining)
             System.arraycopy(input, pos, pending, pendingLen, take)
             pendingLen += take
             pos += take
             remaining -= take
-            if (pendingLen == n * 2) {
+            if (pendingLen == frameBytes) {
                 processFrame(muteDrums, muteBass)
                 shiftPending()
             }
@@ -93,24 +98,24 @@ class SpectralStage(private val sampleRate: Int) {
         histPos = 0
         olaTail.forEach { it.fill(0f) }
         fifoHead = 0; fifoSize = 0
-        lpStateL = 0f; lpStateR = 0f
+        lpState = 0f
     }
 
     // ---------- 내부 ----------
 
     private fun shiftPending() {
-        val keep = n * 2 - hop * 2
-        System.arraycopy(pending, hop * 2, pending, 0, keep)
+        val keep = n * chCount - hop * chCount
+        System.arraycopy(pending, hop * chCount, pending, 0, keep)
         pendingLen = keep
     }
 
     private fun processFrame(muteDrums: Boolean, muteBass: Boolean) {
         val bassF0 = if (muteBass) detectBassF0() else -1f
 
-        for (ch in 0..1) {
+        for (ch in 0 until chCount) {
             // 창 적용 + FFT
             for (i in 0 until n) {
-                re[i] = pending[i * 2 + ch] * window[i]
+                re[i] = pending[i * chCount + ch] * window[i]
                 im[i] = 0f
             }
             fft.run(re, im, inverse = false)
@@ -120,7 +125,24 @@ class SpectralStage(private val sampleRate: Int) {
             if (muteBass && bassF0 > 0f) applyBassNotch(bassF0)
 
             fft.run(re, im, inverse = true)
-            overlapAdd(ch)
+            System.arraycopy(re, 0, specCh[ch], 0, n)
+        }
+
+        // OLA: 합성창 적산 후 앞쪽 hop만큼 방출, 꼬리는 다음 프레임으로 이월
+        for (i in 0 until hop) {
+            for (ch in 0 until chCount) {
+                ilace[i * chCount + ch] =
+                    olaTail[ch][i] + specCh[ch][i] * window[i]
+            }
+        }
+        appendOut(ilace, 0, hop * chCount)
+        for (ch in 0 until chCount) {
+            val tail = olaTail[ch]
+            val sp = specCh[ch]
+            for (j in 0 until n - hop) {
+                tail[j] = tail[j + hop] + sp[j + hop] * window[j + hop]
+            }
+            java.util.Arrays.fill(tail, n - hop, n, 0f)
         }
     }
 
@@ -139,7 +161,7 @@ class SpectralStage(private val sampleRate: Int) {
         if (histFill < histDepth) histFill++
 
         for (j in 0..half) {
-            var h = medianOverHist(ch, j)
+            val h = medianOverHist(ch, j)
             val p = medV[j]
             val denom = h * h + p * p + 1e-9f
             val percRatio = (p * p) / denom
@@ -200,10 +222,11 @@ class SpectralStage(private val sampleRate: Int) {
     private fun detectBassF0(): Float {
         var e = 0f
         for (i in 0 until n) {
-            val x = (pending[i * 2] + pending[i * 2 + 1]) * 0.5f
-            lpStateL += LP_COEF * (x - lpStateL)
-            detBuf[i] = lpStateL
-            e += lpStateL * lpStateL
+            val x = if (chCount == 1) pending[i]
+            else (pending[i * 2] + pending[i * 2 + 1]) * 0.5f
+            lpState += LP_COEF * (x - lpState)
+            detBuf[i] = lpState
+            e += lpState * lpState
         }
         if (e < 1e-6f * n) return -1f
 
@@ -225,15 +248,6 @@ class SpectralStage(private val sampleRate: Int) {
         val energy = e / n
         if (bestLag < 0 || bestVal < energy * CONFIDENCE_THR) return -1f
         return sampleRate.toFloat() / bestLag
-    }
-
-    /** sqrt-Hann 합성 창 + 오버랩-애드. 확정된 hop만큼만 FIFO로 방출 */
-    private fun overlapAdd(ch: Int) {
-        for (i in 0 until n * 2) frameOut[i] = olaTail[ch][i] + re[i] * window[i]
-        appendOut(frameOut, 0, hop * 2)
-        val keepLen = n * 2 - hop * 2
-        System.arraycopy(frameOut, hop * 2, olaTail[ch], 0, keepLen)
-        olaTail[ch].fill(0f, keepLen, n * 2)
     }
 
     private fun ensureOutCapacity(need: Int) {

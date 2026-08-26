@@ -49,13 +49,17 @@ class ModelManager(private val context: Context) {
                         throw IOException("다운로드 실패: HTTP ${conn.responseCode}")
                     }
                     val total = conn.contentLengthLong
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
                     conn.inputStream.use { input ->
                         tmp.outputStream().use { output ->
                             val buf = ByteArray(DEFAULT_BUF)
                             var read: Int
                             var done = 0L
                             while (input.read(buf).also { read = it } >= 0) {
-                                output.write(buf, 0, read)
+                                if (read > 0) {
+                                    output.write(buf, 0, read)
+                                    digest.update(buf, 0, read)
+                                }
                                 done += read
                                 if (total > 0) {
                                     setState(tier, ModelState.Downloading(done.toFloat() / total))
@@ -63,8 +67,16 @@ class ModelManager(private val context: Context) {
                             }
                         }
                     }
-                    if (total <= 0 && tmp.length() < MIN_VALID_BYTES) {
-                        throw IOException("비정상 모델 파일")
+                    // 무결성 검증: 해시 우선, 없으면 최소 크기
+                    tier.sha256?.let { expected ->
+                        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                        if (!actual.equals(expected, ignoreCase = true)) {
+                            throw IOException("모델 파일 무결성 오류 (해시 불일치)")
+                        }
+                    } ?: run {
+                        if (tmp.length() < MIN_VALID_BYTES) {
+                            throw IOException("비정상 모델 파일")
+                        }
                     }
                 } finally {
                     conn.disconnect()

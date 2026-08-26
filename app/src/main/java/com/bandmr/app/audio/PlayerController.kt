@@ -1,6 +1,14 @@
 package com.bandmr.app.audio
 
 import android.content.Context
+import android.content.IntentFilter
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.content.BroadcastReceiver
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -17,6 +25,7 @@ import java.io.File
 /**
  * AI OFF: ExoPlayer + MrAudioProcessor(실시간 DSP) / AI ON: StemMixPlayer(스템 믹서).
  * 모드 전환 시 재생 위치를 유지한다.
+ * 오디오 포커스 요청과 이어폰 분리(BECOMING_NOISY) 시 일시정지를 처리한다.
  */
 class PlayerController(private val context: Context) {
 
@@ -31,8 +40,62 @@ class PlayerController(private val context: Context) {
     val isPlaying = MutableStateFlow(false)
     val durationMs = MutableStateFlow(0L)
 
+    /** 알림 등에 표시할 현재 곡 제목 */
+    val nowPlayingTitle = MutableStateFlow<String?>(null)
+
     private var pendingSeekMs = -1L
     private var wasAutoEnded = false
+
+    // ---------- 오디오 포커스 / 이어폰 분리 ----------
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var focusRequest: AudioFocusRequest? = null
+    private var noisyReceiver: BroadcastReceiver? = null
+
+    private fun requestFocus(): Boolean {
+        val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .build()
+            .also { focusRequest = it }
+        return audioManager.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonFocus() {
+        focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+    }
+
+    private fun registerNoisyReceiver() {
+        if (noisyReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                    pauseAll()
+                }
+            }
+        }
+        noisyReceiver = receiver
+        ContextCompat.registerReceiver(
+            context, receiver,
+            IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
+
+    private fun unregisterNoisyReceiver() {
+        noisyReceiver?.let { runCatching { context.unregisterReceiver(it) } }
+        noisyReceiver = null
+    }
+
+    private fun pauseAll() {
+        if (aiMode) mixer?.pause() else exo?.pause()
+        isPlaying.value = false
+        abandonFocus()
+    }
 
     // ---------- 로딩 ----------
 
@@ -50,6 +113,8 @@ class PlayerController(private val context: Context) {
         releaseEngines()
         aiMode = aiOn && separated
         currentSong = song
+        nowPlayingTitle.value = song.title
+        registerNoisyReceiver()
 
         if (aiMode) {
             val dir = File(song.stemsDir!!)
@@ -62,6 +127,7 @@ class PlayerController(private val context: Context) {
             mixer = StemMixPlayer(onEndedCallback = {
                 wasAutoEnded = true
                 isPlaying.value = false
+                abandonFocus()
             }).also {
                 it.load(files)
                 it.semitones = semitones
@@ -104,20 +170,30 @@ class PlayerController(private val context: Context) {
                     .build()
         }
         return ExoPlayer.Builder(context, factory).build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                /* handleAudioFocus = */ false,
+            )
             addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlayingNow: Boolean) {
                     this@PlayerController.isPlaying.value = isPlayingNow
+                    if (!isPlayingNow && !wasAutoEnded) abandonFocus()
                 }
 
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_ENDED) {
                         this@PlayerController.isPlaying.value = false
                         wasAutoEnded = true
+                        abandonFocus()
                     }
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
                     this@PlayerController.isPlaying.value = false
+                    abandonFocus()
                 }
             })
         }
@@ -126,6 +202,8 @@ class PlayerController(private val context: Context) {
     // ---------- 컨트롤 ----------
 
     fun playPause() {
+        val willPlay = !(if (aiMode) mixer?.isPlaying == true else exo?.isPlaying == true)
+        if (willPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
         if (aiMode) mixer?.let {
             if (it.isPlaying) it.pause() else it.play()
             isPlaying.value = it.isPlaying
@@ -155,7 +233,10 @@ class PlayerController(private val context: Context) {
 
     fun release() {
         releaseEngines()
+        unregisterNoisyReceiver()
+        abandonFocus()
         currentSong = null
+        nowPlayingTitle.value = null
         isPlaying.value = false
         durationMs.value = 0L
     }

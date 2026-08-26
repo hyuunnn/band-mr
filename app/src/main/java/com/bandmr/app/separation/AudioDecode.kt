@@ -6,6 +6,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import com.bandmr.app.audio.Biquad
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -99,6 +100,11 @@ object AudioDecode {
                     }
                 }
             }
+            // 리샘플 지연분 플러시 (마지막 샘플 손실 방지)
+            outFrames += resampler.flush { lo, ro ->
+                writeShortLe(out, leBuf.get(), DspChainPublic.clamp(lo))
+                writeShortLe(out, leBuf.get(), DspChainPublic.clamp(ro))
+            }
             return outFrames
         } finally {
             runCatching { codec?.stop() }
@@ -155,7 +161,10 @@ object AudioDecode {
         out.write(scratch, 0, 2)
     }
 
-    /** 스트리밍 선형 보간 리샘플러 (블록 경계 처리 포함) */
+    /**
+     * 스트리밍 선형 보간 리샘플러 (블록 경계 처리 포함).
+     * 다운샘플링 시 2단 바이쿼드 안티에일리어싱 필터를 적용한다.
+     */
     class LinearResampler(inRate: Int, outRate: Int) {
         private var step = inRate.toDouble() / outRate
         private var pos = 0.0
@@ -166,16 +175,40 @@ object AudioDecode {
         private var hist1L = 0f; private var hist1R = 0f
         private var hist2L = 0f; private var hist2R = 0f
         private var hasHist = false
+        private var aaL: List<Biquad> = emptyList()
+        private var aaR: List<Biquad> = emptyList()
+
+        init {
+            setupAntiAlias(inRate, outRate)
+        }
+
+        /** 다운샘플링(-12dB/oct × 2단) 시에만 동작하는 저역통과 프리필터 */
+        private fun setupAntiAlias(inRate: Int, outRate: Int) {
+            if (inRate > outRate) {
+                val cutoff = outRate * AA_CUTOFF_RATIO
+                fun makeStages(): List<Biquad> = List(2) { Biquad() }.onEach {
+                    it.setLowPass(inRate.toFloat(), cutoff, 0.707f)
+                }
+                aaL = makeStages()
+                aaR = makeStages()
+            } else {
+                aaL = emptyList()
+                aaR = emptyList()
+            }
+        }
 
         fun reset(inRate: Int, outRate: Int) {
             step = inRate.toDouble() / outRate
             pos = 0.0
             base = 0L
             hasHist = false
+            setupAntiAlias(inRate, outRate)
         }
 
         fun process(l: FloatArray, r: FloatArray, n: Int, sink: (Float, Float) -> Unit): Long {
             curL = l; curR = r
+            aaL.forEach { f -> for (i in 0 until n) l[i] = f.process(l[i]) }
+            aaR.forEach { f -> for (i in 0 until n) r[i] = f.process(r[i]) }
             base = baseOfNextBlock
             len = n
             baseOfNextBlock += n
@@ -228,6 +261,11 @@ object AudioDecode {
         }
 
         private var baseOfNextBlock = 0L
+
+        companion object {
+            /** 컷오프 = 출력 나이퀴스트(outRate/2)의 90% */
+            private const val AA_CUTOFF_RATIO = 0.45f
+        }
     }
 }
 

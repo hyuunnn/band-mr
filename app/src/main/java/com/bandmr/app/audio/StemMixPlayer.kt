@@ -167,7 +167,6 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             if (!running) break
             if (!play || track == null) continue
 
-            var produced = 0
             val pos = framePos
             if (pos >= totalFrames) {
                 synchronized(stateLock) { isPlaying = false }
@@ -176,32 +175,45 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
                 continue
             }
             java.util.Arrays.fill(mixedFloat, 0f)
+            // 들리는 스템 중 가장 짧게 읽힌 프레임 수로 출력 길이 제한
+            var minGot = Int.MAX_VALUE
+            var anyAudible = false
             for (s in 0 until nStems) {
                 val gain = gains[s]
                 val reader = readers[s] ?: continue
                 if (gain <= 0f) continue
                 val got = reader.read(pos, stemShort, CHUNK)
                 if (got <= 0) continue
+                anyAudible = true
+                if (got < minGot) minGot = got
                 var i = 0
                 while (i < got * 2) {
                     mixedFloat[i] += stemShort[i] / 32768f * gain
                     i++
                 }
             }
+            val remainingFrames = (totalFrames - pos).toInt()
+            val framesToWrite = when {
+                !anyAudible -> 0
+                else -> minOf(minGot, remainingFrames)
+            }
+            if (framesToWrite <= 0) {
+                synchronized(stateLock) { isPlaying = false }
+                track?.pause()
+                android.os.Handler(android.os.Looper.getMainLooper()).post { onEndedCallback() }
+                continue
+            }
             val sh = shifter
             var i = 0
-            while (i < CHUNK * 2) {
+            while (i < framesToWrite * 2) {
                 sh.process(mixedFloat[i], mixedFloat[i + 1])
                 outShort[i] = DspChain.clampShort(sh.outL)
                 outShort[i + 1] = DspChain.clampShort(sh.outR)
                 i += 2
             }
-            val remainingFrames = (totalFrames - pos).toInt()
-            val framesToWrite = minOf(CHUNK, remainingFrames)
             val wrote = track?.write(outShort, 0, framesToWrite * 2, AudioTrack.WRITE_BLOCKING) ?: 0
             if (wrote < 0) break
-            produced = framesToWrite
-            framePos = pos + produced
+            framePos = pos + framesToWrite
             if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) track?.play()
         }
         track?.release()

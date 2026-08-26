@@ -36,9 +36,9 @@ class WavReader(private val file: File) : Closeable {
         val magic = ByteArray(12)
         raf.readFully(magic)
         val bb = ByteBuffer.wrap(magic).order(ByteOrder.LITTLE_ENDIAN)
-        require(bb.int == 0x52494646) { "RIFF 시그니처 없음" } // 'RIFF'
+        require(bb.int == MAGIC_RIFF) { "RIFF 시그니처 없음" }   // 'RIFF' (LE로 읽음)
         bb.int // 전체 크기
-        require(bb.int == 0x57415645) { "WAVE 시그니처 없음" } // 'WAVE'
+        require(bb.int == MAGIC_WAVE) { "WAVE 시그니처 없음" }     // 'WAVE' (LE로 읽음)
 
         var fmtFound = false
         while (true) {
@@ -48,6 +48,7 @@ class WavReader(private val file: File) : Closeable {
             val id = hb.int
             val size = hb.int
             when (id) {
+                // FOURCC는 파일상 ASCII이므로 LE로 읽으면 아래 값과 일치한다
                 CHUNK_FMT -> {
                     val body = ByteArray(minOf(size, 40))
                     raf.readFully(body)
@@ -103,8 +104,14 @@ class WavReader(private val file: File) : Closeable {
     }
 
     companion object {
-        private const val CHUNK_FMT = 0x666D7420   // 'fmt '
-        private const val CHUNK_DATA = 0x64617461  // 'data'
+        /** 'RIFF' 4바이트를 little-endian int로 읽은 값 */
+        internal const val MAGIC_RIFF = 0x46464952
+        /** 'WAVE' */
+        internal const val MAGIC_WAVE = 0x45564157
+        /** 'fmt ' */
+        internal const val CHUNK_FMT = 0x20746D66
+        /** 'data' */
+        internal const val CHUNK_DATA = 0x61746164
     }
 }
 
@@ -121,19 +128,24 @@ class WavWriter private constructor(
     private val path: String = filePath
 
     init {
-        raw.writeInt(0x52494646)          // RIFF
-        raw.writeInt(0)                   // 패치됨
-        raw.writeInt(0x57415645)          // WAVE
-        raw.writeInt(0x666D7420)          // fmt
-        raw.writeInt(16)
-        raw.writeShort(1)                 // PCM
-        raw.writeShort(channels)
-        raw.writeInt(sampleRate)
-        raw.writeInt(sampleRate * channels * 2)
-        raw.writeShort(channels * 2)
-        raw.writeShort(16)
-        raw.writeInt(0x64617461)          // data
-        raw.writeInt(0)                   // 패치됨
+        // WAV 숫자 필드는 모두 little-endian. DataOutputStream은 big-endian이므로
+        // 헤더는 직접 LE 바이트 배열로 작성한다.
+        val h = ByteArray(44)
+        val b = ByteBuffer.wrap(h).order(ByteOrder.LITTLE_ENDIAN)
+        b.putInt(WavReader.MAGIC_RIFF)              // 'RIFF'
+        b.putInt(0)                                 // 파일 크기 (close에서 패치)
+        b.putInt(WavReader.MAGIC_WAVE)              // 'WAVE'
+        b.putInt(WavReader.CHUNK_FMT)               // 'fmt '
+        b.putInt(16)                                // fmt 청크 크기
+        b.putShort(1)                               // PCM
+        b.putShort(channels.toShort())
+        b.putInt(sampleRate)
+        b.putInt(sampleRate * channels * 2)         // byte rate
+        b.putShort((channels * 2).toShort())        // block align
+        b.putShort(16)                              // bits per sample
+        b.putInt(WavReader.CHUNK_DATA)              // 'data'
+        b.putInt(0)                                 // data 크기 (close에서 패치)
+        raw.write(h)
     }
 
     /** interleaved shorts 중 [n]개(short 단위) 기록 */
