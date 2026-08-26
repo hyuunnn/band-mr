@@ -10,13 +10,13 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
-import kotlin.math.sqrt
 
 /**
  * Demucs ONNX 모델로 스템 분리.
  * 입력: 44.1kHz 스테레오 PCM16 raw 파일 / 출력: 스템별 WAV + 오버랩 크로스페이드.
  *
- * 원본 demucs(apply_model)와 동일하게 구간별 mean/std 정규화를 적용하고,
+ * htdemucs는 모델 내부에서 크기 스펙트로그램을 자체 정규화하므로
+ * 파형은 raw [-1,1] 값을 그대로 넣는다(원본 apply_model 경로와 동일).
  * 첫 구간은 램프인, 마지막 구간은 램프아웃을 생략한다(곡 시작/끝 페이드 방지).
  */
 class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnvironment()) {
@@ -106,27 +106,6 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
                         inPlanar[seg + frame] = bb.short / 32768f    // R
                     }
 
-                    // ---- 구간별 정규화 (원본 demucs와 동일, 유효 구간만 계산) ----
-                    var sum = 0.0
-                    var sumSq = 0.0
-                    for (frame in 0 until len) {
-                        val l = inPlanar[frame].toDouble()
-                        val r = inPlanar[seg + frame].toDouble()
-                        sum += l + r
-                        sumSq += l * l + r * r
-                    }
-                    val nValid = len * 2.0
-                    var mean = (sum / nValid).toFloat()
-                    var std = sqrt((sumSq / nValid - mean * mean).coerceAtLeast(0.0)).toFloat()
-                    if (std < STD_EPSILON) { // 무음/거의 무음 구간 가드
-                        mean = 0f; std = 1f
-                    } else {
-                        for (frame in 0 until len) {
-                            inPlanar[frame] = (inPlanar[frame] - mean) / std
-                            inPlanar[seg + frame] = (inPlanar[seg + frame] - mean) / std
-                        }
-                    }
-
                     // ---- 추론 ----
                     OnnxTensor.createTensor(
                         env, FloatBuffer.wrap(inPlanar), longArrayOf(1, 2, seg.toLong())
@@ -156,8 +135,8 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
                             var vr = 0f
                             if (j < len) {
                                 val w = weightAt(j, len, chunkIdx == 0, isLast, fade)
-                                vl = (outArr[baseL + j] * std + mean) * w
-                                vr = (outArr[baseR + j] * std + mean) * w
+                                vl = outArr[baseL + j] * w
+                                vr = outArr[baseR + j] * w
                             }
                             if (chunkIdx > 0 && j < fade) {
                                 vl += carry[co + j]
@@ -170,8 +149,8 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
                             // 다음 구간과 겹치는 영역은 가중치 적용 후 캐리로 보관
                             for (j in hop until len) {
                                 val w = weightAt(j, len, chunkIdx == 0, false, fade)
-                                carry[co + (j - hop)] = (outArr[baseL + j] * std + mean) * w
-                                carry[co + fade + (j - hop)] = (outArr[baseR + j] * std + mean) * w
+                                carry[co + (j - hop)] = outArr[baseL + j] * w
+                                carry[co + fade + (j - hop)] = outArr[baseR + j] * w
                             }
                         }
                         var f = 0
@@ -199,7 +178,6 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
 
     internal companion object {
         internal const val FADE_DIVISOR = 4
-        private const val STD_EPSILON = 1e-4f
 
         /**
          * 크로스페이드 가중치.

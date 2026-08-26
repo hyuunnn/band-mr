@@ -11,7 +11,7 @@
 | 키 조절 | ±12반음 (옥타브 포함), 세로톤 유지 피치 시프트 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
-| 모델 3종 | 경량(약30MB) / 균형(약56MB) / 품질(약110MB) 선택 다운로드 (SHA-256 무결성 검증 지원) |
+| 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 236MB) 선택 다운로드 |
 
 ## 재생 정책
 
@@ -50,56 +50,35 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 minSdk 31 (Android 12+) / targetSdk 35
 
-## ⚠️ AI 모델 준비 (필수 작업)
+## 🤖 AI 모델
 
-라이선스 문제로 모델 파일은 APK에 포함되어 있지 않고, 첫 실행 시 다운로드합니다.
-`app/src/main/java/com/bandmr/app/separation/ModelCatalog.kt`의 URL은 **예시 플레이스홀더**이므로,
-아래 과정으로 직접 변환·호스팅한 뒤 URL을 교체해야 AI 기능이 동작합니다.
+AI를 ON하면 설정에서 모델 3종 중 하나를 선택해 다운로드할 수 있습니다.
+모델은 이 저장소의 [Releases](https://github.com/hyuunnn/band-mr2/releases/tag/model-v1)에
+호스팅되어 있으며, 다운로드 시 SHA-256 무결성이 검증됩니다.
 
-### 1) Demucs v4(htdemucs)를 ONNX로 변환
+| 등급 | 세그먼트 | 특징 |
+|---|---|---|
+| 경량 우선 | 131,072 샘플 (약 3초) | 빠름, 저메모리 |
+| 균형형 (권장) | 262,144 샘플 (약 6초) | 속도·품질 균형 |
+| 품질 우선 | 344,064 샘플 (약 7.8초) | 최고 품질, 메모리 많음 |
+
+### 모델 재변환 방법 (참고용)
+
+htdemucs(Demucs v4)는 `torch.stft`의 complex 출력 때문에 그대로는 ONNX export가 되지 않는다.
+`demucs.spec`의 spectro/iSTFT를 실수(re/im 쌍) 연산으로 교체하고, `nn.MultiheadAttention`을
+기본 연산으로 분해한 뒤 opset 18로 export해야 한다. 자세한 구현은 저장소 이슈/커밋 이력 참고.
+
+요구 패키지: `torch torchaudio demucs onnx onnxruntime onnxscript onnxconverter-common`
 
 ```python
-import torch
-from demucs.pretrained import get_model
-
-m = get_model("htdemucs").cpu().eval()
-SEG = 262144  # 균형형 세그먼트 (경량 131072 / 품질 344064 권장, 동적 축 지원)
-
-torch.onnx.export(
-    m, torch.randn(1, 2, SEG), "htdemucs-fp32.onnx",
-    opset_version=17,
-    input_names=["audio"], output_names=["stems"],
-    dynamic_axes={"audio": {2: "samples"}, "stems": {3: "samples"}},
-)
+# 핵심 절차 요약
+# 1) get_model("htdemucs").models[0] 로 내부 HTDemucs를 꺼내고 use_train_segment=False
+# 2) demucs.htdemucs.spectro/ispectro를 re/im 쌍 텐서 버전으로 교체
+#    - STFT: reflect 패딩 + Conv1D(stride=hop) 투영, ×win_length^-0.5
+#    - iSTFT: DFT 행렬곱 + gather 기반 OLA(포락선 정규화), ×√win_length
+# 3) _magnitude/_mask는 cac=True 경로(view_as_real/view_as_complex)만 대체
+# 4) 고정 길이([1,2,seg])로 opset 18 export
 ```
-
-### 2) 등급별 변환
-
-```bash
-# 경량: int8 동적 양자화 (~30MB)
-python -c "
-from onnxruntime.quantization import quantize_dynamic
-quantize_dynamic('htdemucs-fp32.onnx', 'htdemucs-int8.onnx')"
-
-# 균형: fp16 (~56MB)
-python -c "
-from onnxruntime.transformers import float16
-m = float16.convert_float_to_float16_model_path('htdemucs-fp32.onnx')
-m.save_model_to_file('htdemucs-fp16.onnx')"
-```
-
-### 3) 호스팅 후 URL 교체
-
-Hugging Face 등에 업로드하고 `ModelCatalog.kt`의 `LIGHT/BALANCED/QUALITY.url`을 실제 주소로 바꾸세요.
-
-선택적으로 SHA-256 해시를 채워 넣으면 다운로드 무결성이 검증됩니다:
-
-```bash
-shasum -a 256 htdemucs-fp16.onnx
-# ModelCatalog.kt의 해당 Tier에 sha256 = "<64자 해시>" 추가
-```
-
-> 변환 시 `dynamic_axes` 없이 고정 길이로 export했다면, 각 등급의 `segmentSamples`를 export에 사용한 값과 일치시켜야 합니다.
 
 ## 프로젝트 구조
 
@@ -140,4 +119,5 @@ app/src/main/java/com/bandmr/app/
 - 비AI 모드의 드럼 제거는 STFT 기반 HPSS 근사로, 실제 트랜지언트 일부가 함께 약해질 수 있습니다.
 - 피치 시프터는 실시간용 그레놀라 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
 - 품질 우선 모델은 메모리를 많이 사용하므로 RAM 4GB 이상 기기를 권장합니다.
+- 모델 파일이 약 236MB라 최초 다운로드에 시간이 걸릴 수 있습니다 (Wi-Fi 권장).
 - 알림 컨트롤은 MediaSession 없이 구현되어 블루투스 헤드셋 버튼/잠금화면 연동은 제한적입니다.
