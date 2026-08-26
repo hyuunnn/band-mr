@@ -1,10 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  어답티브 아이콘 전경: 기타 픽(pick) + 픽 안에 파낸 파형(이퀄라이저) 홀.
+  - 108dp 캔버스, 시각 요소 전부 원형 마스크 세이프존(중심 54,54 / r=33) 안
+  - 픽 실루엣: 상단 완만한 곡선 어깨 → 하단 둥근 팁
+  - 파형 홀은 evenOdd 로 픽과 한 경로에서 파서 그라디언트/모노크롬 모두 동일하게 적용
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#7C4DFF"
-        android:pathData="M54,30c-6.6,0 -12,5.4 -12,12v14.3c-1.9,-1.1 -4.2,-1.8 -6.5,-1.8c-7.2,0 -13,5.8 -13,13s5.8,13 13,13s13,-5.8 13,-13V42c0,-3 2.5,-5.5 5.5,-5.5S59.5,39 59.5,42v6.2c0,1.7 1.4,3 3,3h6c1.7,0 3,-1.3 3,-3V42C71.5,35.4 66.1,30 59.5,30H54z" />
+        android:fillType="evenOdd"
+        android:pathData="M54,30 C65,30 74,37 74,47 C74,58 64,67.5 56,73.5 Q54,75 52,73.5 C44,67.5 34,58 34,47 C34,37 43,30 54,30 Z
+                M38,51 a2,2 0 0 1 4,0 v2 a2,2 0 0 1 -4,0 Z
+                M45,47 a2,2 0 0 1 4,0 v10 a2,2 0 0 1 -4,0 Z
+                M52,44 a2,2 0 0 1 4,0 v16 a2,2 0 0 1 -4,0 Z
+                M59,47 a2,2 0 0 1 4,0 v10 a2,2 0 0 1 -4,0 Z
+                M66,51 a2,2 0 0 1 4,0 v2 a2,2 0 0 1 -4,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="34"
+                android:startY="30"
+                android:endX="72"
+                android:endY="72">
+                <item android:offset="0.0" android:color="#FF9C86FD" />
+                <item android:offset="1.0" android:color="#FF6428E8" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 상단 림 라이트 (유리 질감 하이라이트) -->
+    <path
+        android:pathData="M54,33.5 C61.5,33.5 68,38 69.6,45"
+        android:strokeColor="#33FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
 </vector>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 테마(모노크롬) 아이콘용 단색 실루엣: 전경과 동일 형상, 알파만 사용됨 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,30 C65,30 74,37 74,47 C74,58 64,67.5 56,73.5 Q54,75 52,73.5 C44,67.5 34,58 34,47 C34,37 43,30 54,30 Z
+                M38,51 a2,2 0 0 1 4,0 v2 a2,2 0 0 1 -4,0 Z
+                M45,47 a2,2 0 0 1 4,0 v10 a2,2 0 0 1 -4,0 Z
+                M52,44 a2,2 0 0 1 4,0 v16 a2,2 0 0 1 -4,0 Z
+                M59,47 a2,2 0 0 1 4,0 v10 a2,2 0 0 1 -4,0 Z
+                M66,51 a2,2 0 0 1 4,0 v2 a2,2 0 0 1 -4,0 Z" />
+</vector>
