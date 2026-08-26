@@ -1,7 +1,7 @@
 package com.bandmr.app
 
 import android.app.Application
-import android.net.Uri
+import androidx.core.net.toUri
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.AppDatabase
@@ -31,7 +31,7 @@ class BandMrApp : Application() {
                 songs.forEach { song ->
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
                         runCatching {
-                            MixCache.prepare(this@BandMrApp, song.id, Uri.parse(song.uri))
+                            MixCache.prepare(this@BandMrApp, song.id, song.uri.toUri())
                         }
                     }
                 }

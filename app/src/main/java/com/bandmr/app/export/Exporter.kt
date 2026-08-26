@@ -2,6 +2,7 @@ package com.bandmr.app.export
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.PitchShifter
@@ -103,20 +104,20 @@ class Exporter(private val context: Context) {
         raw.delete()
         try {
             val totalFrames = AudioDecode.decodeToRaw44k(
-                context, Uri.parse(song.uri), raw,
+                context, song.uri.toUri(), raw,
             ) { p -> onProgress(p * 0.4f) }
 
             val chain = DspChain(AudioDecode.TARGET_SR, 2).also { it.muteMask = muteMask }
             val shifter = PitchShifter().also { it.semitones = semitones }
             val tmp = File(context.cacheDir, "export_mix.wav")
             tmp.delete()
-            val writer = WavWriter.create(tmp, AudioDecode.TARGET_SR)
-            RandomAccessFile(raw, "r").use { raf ->
-                renderDspChunks(raf, totalFrames, chain, shifter, writer, onProgress)
+            WavWriter.create(tmp, AudioDecode.TARGET_SR).use { writer ->
+                RandomAccessFile(raw, "r").use { raf ->
+                    renderDspChunks(raf, totalFrames, chain, shifter, writer, onProgress)
+                }
+                // 스펙트럼 파이프라인 지연분 플러시 (체인이 마지막 단계이므로 그대로 기록)
+                chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
             }
-            // 스펙트럼 파이프라인 지연분 플러시 (체인이 마지막 단계이므로 그대로 기록)
-            chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
-            writer.close()
             copyTmpToDest(tmp, dest)
         } finally {
             raw.delete()

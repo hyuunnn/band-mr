@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.content.BroadcastReceiver
 import android.content.Intent
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
 import kotlinx.coroutines.CoroutineScope
@@ -166,7 +167,7 @@ class PlayerController(private val context: Context) {
             if (pendingResumeSongId != song.id) {
                 pendingResume(song.id, wasPlaying && !wasAutoEnded, pos)
             }
-            beginPrepare(song.id, android.net.Uri.parse(song.uri))
+            beginPrepare(song.id, song.uri.toUri())
             durationMs.value = song.durationMs
             return
         }
@@ -262,22 +263,26 @@ class PlayerController(private val context: Context) {
         val willPlay = !activeIsPlaying()
         if (willPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
         when {
-            aiMode -> mixer?.let {
-                if (it.isPlaying) it.pause() else it.play()
-                isPlaying.value = it.isPlaying
+            aiMode -> {
+                val m = mixer ?: run { if (willPlay) abandonFocus(); return }
+                if (m.isPlaying) m.pause() else m.play()
+                isPlaying.value = m.isPlaying
+                // 이어폰 분리(pauseAll)와 동일하게 일시정지 시 포커스 반납
+                if (!m.isPlaying) abandonFocus()
             }
             source != null -> source?.let {
                 if (it.isPlaying) it.pause() else it.play()
                 isPlaying.value = it.isPlaying
+                if (!it.isPlaying) abandonFocus()
             }
             else -> {
                 // 캐시 준비 중/실패: 재생 의도를 저장해 두면 준비 완료 직후 자동 재생된다.
                 // 실패 후라면 beginPrepare가 재시도 진입점이 된다 (준비 중이면 no-op)
                 if (willPlay) {
-                    val song = currentSong ?: return
+                    val song = currentSong ?: run { abandonFocus(); return }
                     val keepPos = if (pendingResumeSongId == song.id) pendingResumePosMs else 0L
                     pendingResume(song.id, true, keepPos)
-                    beginPrepare(song.id, android.net.Uri.parse(song.uri))
+                    beginPrepare(song.id, song.uri.toUri())
                 }
             }
         }

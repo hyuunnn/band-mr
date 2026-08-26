@@ -8,10 +8,10 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.net.toUri
 import androidx.core.app.ServiceCompat
 import com.bandmr.app.Locator
 import com.bandmr.app.MainActivity
@@ -72,7 +72,7 @@ class SeparationService : Service() {
             setState(SepState.Running(songId, "오디오 디코딩 중…", 0f))
             val raw = File(cacheDir, "sep_$songId.raw")
             raw.delete()
-            val totalFrames = AudioDecode.decodeToRaw44k(this, Uri.parse(song.uri), raw) { p ->
+            val totalFrames = AudioDecode.decodeToRaw44k(this, song.uri.toUri(), raw) { p ->
                 setState(SepState.Running(songId, "오디오 디코딩 중…", p * DECODE_WEIGHT))
             }
 
