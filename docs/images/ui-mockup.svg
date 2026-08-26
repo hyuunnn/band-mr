@@ -78,15 +78,16 @@
       <rect x="24" y="300" width="242" height="30" rx="8" fill="#181822"/>
       <rect x="32" y="306" width="17" height="17" rx="4" fill="#7C4DFF"/>
       <path d="M36 314 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="58" y="319" fill="#ffffff">기타 / 키보드</text>
+      <text x="58" y="319" fill="#ffffff">기타</text>
+      <text x="24" y="343" font-size="10" fill="#8888a0">＋ 피아노(키보드) · 그 외 반주 (스크롤)</text>
     </g>
 
     <!-- 키 조절 -->
     <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="11">
-      <text x="24" y="352" fill="#ccccdd">키 조절</text>
-      <rect x="80" y="344" width="150" height="5" rx="2.5" fill="#26262f"/>
-      <circle cx="115" cy="346.5" r="6" fill="#CFBCFF"/>
-      <text x="244" y="353" fill="#CFBCFF" text-anchor="end">-2 반음</text>
+      <text x="24" y="360" fill="#ccccdd">키 조절</text>
+      <rect x="80" y="352" width="150" height="5" rx="2.5" fill="#26262f"/>
+      <circle cx="115" cy="354.5" r="6" fill="#CFBCFF"/>
+      <text x="244" y="361" fill="#CFBCFF" text-anchor="end">-2 반음</text>
     </g>
 
     <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스템 제거 · 키 조절</text>
