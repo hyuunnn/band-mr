@@ -48,7 +48,7 @@ tools/       모델 변환 스크립트 (아래参照)
 ## AI 모델 (GitHub Releases 호스팅)
 
 - 3종 모두 fp32, 세그먼트만 다름: light 131072 / balanced 262144 / quality 344064 (약 236MB씩)
-- URL: `github.com/hyuunnn/band-mr2/releases/download/model-v1/*.onnx` — 저장소 public이라 익명 다운로드 됨
+- URL: `github.com/hyuunnn/band-mr/releases/download/model-v1/*.onnx` — 저장소 public이라 익명 다운로드 됨
 - 라이선스: 가중치는 Meta의 demucs(MIT)에서 파생 — 고지는 `THIRD_PARTY_NOTICES.md` 유지할 것
 - `ModelCatalog.kt`에 SHA-256 핀. **모델을 다시 올리면 해시 3개 반드시 갱신**
 - 원본 PyTorch 대비 활성 구간 corr=1.0000 확인 완료
@@ -70,4 +70,4 @@ tools/       모델 변환 스크립트 (아래参照)
 ## Git
 
 - 커밋 작성자: 저장소 로컬 설정으로 `hyuunnn <15611739+hyuunnn@users.noreply.github.com>` 지정됨 (전역 설정 아님)
-- 원격: `origin = github.com/hyuunnn/band-mr2` (public)
+- 원격: `origin = github.com/hyuunnn/band-mr` (public)

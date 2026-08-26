@@ -24,21 +24,21 @@ enum class Tier(
         "light", "경량 우선",
         "세그먼트가 짧아 빠르고 저발열. 품질은 보통",
         236, 131_072,
-        "https://github.com/hyuunnn/band-mr2/releases/download/model-v1/htdemucs-light-fp32.onnx",
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v1/htdemucs-light-fp32.onnx",
         "d486eb86ad20de8df6e7da6704438861e4fa671463753c907aee4b4cf295a0b2",
     ),
     BALANCED(
         "balanced", "균형형",
         "속도와 품질의 균형 (권장)",
         236, 262_144,
-        "https://github.com/hyuunnn/band-mr2/releases/download/model-v1/htdemucs-balanced-fp32.onnx",
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v1/htdemucs-balanced-fp32.onnx",
         "294309e0fc580d82c67ceaf338442645d66616a27064b4e4c79e9bb0ea67b92d",
     ),
     QUALITY(
         "quality", "품질 우선",
         "긴 세그먼트로 최고 품질. 시간·메모리 많이 사용",
         236, 344_064,
-        "https://github.com/hyuunnn/band-mr2/releases/download/model-v1/htdemucs-quality-fp32.onnx",
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v1/htdemucs-quality-fp32.onnx",
         "aba991a16e25d23d9591073cb6173649932e6de3eba528bc12ca4ef304acc459",
     );
 

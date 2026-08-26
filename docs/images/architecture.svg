@@ -46,7 +46,7 @@
       <rect x="252" y="240" width="196" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>
       <text x="350" y="257" text-anchor="middle" fill="#5B3FBF">베이스 = f0 배음 노칭 + HPF</text>
       <rect x="52" y="274" width="188" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>
-      <text x="146" y="291" text-anchor="middle" fill="#5B3FBF">드럼 = STFT 타앵 억제(HPSS)</text>
+      <text x="146" y="291" text-anchor="middle" fill="#5B3FBF">드럼 = STFT 타악 억제(HPSS)</text>
       <rect x="252" y="274" width="196" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>
       <text x="350" y="291" text-anchor="middle" fill="#5B3FBF">기타 = 중역대 페킹 딥 (근사)</text>
     </g>

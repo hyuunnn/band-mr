@@ -38,7 +38,7 @@ SOFTWARE.
 앱 내 추론에 [onnxruntime-android](https://github.com/microsoft/onnxruntime) 사용.
 MIT License — Copyright (c) Microsoft Corporation.
 
-## Android Jetpack (Compose, Media3/ExoPlayer, Room, DataStore 등)
+## Android Jetpack (Compose, Room, DataStore 등)
 
 Apache License 2.0 — Copyright The Android Open Source Project.
 [https://www.apache.org/licenses/LICENSE-2.0](https://www.apache.org/licenses/LICENSE-2.0)

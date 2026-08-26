@@ -11,9 +11,9 @@
 
 | 기능 | 설명 |
 |---|---|
-| 스텝별 제거 | 보컬·드럼·베이스·기타(키보드 포함)를 체크하여 재생에서 제거 |
+| 스템별 제거 | 보컬·드럼·베이스·기타(키보드 포함)를 체크하여 재생에서 제거 |
 | AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
-| 키 조절 | ±12반음 (옥타브 포함), 세로톤 유지 피치 시프트 |
+| 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 236MB) 선택 다운로드 |
@@ -22,7 +22,6 @@
 
 ## 재생 정책
 
-- **오디오 포커스**: 다른 앱(전화, 내비게이션 등)이 오디오를 요청하면 자동으로 일시정지됩니다.
 - **이어폰 분리**: 이어폰/블루투스가 분리되면 즉시 일시정지됩니다.
 - **백그라운드**: 플레이어 화면을 닫아도 재생이 계속되며, 알림에서 재생/일시정지·종료할 수 있습니다.
 
@@ -38,7 +37,7 @@ AI OFF (WAV 캐시, 절전)
   원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ SourceWavPlayer(DspChain)
                                       ├ 보컬 제거: 대역 한정 L-R 위상 상쇄 (저역 중앙 성분 보존)
                                       ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
-                                      ├ 드럼 제거: STFT HPSS 타앵 억제 (근사)
+                                      ├ 드럼 제거: STFT HPSS 타악 억제 (근사)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
@@ -69,7 +68,7 @@ minSdk 31 (Android 12+) / targetSdk 35
 ## 🤖 AI 모델
 
 AI를 ON하면 설정에서 모델 3종 중 하나를 선택해 다운로드할 수 있습니다.
-모델은 이 저장소의 [Releases](https://github.com/hyuunnn/band-mr2/releases/tag/model-v1)에
+모델은 이 저장소의 [Releases](https://github.com/hyuunnn/band-mr/releases/tag/model-v1)에
 호스팅되어 있으며, 다운로드 시 SHA-256 무결성이 검증됩니다.
 
 | 등급 | 세그먼트 | 특징 |
@@ -101,7 +100,7 @@ app/src/main/java/com/bandmr/app/
 ├── BandMrApp.kt               # Application + 수동 DI(Locator)
 ├── audio/
 │   ├── DspChain.kt            # STFT 스펙트럼 단계 + 바이쿼드 체인 (실시간·오프라인 공용)
-│   ├── SpectralStage.kt       # 드럼=HPSS 타앵 억제 / 베이스=f0 배음 노칭
+│   ├── SpectralStage.kt       # 드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
 │   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache)
 │   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
@@ -134,7 +133,11 @@ tools/export_demucs_onnx.py    # htdemucs → ONNX 변환 스크립트 (검증 �
 
 - 비AI 모드의 기타 제거는 근사 처리입니다(정확한 분리는 AI 모드 사용).
 - 비AI 모드의 드럼 제거는 STFT 기반 HPSS 근사로, 실제 트랜지언트 일부가 함께 약해질 수 있습니다.
-- 피치 시프터는 실시간용 그레놀라 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
+- 피치 시프터는 실시간용 그래뉼러 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
 - 품질 우선 모델은 메모리를 많이 사용하므로 RAM 4GB 이상 기기를 권장합니다.
 - 모델 파일이 약 236MB라 최초 다운로드에 시간이 걸릴 수 있습니다 (Wi-Fi 권장).
 - 알림 컨트롤은 MediaSession 없이 구현되어 블루투스 헤드셋 버튼/잠금화면 연동은 제한적입니다.
+
+---
+
+Assisted by GLM-5.3-Flash (Ox Alpha)

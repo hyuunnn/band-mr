@@ -2,7 +2,7 @@ package com.bandmr.app.audio
 
 /**
  * STFT 기반 스펙트럼 처리 스테이지.
- *  - 드럼 제거: 주파수축 중간값 필터링(HPSS)으로 타앵 성분 억제
+ *  - 드럼 제거: 주파수축 중간값 필터링(HPSS)으로 타악 성분 억제
  *  - 베이스 제거: f0 검출 후 배음 콤 노칭
  *
  * 블록 지연(block=1024, hop=512 프레임)이 있으며 출력 FIFO로 흡수한다.
@@ -146,13 +146,13 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         }
     }
 
-    /** 주파수축 중간값(타앵 추정) 대비 시간축 중간값(화성 추정) 소프트 마스크로 타앵 억제 */
+    /** 주파수축 중간값(타악 추정) 대비 시간축 중간값(화성 추정) 소프트 마스크로 타악 억제 */
     private fun applyPercussiveSuppression(ch: Int) {
         val half = n / 2
         for (j in 0..half) {
             mags[j] = kotlin.math.hypot(re[j].toDouble(), im[j].toDouble()).toFloat()
         }
-        // 수직(주파수축) 중간값 → 타앵 추정
+        // 수직(주파수축) 중간값 → 타악 추정
         medianFreq(mags, medV, scratch)
         // 히스토리 저장 후 수평(시간축) 중간값 → 화성 추정
         val cur = magHist[ch][histPos]
