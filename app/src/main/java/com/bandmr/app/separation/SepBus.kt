@@ -6,7 +6,7 @@ sealed interface SepState {
     data object Idle : SepState
     data class Running(val songId: Long, val stage: String, val progress: Float) : SepState
     data class Done(val songId: Long) : SepState
-    data class Error(val message: String) : SepState
+    data class Error(val songId: Long, val message: String) : SepState
 }
 
 /** 서비스와 UI 사이의 상태 버스 */

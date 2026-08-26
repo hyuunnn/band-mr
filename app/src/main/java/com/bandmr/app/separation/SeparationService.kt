@@ -100,7 +100,7 @@ class SeparationService : Service() {
             throw e
         } catch (t: Throwable) {
             cleanupFiles(songId)
-            setState(SepState.Error(t.message ?: "분리 중 오류가 발생했습니다"))
+            setState(SepState.Error(songId, t.message ?: "분리 중 오류가 발생했습니다"))
         } finally {
             releaseWakeLock()
             stopSelf()

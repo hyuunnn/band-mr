@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""htdemucs -> 복소수 없는 ONNX 변환 + int8/fp16 파생 + 검증.
+"""htdemucs -> 복소수 없는 ONNX(fp32) 변환 + 검증.
 
 torch.stft/istft는 complex dtype을 반환해 ONNX export가 불가능하다.
 demucs.spec의 spectro/ispectro를 실수(re/im 쌍) 연산으로 재구현해 교체한다.
@@ -10,6 +10,9 @@ htdemucs는 cac=True가 기본이라 complex 사용이 view뿐이므로 이 치�
 - iSTFT: DFT 행렬곱 + Col2im(fold) 기반 OLA
 - 정규화 배율은 torch와 실험적으로 대조해 확인한 값 사용
   (stft: ×win_length^-0.5 / istft: ×√win_length)
+
+int8 동적 양자화는 음악 입력에서 심각하게 왜곡되고, fp16 컨버터도 이 그래프에서
+dtype 불일치를 일으키므로 **fp32 그대로 배포**한다(세그먼트 길이로만 등급 구분).
 """
 import hashlib
 import math

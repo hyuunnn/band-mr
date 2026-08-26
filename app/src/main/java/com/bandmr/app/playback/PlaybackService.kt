@@ -90,7 +90,9 @@ class PlaybackService : Service() {
     private fun buildNotification(playing: Boolean): Notification {
         val openPi = PendingIntent.getActivity(
             this, 0,
-            Intent(this, MainActivity::class.java),
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            },
             PendingIntent.FLAG_IMMUTABLE,
         )
         val togglePi = PendingIntent.getService(

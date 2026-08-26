@@ -1,5 +1,6 @@
 package com.bandmr.app.audio
 
+import android.util.Log
 import java.io.Closeable
 import java.io.DataOutputStream
 import java.io.File
@@ -169,7 +170,9 @@ class WavWriter private constructor(
                 f.seek(40)
                 f.writeIntLe((dataBytes and 0xFFFFFFFFL).toInt())
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // 헤더 패치 실패 시 파일 크기 필드가 틀어져 재생/파싱이 깨질 수 있다
+            Log.w("WavWriter", "WAV 헤더 패치 실패: $path", e)
         }
     }
 

@@ -35,7 +35,9 @@ class MrAudioProcessor : BaseAudioProcessor() {
     }
 
     override fun onFlush() {
-        chain?.muteMask = DspBus.muteMask
+        // seek 등으로 스트림이 끊길 때 스펙트럼 파이프라인의 이전 위치 잔여분이
+        // 새 구간 앞에 붙는 것을 막기 위해 체인 상태를 강제 초기화한다.
+        chain = DspChain(sampleRate, channels).also { it.muteMask = DspBus.muteMask }
         super.onFlush()
     }
 

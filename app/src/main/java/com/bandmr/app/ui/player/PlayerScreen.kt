@@ -139,7 +139,7 @@ fun PlayerScreen(songId: Long) {
             running = running,
             stage = sepProgress?.stage,
             progress = sepProgress?.progress,
-            error = (sepState as? SepState.Error)?.message,
+            error = (sepState as? SepState.Error)?.takeIf { it.songId == songId }?.message,
             onToggleAi = { enabled -> scope.launch { Locator.settings.setAiEnabled(enabled) } },
             onStartSeparation = {
                 if (Build.VERSION.SDK_INT >= 33) {
