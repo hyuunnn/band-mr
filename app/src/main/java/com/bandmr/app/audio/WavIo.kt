@@ -21,6 +21,7 @@ class WavReader(private val file: File) : Closeable {
     private val raf: RandomAccessFile = RandomAccessFile(file, "r")
     private var dataOffset: Long = 0
     private var frameBytes: Int = 4
+    private var scratch: ByteArray = ByteArray(0)
 
     init {
         try {
@@ -84,17 +85,18 @@ class WavReader(private val file: File) : Closeable {
     fun read(framePos: Long, out: ShortArray, frames: Int): Int {
         if (framePos >= totalFrames) return 0
         val toRead = minOf(frames.toLong(), totalFrames - framePos).toInt()
-        val bytes = ByteArray(toRead * frameBytes)
+        val byteLen = toRead * frameBytes
+        if (scratch.size < byteLen) scratch = ByteArray(byteLen)
         synchronized(raf) {
             raf.seek(dataOffset + framePos * frameBytes)
             var done = 0
-            while (done < bytes.size) {
-                val n = raf.read(bytes, done, bytes.size - done)
+            while (done < byteLen) {
+                val n = raf.read(scratch, done, byteLen - done)
                 if (n < 0) break
                 done += n
             }
         }
-        val bbuf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        val bbuf = ByteBuffer.wrap(scratch).order(ByteOrder.LITTLE_ENDIAN)
         for (i in 0 until toRead * channels) out[i] = bbuf.short
         return toRead
     }

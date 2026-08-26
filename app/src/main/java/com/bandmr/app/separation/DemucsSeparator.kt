@@ -3,6 +3,7 @@ package com.bandmr.app.separation
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Stem
 import java.io.File
@@ -155,8 +156,8 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
                         }
                         var f = 0
                         while (f < writable) {
-                            shortBuf[f * 2] = clamp(tmpL[f])
-                            shortBuf[f * 2 + 1] = clamp(tmpR[f])
+                            shortBuf[f * 2] = DspChain.clampShort(tmpL[f])
+                            shortBuf[f * 2 + 1] = DspChain.clampShort(tmpR[f])
                             f++
                         }
                         writer.writeShorts(shortBuf, writable * 2)
@@ -172,9 +173,6 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
         }
         return writers.keys.associateWith { File(outDir, "${it.fileName}.wav") }
     }
-
-    private fun clamp(v: Float): Short =
-        (v.coerceIn(-1f, 0.9999f) * 32767f).toInt().toShort()
 
     internal companion object {
         internal const val FADE_DIVISOR = 4

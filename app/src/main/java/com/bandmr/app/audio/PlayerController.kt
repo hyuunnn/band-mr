@@ -43,7 +43,6 @@ class PlayerController(private val context: Context) {
     /** 알림 등에 표시할 현재 곡 제목 */
     val nowPlayingTitle = MutableStateFlow<String?>(null)
 
-    private var pendingSeekMs = -1L
     private var wasAutoEnded = false
 
     // ---------- 오디오 포커스 / 이어폰 분리 ----------
@@ -102,16 +101,15 @@ class PlayerController(private val context: Context) {
     fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int) {
         DspBus.muteMask = muteMask
         val modeChanged = aiOn != aiMode || currentSong?.id != song.id
-        val separated = song.separatedTier != null && song.stemsDir != null
         if (!modeChanged && !needsReload(song, aiOn)) {
             applyParams(muteMask, semitones)
             return
         }
         val wasPlaying = activeIsPlaying()
-        val pos = activePositionMs()
+        val pos = positionMs()
 
         releaseEngines()
-        aiMode = aiOn && separated
+        aiMode = aiOn && song.isSeparated
         currentSong = song
         nowPlayingTitle.value = song.title
         registerNoisyReceiver()
@@ -131,10 +129,9 @@ class PlayerController(private val context: Context) {
             }).also {
                 it.load(files)
                 it.semitones = semitones
-                it.gains = gainArray(muteMask)
+                it.gains = Stem.gainArray(muteMask)
                 durationMs.value = framesToMs(it.durationFrames)
-                val seekTo = if (pendingSeekMs >= 0) pendingSeekMs else pos
-                it.seekToFrame(msToFrames(seekTo))
+                it.seekToFrame(msToFrames(pos))
                 if (wasPlaying && !wasAutoEnded) it.play()
             }
         } else {
@@ -142,20 +139,16 @@ class PlayerController(private val context: Context) {
             exo = player
             player.setMediaItem(MediaItem.fromUri(android.net.Uri.parse(song.uri)))
             player.prepare()
-            val seekTo = if (pendingSeekMs >= 0) pendingSeekMs else pos
-            if (seekTo > 0) player.seekTo(seekTo)
+            if (pos > 0) player.seekTo(pos)
             player.playbackParameters = PlaybackParameters(1f, pitchRatio(semitones))
             if (wasPlaying && !wasAutoEnded) player.play()
             durationMs.value = song.durationMs
         }
-        pendingSeekMs = -1L
         wasAutoEnded = false
     }
 
-    private fun needsReload(song: Song, aiOn: Boolean): Boolean {
-        val separated = song.separatedTier != null && song.stemsDir != null
-        return aiOn && separated && mixer == null
-    }
+    private fun needsReload(song: Song, aiOn: Boolean): Boolean =
+        aiOn && song.isSeparated && mixer == null
 
     private fun buildExo(): ExoPlayer {
         val processor = MrAudioProcessor()
@@ -219,7 +212,7 @@ class PlayerController(private val context: Context) {
 
     fun setMuteMask(mask: Int) {
         DspBus.muteMask = mask
-        mixer?.gains = gainArray(mask)
+        mixer?.gains = Stem.gainArray(mask)
     }
 
     fun setSemitones(n: Int) {
@@ -241,11 +234,6 @@ class PlayerController(private val context: Context) {
         durationMs.value = 0L
     }
 
-    /** 화면 전환 시 위치 보존용 */
-    fun stashPositionForReload() {
-        pendingSeekMs = activePositionMs()
-    }
-
     // ---------- 유틸 ----------
 
     private fun releaseEngines() {
@@ -256,15 +244,10 @@ class PlayerController(private val context: Context) {
     private fun activeIsPlaying(): Boolean =
         if (aiMode) mixer?.isPlaying == true else exo?.isPlaying == true
 
-    private fun activePositionMs(): Long = positionMs()
-
     private fun applyParams(muteMask: Int, semitones: Int) {
         setMuteMask(muteMask)
         setSemitones(semitones)
     }
-
-    private fun gainArray(mask: Int): FloatArray =
-        FloatArray(Stem.entries.size) { i -> if (mask and Stem.entries[i].bit != 0) 0f else 1f }
 
     private fun msToFrames(ms: Long): Long = ms * sampleRateCompat() / 1000
 

@@ -55,6 +55,7 @@ class ModelManager(private val context: Context) {
                             val buf = ByteArray(DEFAULT_BUF)
                             var read: Int
                             var done = 0L
+                            var lastPct = -1
                             while (input.read(buf).also { read = it } >= 0) {
                                 if (read > 0) {
                                     output.write(buf, 0, read)
@@ -62,7 +63,12 @@ class ModelManager(private val context: Context) {
                                 }
                                 done += read
                                 if (total > 0) {
-                                    setState(tier, ModelState.Downloading(done.toFloat() / total))
+                                    // % 단위로만 갱신해 StateFlow 업데이트 빈도를 줄인다
+                                    val pct = (done * 100 / total).toInt()
+                                    if (pct != lastPct) {
+                                        lastPct = pct
+                                        setState(tier, ModelState.Downloading(done.toFloat() / total))
+                                    }
                                 }
                             }
                         }

@@ -18,4 +18,8 @@ data class Song(
     val separatedTier: String? = null,
     /** 분리된 스템 wav가 있는 디렉터리 */
     val stemsDir: String? = null,
-)
+) {
+    /** AI 분리 결과가 존재하여 스템 믹싱이 가능한 상태 */
+    val isSeparated: Boolean
+        get() = separatedTier != null && stemsDir != null
+}

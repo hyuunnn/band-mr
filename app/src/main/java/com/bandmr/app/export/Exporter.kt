@@ -27,8 +27,7 @@ class Exporter(private val context: Context) {
         dest: Uri,
         onProgress: (Float) -> Unit = {},
     ): Unit = withContext(Dispatchers.IO) {
-        val separated = song.separatedTier != null && song.stemsDir != null
-        if (aiOn && separated) {
+        if (aiOn && song.isSeparated) {
             exportMixFromStems(song, muteMask, semitones, dest, onProgress)
         } else {
             exportMixFromOriginal(song, muteMask, semitones, dest, onProgress)
@@ -63,9 +62,7 @@ class Exporter(private val context: Context) {
         val writer = WavWriter.create(tmp, sr)
         try {
             val shifter = PitchShifter().also { it.semitones = semitones }
-            val gains = FloatArray(Stem.entries.size) { i ->
-                if (muteMask and Stem.entries[i].bit != 0) 0f else 1f
-            }
+            val gains = Stem.gainArray(muteMask)
             val stemShort = ShortArray(CHUNK * 2)
             val mixed = FloatArray(CHUNK * 2)
             val outShort = ShortArray(CHUNK * 2)

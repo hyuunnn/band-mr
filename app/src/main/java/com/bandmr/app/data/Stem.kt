@@ -11,5 +11,9 @@ enum class Stem(val fileName: String, val label: String, val dspHint: String) {
 
     companion object {
         fun fromFileName(name: String): Stem? = entries.firstOrNull { it.fileName == name }
+
+        /** 제거 마스크에 대응하는 스텝별 게인 (제거=0, 유지=1) */
+        fun gainArray(muteMask: Int): FloatArray =
+            FloatArray(entries.size) { i -> if (muteMask and entries[i].bit != 0) 0f else 1f }
     }
 }

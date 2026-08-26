@@ -43,6 +43,7 @@ import com.bandmr.app.Locator
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.Stem
 import com.bandmr.app.export.Exporter
+import com.bandmr.app.playback.PlaybackService
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
@@ -75,7 +76,7 @@ fun PlayerScreen(songId: Long) {
     val playbackNotifPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
-        com.bandmr.app.playback.PlaybackService.start(Locator.context)
+        PlaybackService.start(Locator.context)
     }
 
     LaunchedEffect(song?.id, song?.separatedTier, aiOn) {
@@ -94,7 +95,7 @@ fun PlayerScreen(songId: Long) {
             Locator.context, Manifest.permission.POST_NOTIFICATIONS
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) {
-            com.bandmr.app.playback.PlaybackService.start(Locator.context)
+            PlaybackService.start(Locator.context)
         } else {
             playbackNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -107,9 +108,10 @@ fun PlayerScreen(songId: Long) {
     }
 
     val s = song ?: return
-    val separated = s.separatedTier != null && s.stemsDir != null
+    val separated = s.isSeparated
     val running = sepState is SepState.Running && (sepState as SepState.Running).songId == songId
     val sepProgress = (sepState as? SepState.Running)
+    val loadedDurationMs by ctrl.durationMs.collectAsState()
 
     Column(
         Modifier
@@ -122,7 +124,7 @@ fun PlayerScreen(songId: Long) {
 
         TransportCard(
             ctrl = ctrl,
-            durationMs = if (ctrl.durationMs.collectAsState().value > 0) ctrl.durationMs.collectAsState().value else s.durationMs,
+            durationMs = if (loadedDurationMs > 0) loadedDurationMs else s.durationMs,
             posMs = posMs,
             dragging = dragging,
             dragPosMs = dragPosMs,

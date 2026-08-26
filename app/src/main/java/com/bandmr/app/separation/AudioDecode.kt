@@ -7,6 +7,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import com.bandmr.app.audio.Biquad
+import com.bandmr.app.audio.DspChain
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -102,8 +103,8 @@ object AudioDecode {
             }
             // 리샘플 지연분 플러시 (마지막 샘플 손실 방지)
             outFrames += resampler.flush { lo, ro ->
-                writeShortLe(out, leBuf.get(), DspChainPublic.clamp(lo))
-                writeShortLe(out, leBuf.get(), DspChainPublic.clamp(ro))
+                writeShortLe(out, leBuf.get(), DspChain.clampShort(lo))
+                writeShortLe(out, leBuf.get(), DspChain.clampShort(ro))
             }
             return outFrames
         } finally {
@@ -150,8 +151,8 @@ object AudioDecode {
             }
         }
         return resampler.process(l, r, framesIn) { lo, ro ->
-            writeShortLe(out, scratch, DspChainPublic.clamp(lo))
-            writeShortLe(out, scratch, DspChainPublic.clamp(ro))
+            writeShortLe(out, scratch, DspChain.clampShort(lo))
+            writeShortLe(out, scratch, DspChain.clampShort(ro))
         }
     }
 
@@ -269,8 +270,3 @@ object AudioDecode {
     }
 }
 
-/** AudioDecode 내부에서 사용하는 클램프 모음 (패키지 공개용) */
-internal object DspChainPublic {
-    fun clamp(v: Float): Short =
-        (v.coerceIn(-1f, 0.9999f) * 32767f).toInt().toShort()
-}

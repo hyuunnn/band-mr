@@ -91,7 +91,7 @@ class PlaybackService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(com.bandmr.app.R.drawable.ic_stat_mr)
             .setContentTitle(Locator.playerController.nowPlayingTitle.value ?: "밴드 MR")
             .setContentText(if (playing) "연습 재생 중" else "일시정지")
             .setContentIntent(openPi)
