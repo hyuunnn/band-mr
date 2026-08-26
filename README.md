@@ -34,12 +34,12 @@
 <summary>텍스트로 보기</summary>
 
 ```
-AI OFF (실시간, 절전)
-  원본 파일 ──▶ ExoPlayer ──▶ MrAudioProcessor(DspChain)
-                                ├ 보컬 제거: 대역 한정 L-R 위상 상쇄 (저역 중앙 성분 보존)
-                                ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
-                                ├ 드럼 제거: STFT HPSS 타앵 억제 (근사)
-                                └ 기타 제거: 중역대 페킹 딥 (실험적)
+AI OFF (WAV 캐시, 절전)
+  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ SourceWavPlayer(DspChain)
+                                      ├ 보컬 제거: 대역 한정 L-R 위상 상쇄 (저역 중앙 성분 보존)
+                                      ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
+                                      ├ 드럼 제거: STFT HPSS 타앵 억제 (근사)
+                                      └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
   원본 파일 ──▶ MediaCodec 디코딩 ──▶ Demucs ONNX 추론(4스텝)
@@ -102,7 +102,8 @@ app/src/main/java/com/bandmr/app/
 ├── audio/
 │   ├── DspChain.kt            # STFT 스펙트럼 단계 + 바이쿼드 체인 (실시간·오프라인 공용)
 │   ├── SpectralStage.kt       # 드럼=HPSS 타앵 억제 / 베이스=f0 배음 노칭
-│   ├── MrAudioProcessor.kt    # Media3 AudioProcessor (AI OFF 실시간 DSP)
+│   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache)
+│   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
 │   ├── StemMixPlayer.kt       # 스템 4개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
