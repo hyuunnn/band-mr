@@ -87,7 +87,9 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
             RandomAccessFile(inputRaw, "r").use { raf ->
                 var pos = 0L
                 while (pos < totalFrames) {
-                    check(!isCancelled()) { "사용자가 취소했습니다" }
+                    // 취소는 오류가 아니므로 CancellationException으로 전파한다
+                    // (SeparationService가 Idle 상태로 정리하고 UI에 오류를 띄우지 않음)
+                    if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
                     val len = minOf(seg.toLong(), totalFrames - pos).toInt()
                     val isLast = pos + len >= totalFrames
 

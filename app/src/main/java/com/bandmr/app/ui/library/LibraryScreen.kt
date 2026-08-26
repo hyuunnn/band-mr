@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
+import com.bandmr.app.separation.SepBus
+import com.bandmr.app.separation.SepState
+import com.bandmr.app.separation.SeparationService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -121,6 +124,11 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                         // 재생 중인 곡이면 먼저 정지·해제 (삭제된 파일 재생 방지)
                         if (Locator.playerController.currentSongId() == song.id) {
                             Locator.playerController.release()
+                        }
+                        // 분리 진행 중이면 취소 (완료 후 스템이 고아로 남는 것 방지)
+                        val sep = SepBus.state.value
+                        if (sep is SepState.Running && sep.songId == song.id) {
+                            SeparationService.cancel(Locator.context)
                         }
                         song.stemsDir?.let { withContext(Dispatchers.IO) { File(it).deleteRecursively() } }
                         MixCache.delete(Locator.context, song.id)

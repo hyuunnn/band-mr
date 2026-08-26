@@ -133,7 +133,8 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
         if (mask == 0) return
         val flushSamples = SpectralStage.BLOCK * 4
         val zeros = FloatArray(SpectralStage.HOP * 2)
-        val out = ShortArray(BUF)
+        // floatOut은 ensureBuffers로 BUF보다 커질 수 있으므로 크기를 맞춘다
+        val out = ShortArray(floatOut.size)
         var emitted = 0
         while (emitted < flushSamples) {
             val chunk = minOf(zeros.size, flushSamples - emitted)

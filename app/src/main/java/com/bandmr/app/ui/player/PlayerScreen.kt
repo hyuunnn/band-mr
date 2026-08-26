@@ -32,6 +32,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,11 +61,11 @@ fun PlayerScreen(songId: Long) {
     val aiOn by Locator.settings.aiEnabled.collectAsState(initial = false)
     val sepState by SepBus.state.collectAsState()
 
-    var muteMask by remember { mutableStateOf(0) }
-    var semitones by remember { mutableStateOf(0) }
+    var muteMask by remember { mutableIntStateOf(0) }
+    var semitones by remember { mutableIntStateOf(0) }
     var dragging by remember { mutableStateOf(false) }
     var dragPosMs by remember { mutableFloatStateOf(0f) }
-    var posMs by remember { mutableStateOf(0L) }
+    var posMs by remember { mutableLongStateOf(0L) }
     var exporting by remember { mutableStateOf(false) }
     var exportMsg by remember { mutableStateOf<String?>(null) }
 

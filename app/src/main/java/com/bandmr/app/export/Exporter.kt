@@ -114,17 +114,8 @@ class Exporter(private val context: Context) {
             RandomAccessFile(raw, "r").use { raf ->
                 renderDspChunks(raf, totalFrames, chain, shifter, writer, onProgress)
             }
-            // 스펙트럼 파이프라인 지연분 플러시
-            chain.drain { buf, cnt ->
-                var i = 0
-                while (i + 1 < cnt) {
-                    shifter.process(buf[i] / 32768f, buf[i + 1] / 32768f)
-                    buf[i] = DspChain.clampShort(shifter.outL)
-                    buf[i + 1] = DspChain.clampShort(shifter.outR)
-                    i += 2
-                }
-                writer.writeShorts(buf, cnt)
-            }
+            // 스펙트럼 파이프라인 지연분 플러시 (체인이 마지막 단계이므로 그대로 기록)
+            chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
             writer.close()
             copyTmpToDest(tmp, dest)
         } finally {
@@ -155,12 +146,13 @@ class Exporter(private val context: Context) {
             }
             val bb = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             for (i in 0 until frames * 2) buf[i] = bb.short
-            chain.processInPlace(buf, frames * 2)
+            // 재생 경로(SourceWavPlayer)와 동일한 순서: 피치시프트 → 제거 체인
             for (i in 0 until frames) {
                 shifter.process(buf[i * 2] / 32768f, buf[i * 2 + 1] / 32768f)
                 buf[i * 2] = DspChain.clampShort(shifter.outL)
                 buf[i * 2 + 1] = DspChain.clampShort(shifter.outR)
             }
+            chain.processInPlace(buf, frames * 2)
             writer.writeShorts(buf, frames * 2)
             pos += frames
             onProgress(0.4f + 0.6f * (pos.toFloat() / totalFrames))

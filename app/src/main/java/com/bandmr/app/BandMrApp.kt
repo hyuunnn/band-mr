@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.io.File
 
 class BandMrApp : Application() {
 
@@ -25,7 +26,9 @@ class BandMrApp : Application() {
     private fun preCacheMixes() {
         Locator.appScope.launch(Dispatchers.IO) {
             runCatching {
-                Locator.songDao.getAllOnce().forEach { song ->
+                val songs = Locator.songDao.getAllOnce()
+                cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
+                songs.forEach { song ->
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
                         runCatching {
                             MixCache.prepare(this@BandMrApp, song.id, Uri.parse(song.uri))
@@ -33,6 +36,21 @@ class BandMrApp : Application() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * DB에 없는 곡의 잔여 파일 정리.
+     * 곡 삭제와 백그라운드 작업(분리/캐시 준비)이 경쟁하면 스템·캐시가 고아로 남을 수 있다.
+     */
+    private fun cleanUpOrphans(validIds: Set<Long>) {
+        File(filesDir, "mixcache").listFiles()?.forEach { f ->
+            val id = f.name.substringBefore('.').toLongOrNull()
+            if (id == null || id !in validIds) f.delete()
+        }
+        File(filesDir, "stems").listFiles()?.forEach { d ->
+            val id = d.name.toLongOrNull()
+            if (id == null || id !in validIds) d.deleteRecursively()
         }
     }
 }

@@ -31,7 +31,7 @@ object AudioDecode {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         val out = BufferedOutputStream(FileOutputStream(outFile), 256 * 1024)
-        val leBuf = ThreadLocal.withInitial { ByteArray(8192) }
+        val leBuf = ByteArray(2) // LE short 기록용 (단일 스레드)
         try {
             extractor.setDataSource(context, uri, null)
             var trackIndex = -1
@@ -93,7 +93,7 @@ object AudioDecode {
                         for (i in shorts.indices) shorts[i] = ob.short
                         codec.releaseOutputBuffer(outIdx, false)
 
-                        outFrames += emitStereo44k(shorts, inCh, resampler, out, leBuf.get())
+                        outFrames += emitStereo44k(shorts, inCh, resampler, out, leBuf)
                         if (durationUs > 0 && info.presentationTimeUs > 0) {
                             onProgress((info.presentationTimeUs.toFloat() / durationUs).coerceIn(0f, 1f))
                         }
@@ -103,8 +103,8 @@ object AudioDecode {
             }
             // 리샘플 지연분 플러시 (마지막 샘플 손실 방지)
             outFrames += resampler.flush { lo, ro ->
-                writeShortLe(out, leBuf.get(), DspChain.clampShort(lo))
-                writeShortLe(out, leBuf.get(), DspChain.clampShort(ro))
+                writeShortLe(out, leBuf, DspChain.clampShort(lo))
+                writeShortLe(out, leBuf, DspChain.clampShort(ro))
             }
             return outFrames
         } finally {
@@ -202,6 +202,8 @@ object AudioDecode {
             step = inRate.toDouble() / outRate
             pos = 0.0
             base = 0L
+            baseOfNextBlock = 0L // 미리셋 시 다음 process가 스테일 base로 폭주한다
+            len = 0
             hasHist = false
             setupAntiAlias(inRate, outRate)
         }

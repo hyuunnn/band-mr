@@ -29,6 +29,9 @@ import java.io.File
 class SeparationService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    // 코루틴 본체와 isCancelled 람다가 다른 스레드에서 읽으므로 가시성 보장 필요
+    @Volatile
     private var job: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
 

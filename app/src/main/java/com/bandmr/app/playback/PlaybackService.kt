@@ -36,10 +36,7 @@ class PlaybackService : Service() {
         scope.launch {
             Locator.playerController.isPlaying.collect { promoteOrUpdate() }
         }
-        scope.launch {
-            Locator.playerController.nowPlayingTitle.collect { promoteOrUpdate() }
-        }
-        // 곡 삭제 등으로 컨트롤러가 해제되면 알림을 걷고 서비스도 종료
+        // 곡 삭제 등으로 컨트롤러가 해제되면(제목 null) 알림을 걷고 서비스도 종료
         scope.launch {
             Locator.playerController.nowPlayingTitle.collect { title ->
                 if (title == null && !Locator.playerController.isPlaying.value) {
@@ -48,6 +45,8 @@ class PlaybackService : Service() {
                         this@PlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE,
                     )
                     stopSelf()
+                } else {
+                    promoteOrUpdate()
                 }
             }
         }

@@ -62,6 +62,17 @@ class ModelManager(private val context: Context) {
                 try {
                     if (offset > 0L) conn.setRequestProperty("Range", "bytes=$offset-")
                     val code = conn.responseCode
+                    if (code == 416) {
+                        // 부분 파일이 이미 전체 크기 — 해시가 맞으면 그대로 승격, 아니면 폐기
+                        // (그냥 던지면 완전한 tmp가 계속 남아 영원히 416으로 실패한다)
+                        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                        if (tier.sha256 != null && actual.equals(tier.sha256, ignoreCase = true)) {
+                            promoteTmp(tmp, tier)
+                            return@withContext
+                        }
+                        tmp.delete()
+                        throw IOException("손상된 임시 파일을 정리했습니다. 다시 시도해 주세요")
+                    }
                     if (code !in 200..299) {
                         throw IOException("다운로드 실패: HTTP $code")
                     }
@@ -117,14 +128,7 @@ class ModelManager(private val context: Context) {
                 } finally {
                     conn.disconnect()
                 }
-                val dest = modelFile(tier)
-                dest.parentFile?.mkdirs()
-                if (dest.exists()) dest.delete()
-                if (!tmp.renameTo(dest)) {
-                    tmp.copyTo(dest, overwrite = true)
-                    tmp.delete()
-                }
-                setState(tier, ModelState.Ready)
+                promoteTmp(tmp, tier)
             } catch (e: CancellationException) {
                 // 취소는 실패가 아니다. 부분 파일은 남겨 이어받기 유도
                 setState(tier, ModelState.NotDownloaded)
@@ -136,6 +140,18 @@ class ModelManager(private val context: Context) {
                 throw t
             }
         }
+    }
+
+    /** 검증 끝난 임시 파일을 정식 모델 파일로 승격하고 Ready 상태로 전환 */
+    private fun promoteTmp(tmp: File, tier: Tier) {
+        val dest = modelFile(tier)
+        dest.parentFile?.mkdirs()
+        if (dest.exists()) dest.delete()
+        if (!tmp.renameTo(dest)) {
+            tmp.copyTo(dest, overwrite = true)
+            tmp.delete()
+        }
+        setState(tier, ModelState.Ready)
     }
 
     fun delete(tier: Tier) {

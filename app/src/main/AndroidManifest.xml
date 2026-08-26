@@ -8,9 +8,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- 백업 비활성: 캐시·스템·모델(수백 MB~GB)이 filesDir에 있고,
+         곡 DB의 content:// 권한은 기기 이전 후 유효하지 않다 -->
     <application
         android:name=".BandMrApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"

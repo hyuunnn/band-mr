@@ -31,7 +31,7 @@ playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
 export/      믹스/스템 WAV 내보내기
 data/        Room(Song), DataStore(설정)
 ui/          Compose (라이브러리/플레이어/설정)
-tools/       모델 변환 스크립트 (아래参照)
+tools/       모델 변환 스크립트 (아래 참조)
 ```
 
 핵심 불변식:

@@ -96,7 +96,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             shifter = newShifter(semitones)
             track?.pause()
             track?.flush()
-            if (isPlaying && totalFrames > 0) startWriteLoopPlayback()
+            if (isPlaying && totalFrames > 0) track?.play()
         }
     }
 
@@ -121,11 +121,6 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
 
     @Volatile
     private var running = false
-
-    private fun startWriteLoopPlayback() {
-        track ?: return
-        track?.play()
-    }
 
     private fun buildTrack(): AudioTrack {
         val minBuf = AudioTrack.getMinBufferSize(

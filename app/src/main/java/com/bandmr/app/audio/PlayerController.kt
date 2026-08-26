@@ -218,6 +218,7 @@ class PlayerController(private val context: Context) {
                     // 실패를 노출하고 저장해 둔 재생 의도도 폐기 (스테일 자동 재생 방지)
                     prepareFailedSongId.value = songId
                     clearPendingResume(songId)
+                    abandonFocus() // 재생 대기 중 잡아둔 포커스 반납
                     return@withContext
                 }
                 val cur = currentSong ?: return@withContext

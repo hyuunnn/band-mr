@@ -3,8 +3,9 @@ package com.bandmr.app.separation
 /**
  * 다운로드 가능한 온디바이스 분리 모델 등급.
  *
- * 모델 파일은 htdemucs(Demucs v4)를 ONNX로 변환한 것으로 가정한다.
- * URL은 예시이므로 README의 안내에 따라 직접 호스팅한 주소로 교체할 것.
+ * 모델 파일은 htdemucs(Demucs v4)를 ONNX로 변환해 이 저장소의
+ * GitHub Releases(model-v1)에 호스팅한다. 모델을 다시 업로드하면
+ * SHA-256 해시 3개를 반드시 갱신할 것 (tools/export_demucs_onnx.py가 해시 출력).
  */
 enum class Tier(
     val id: String,
