@@ -4,7 +4,7 @@
 
 ## Demucs 모델 가중치 (ONNX 변환 포함)
 
-`htdemucs` 사전학습 가중치를 ONNX로 변환한 모델 파일
+`htdemucs_6s` 사전학습 가중치를 ONNX로 변환한 모델 파일
 (`releases/tag/model-v1`의 `*.onnx`)은 Meta Platforms가 MIT 라이선스로
 배포하는 [facebookresearch/demucs](https://github.com/facebookresearch/demucs)의
 가중치에서 파생되었습니다.

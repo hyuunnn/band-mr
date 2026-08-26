@@ -1,9 +1,9 @@
 # 밴드 MR (Band MR)
 
-밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타**를 체크해서 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
+밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타 / 피아노(키보드) / 그 외**를 체크해서 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
 
 > 스템 분리에는 [Demucs](https://github.com/facebookresearch/demucs) (MIT, Meta Platforms)의
-> htdemucs 가중치를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
+> htdemucs_6s 가중치를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
 
 📊 **그림으로 보는 소개 페이지**: [docs/index.html](docs/index.html)
 
@@ -11,13 +11,13 @@
 
 | 기능 | 설명 |
 |---|---|
-| 스템별 제거 | 보컬·드럼·베이스·기타(키보드 포함)를 체크하여 재생에서 제거 |
+| 스템별 제거 | 보컬·드럼·베이스·기타·피아노(키보드)·그 외를 체크하여 재생에서 제거 (피아노·그 외는 AI 분리 전용) |
 | AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
 | 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
-| 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 236MB) 선택 다운로드 |
+| 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
 
 ![앱 화면 구성 — 라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
 
@@ -42,7 +42,7 @@ AI OFF (WAV 캐시, 절전)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MediaCodec 디코딩 ──▶ Demucs ONNX 추론(4스템)
+  원본 파일 ──▶ MediaCodec 디코딩 ──▶ Demucs ONNX 추론(6스템)
              ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치
 ```
 
@@ -80,7 +80,7 @@ AI를 ON하면 설정에서 모델 3종 중 하나를 선택해 다운로드할 
 
 ### 모델 재변환 방법 (참고용)
 
-htdemucs(Demucs v4)는 `torch.stft`의 complex 출력 때문에 그대로는 ONNX export가 되지 않는다.
+htdemucs_6s(Demucs v4, 6스템)는 `torch.stft`의 complex 출력 때문에 그대로는 ONNX export가 되지 않는다.
 `demucs.spec`의 spectro/iSTFT를 실수(re/im 쌍) 연산으로 교체하고, `nn.MultiheadAttention`을
 기본 연산으로 분해한 뒤 opset 18로 export해야 한다.
 
@@ -121,7 +121,7 @@ app/src/main/java/com/bandmr/app/
 ├── data/                      # Room(Song), DataStore(설정)
 └── ui/                        # Compose 화면들
 
-tools/export_demucs_onnx.py    # htdemucs → ONNX 변환 스크립트 (검증 포함)
+tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검증 포함)
 ```
 
 ## 테스트
@@ -136,7 +136,7 @@ tools/export_demucs_onnx.py    # htdemucs → ONNX 변환 스크립트 (검증 �
 - 비AI 모드의 드럼 제거는 STFT 기반 HPSS 근사로, 실제 트랜지언트 일부가 함께 약해질 수 있습니다.
 - 피치 시프터는 실시간용 그래뉼러 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
 - 품질 우선 모델은 메모리를 많이 사용하므로 RAM 4GB 이상 기기를 권장합니다.
-- 모델 파일이 약 236MB라 최초 다운로드에 시간이 걸릴 수 있습니다 (Wi-Fi 권장).
+- 모델 파일이 약 178MB라 최초 다운로드에 시간이 걸릴 수 있습니다 (Wi-Fi 권장).
 - 알림 컨트롤은 MediaSession 없이 구현되어 블루투스 헤드셋 버튼/잠금화면 연동은 제한적입니다.
 
 ---

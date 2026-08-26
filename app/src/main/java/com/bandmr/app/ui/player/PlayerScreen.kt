@@ -349,13 +349,21 @@ private fun StemCard(
                 style = MaterialTheme.typography.bodySmall,
             )
             Stem.entries.forEach { stem ->
+                // AI 분리 전용 스템(피아노 등)은 AI OFF에서 비활성화
+                val enabled = separated || !stem.aiOnly
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = muteMask and stem.bit != 0,
                         onCheckedChange = { onToggle(stem, it) },
+                        enabled = enabled,
                     )
                     Column {
-                        Text(stem.label, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stem.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (enabled) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         if (!separated) {
                             Text(stem.dspHint, style = MaterialTheme.typography.labelSmall)
                         }

@@ -29,10 +29,16 @@ class ModelManager(private val context: Context) {
     val states: StateFlow<Map<Tier, ModelState>> = _states
 
     init {
+        // 4스템 시절 파일 정리 (6스템 전환으로 파일명 버저닝).
+        // 구버전 부분 다운로드(.tmp)도 지워야 새 URL에 잘못 이어받지 않는다
+        Tier.entries.forEach { tier ->
+            File(File(context.filesDir, "models/${tier.id}"), "model.onnx").delete()
+            File(context.cacheDir, "model_${tier.id}.tmp").delete()
+        }
         _states.value = Tier.entries.associateWith { if (modelFile(it).exists()) ModelState.Ready else ModelState.NotDownloaded }
     }
 
-    fun modelFile(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), "model.onnx")
+    fun modelFile(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), MODEL_FILE)
 
     fun isDownloaded(tier: Tier): Boolean = modelFile(tier).exists()
 
@@ -40,7 +46,7 @@ class ModelManager(private val context: Context) {
         if (isDownloaded(tier)) return
         withContext(Dispatchers.IO) {
             setState(tier, ModelState.Downloading(0f))
-            val tmp = File(context.cacheDir, "model_${tier.id}.tmp")
+            val tmp = File(context.cacheDir, "model_${tier.id}-6s.tmp")
             try {
                 // 이어받기 준비: 기존 부분 파일의 프리픽스 해시 선계산
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -164,6 +170,8 @@ class ModelManager(private val context: Context) {
     }
 
     companion object {
+        /** 6스템(htdemucs_6s) 전환에 따른 파일명 버저닝 — 구버전과 혼동 방지 */
+        private const val MODEL_FILE = "model-6s.onnx"
         private const val DEFAULT_BUF = 128 * 1024
         private const val MIN_VALID_BYTES = 1_000_000L
     }

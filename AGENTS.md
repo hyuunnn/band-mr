@@ -1,6 +1,6 @@
 # AGENTS.md — AI 에이전트용 프로젝트 가이드
 
-밴드 연습용 MR 제거 앱 (Android, Kotlin + Compose). 곡에서 보컬/드럼/베이스/기타를 제거한 반주로 합주 연습.
+밴드 연습용 MR 제거 앱 (Android, Kotlin + Compose). 곡에서 보컬/드럼/베이스/기타/피아노/그외를 제거한 반주로 합주 연습.
 
 ## 빌드 / 테스트
 
@@ -47,13 +47,17 @@ tools/       모델 변환 스크립트 (아래 참조)
 
 ## AI 모델 (GitHub Releases 호스팅)
 
-- 3종 모두 fp32, 세그먼트만 다름: light 131072 / balanced 262144 / quality 344064 (약 236MB씩)
-- URL: `github.com/hyuunnn/band-mr/releases/download/model-v1/*.onnx` — 저장소 public이라 익명 다운로드 됨
+- htdemucs_6s (6스템: drums/bass/other/vocals/guitar/piano — `ModelConfig.stemOrder`가 이 순서와 일치해야 함)
+- 3종 모두 fp32, 세그먼트만 다름: light 131072 / balanced 262144 / quality 344064 (약 178MB씩)
+- URL: `github.com/hyuunnn/band-mr/releases/download/model-v2/*.onnx` — 저장소 public이라 익명 다운로드 됨
 - 라이선스: 가중치는 Meta의 demucs(MIT)에서 파생 — 고지는 `THIRD_PARTY_NOTICES.md` 유지할 것
 - `ModelCatalog.kt`에 SHA-256 핀. **모델을 다시 올리면 해시 3개 반드시 갱신**
+- 온디바이스 모델 파일명은 `model-6s.onnx` (4스템 시절 `model.onnx`와 구분용 버저닝, ModelManager가 구파일 자동 정리)
 - 원본 PyTorch 대비 활성 구간 corr=1.0000 확인 완료
 
 ## htdemucs ONNX 변환 주의사항 (tools/export_demucs_onnx.py)
+
+사용법: `python export_demucs_onnx.py <출력폴더> htdemucs_6s` (두 번째 인자 생략 시 4스템 htdemucs)
 
 그대로는 export 불가 — 아래 우회가 모두 필요:
 1. `torch.stft/istft` complex 반환 → `demucs.htdemucs.spectro/ispectro`를 re/im 쌍 텐서 버전으로 교체

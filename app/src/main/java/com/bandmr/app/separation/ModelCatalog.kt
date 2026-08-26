@@ -3,8 +3,8 @@ package com.bandmr.app.separation
 /**
  * 다운로드 가능한 온디바이스 분리 모델 등급.
  *
- * 모델 파일은 htdemucs(Demucs v4)를 ONNX로 변환해 이 저장소의
- * GitHub Releases(model-v1)에 호스팅한다. 모델을 다시 업로드하면
+ * 모델 파일은 htdemucs_6s(Demucs v4, 6스템)를 ONNX로 변환해 이 저장소의
+ * GitHub Releases(model-v2)에 호스팅한다. 모델을 다시 업로드하면
  * SHA-256 해시 3개를 반드시 갱신할 것 (tools/export_demucs_onnx.py가 해시 출력).
  */
 enum class Tier(
@@ -24,23 +24,23 @@ enum class Tier(
     LIGHT(
         "light", "경량 우선",
         "세그먼트가 짧아 빠르고 저발열. 품질은 보통",
-        236, 131_072,
-        "https://github.com/hyuunnn/band-mr/releases/download/model-v1/htdemucs-light-fp32.onnx",
-        "d486eb86ad20de8df6e7da6704438861e4fa671463753c907aee4b4cf295a0b2",
+        178, 131_072,
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v2/htdemucs6s-light-fp32.onnx",
+        "18b07c93b957b849e8dadae29ef37ad719fe06a54dde350a44cec3907c31596c",
     ),
     BALANCED(
         "balanced", "균형형",
         "속도와 품질의 균형 (권장)",
-        236, 262_144,
-        "https://github.com/hyuunnn/band-mr/releases/download/model-v1/htdemucs-balanced-fp32.onnx",
-        "294309e0fc580d82c67ceaf338442645d66616a27064b4e4c79e9bb0ea67b92d",
+        178, 262_144,
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v2/htdemucs6s-balanced-fp32.onnx",
+        "fd5ae237bd6ade5589323e71b5ba47a19d0e2d1f2e1da0f0819a8328e308c477",
     ),
     QUALITY(
         "quality", "품질 우선",
         "긴 세그먼트로 최고 품질. 시간·메모리 많이 사용",
-        236, 344_064,
-        "https://github.com/hyuunnn/band-mr/releases/download/model-v1/htdemucs-quality-fp32.onnx",
-        "aba991a16e25d23d9591073cb6173649932e6de3eba528bc12ca4ef304acc459",
+        178, 344_064,
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v2/htdemucs6s-quality-fp32.onnx",
+        "d9f222f4015c720408e368b49b54982b5ba437c22cfc94dda370a438c8ceadc7",
     );
 
     companion object {
@@ -51,6 +51,6 @@ enum class Tier(
 /** 모델 입출력 규격 */
 data class ModelConfig(
     val sampleRate: Int = 44_100,
-    /** Demucs 표준 스템 출력 순서 */
-    val stemOrder: List<String> = listOf("drums", "bass", "other", "vocals"),
+    /** htdemucs_6s 스템 출력 순서 (export 로그의 model.sources와 일치해야 함) */
+    val stemOrder: List<String> = listOf("drums", "bass", "other", "vocals", "guitar", "piano"),
 )
