@@ -26,10 +26,10 @@
 
 ```
 AI OFF (실시간, 절전)
-  원본 파일 ──▶ ExoPlayer ──▶ MrAudioProcessor(실시간 DSP)
-                                ├ 보컬 제거: L-R 위상 상쇄
-                                ├ 베이스 제거: 하이패스 2단 (110Hz)
-                                ├ 드럼 제거: 트랜지언트 게이트 (실험적)
+  원본 파일 ──▶ ExoPlayer ──▶ MrAudioProcessor(DspChain)
+                                ├ 보컬 제거: 대역 한정 L-R 위상 상쇄 (저역 중앙 성분 보존)
+                                ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
+                                ├ 드럼 제거: STFT HPSS 타앵 억제 (근사)
                                 └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
@@ -87,24 +87,27 @@ app/src/main/java/com/bandmr/app/
 ├── MainActivity.kt            # 네비게이션 (라이브러리/플레이어/설정)
 ├── BandMrApp.kt               # Application + 수동 DI(Locator)
 ├── audio/
-│   ├── DspChain.kt            # 바이쿼드/트랜지언트 게이트 (실시간·오프라인 공용)
+│   ├── DspChain.kt            # STFT 스펙트럼 단계 + 바이쿼드 체인 (실시간·오프라인 공용)
+│   ├── SpectralStage.kt       # 드럼=HPSS 타앵 억제 / 베이스=f0 배음 노칭
 │   ├── MrAudioProcessor.kt    # Media3 AudioProcessor (AI OFF 실시간 DSP)
-│   ├── PitchShift.kt          # ±12반음 피치 시프터
+│   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
 │   ├── StemMixPlayer.kt       # 스템 4개 동기 재생 믹서 (AudioTrack)
-│   ├── PlayerController.kt    # 두 엔진 전환/위치 보존/오디오 포커스/파라미터 적용
+│   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
 ├── playback/
 │   └── PlaybackService.kt     # 백그라운드 재생 포그라운드 서비스 + 알림 컨트롤
 ├── separation/
-│   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 교체 필요)
-│   ├── ModelManager.kt        # 다운로드(SHA-256 검증)/삭제/상태
+│   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 핀)
+│   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
 │   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw PCM (안티에일리어싱 리샘플)
-│   ├── DemucsSeparator.kt     # ONNX 추론 + 정규화 + 오버랩 크로스페이드
+│   ├── DemucsSeparator.kt     # ONNX 추론 + 오버랩 크로스페이드
 │   ├── SeparationService.kt   # Foreground Service + 진행 알림
 │   └── SepBus.kt              # 서비스↔UI 상태 버스
 ├── export/Exporter.kt         # 믹스/스템 내보내기
 ├── data/                      # Room(Song), DataStore(설정)
 └── ui/                        # Compose 화면들
+
+tools/export_demucs_onnx.py    # htdemucs → ONNX 변환 스크립트 (검증 포함)
 ```
 
 ## 테스트

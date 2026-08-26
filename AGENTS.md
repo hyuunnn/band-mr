@@ -38,6 +38,9 @@ tools/       모델 변환 스크립트 (아래参照)
 - 오디오 처리 좌우로 interleaved stereo PCM16이 기본. 모노는 DspChain/SpectralStage에서 chCount=1 분기
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)는 LE int로 읽음 (`WavIo.kt` 상수 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리. ExoPlayer에는 handleAudioFocus=false로 수동 관리 통일
+- **MrAudioProcessor.onFlush(seek)에서는 DspChain을 반드시 재생성**할 것. SpectralStage의 FIFO에는 시크 전 위치의 오디오가 남아 있어 초기화하지 않으면 시크 직후 잡음이 붙는다
+- PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
+- ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 
 ## AI 모델 (GitHub Releases 호스팅)
 
