@@ -16,6 +16,9 @@ interface SongDao {
     @Query("SELECT * FROM songs ORDER BY addedAt DESC")
     fun observeAll(): Flow<List<Song>>
 
+    @Query("SELECT * FROM songs ORDER BY addedAt DESC")
+    suspend fun getAllOnce(): List<Song>
+
     @Query("SELECT * FROM songs WHERE id = :id")
     fun observe(id: Long): Flow<Song?>
 

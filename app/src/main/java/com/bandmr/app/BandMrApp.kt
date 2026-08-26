@@ -1,17 +1,40 @@
 package com.bandmr.app
 
 import android.app.Application
+import android.net.Uri
+import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.AppDatabase
 import com.bandmr.app.data.SettingsStore
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.separation.ModelManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class BandMrApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
         Locator.init(this)
+        preCacheMixes()
+    }
+
+    /** 캐시 없는 기존 곡들을 백그라운드로 미리 변환해 첫 재생이 즉시 되도록 한다 */
+    private fun preCacheMixes() {
+        val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        appScope.launch {
+            runCatching {
+                Locator.songDao.getAllOnce().forEach { song ->
+                    if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
+                        runCatching {
+                            MixCache.prepare(this@BandMrApp, song.id, Uri.parse(song.uri))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -5,16 +5,16 @@
 ## 빌드 / 테스트
 
 ```bash
-# 시스템 기본 java는 26이라 Gradle 8.9가 거부함 → 반드시 JDK 17 사용
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+# homebrew openjdk@17는 삭제됨 → Temurin 17 사용 (시스템 기본 java 26은 Gradle 8.9가 거부)
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (28개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (30개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- Android SDK: `~/Library/Android/sdk` (local.properties의 `sdk.dir` 참조, 커밋 금지)
-- compileSdk/targetSdk 35, minSdk 31, AGP 8.7.3, Kotlin 2.0.21, media3 1.4.1, ORT Android 1.18.0
-- 이 머신에 에뮬레이터/실기기 없음 → 런타임 검증은 빌드+JVM 단위테스트까지만 가능. 실기기 테스트는 사용자 몫
+- Android SDK: `/opt/homebrew/share/android-commandlinetools` (local.properties의 `sdk.dir` 참조, 커밋 금지). adb/sdkmanager는 `/opt/homebrew/bin`에 있음
+- compileSdk/targetSdk 35, minSdk 31, AGP 8.7.3, Kotlin 2.0.21, ORT Android 1.18.0 (media3/ExoPlayer는 제거됨 — 아래 아키텍처 참조)
+- 실기기(SM-S931N, Android 16)가 adb로 연결되면 실기기 검증 가능. 그 외 런타임 검증은 빌드+JVM 단위테스트
 
 ## 검증 규칙 (중요)
 
@@ -24,7 +24,8 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 ## 아키텍처 요약
 
 ```
-audio/       AI OFF 실시간 엔진: ExoPlayer + MrAudioProcessor(DspChain) / StemMixPlayer(AI ON 믹서)
+audio/       AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
+             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관
 separation/  AudioDecode(MediaCodec→44.1k raw) → DemucsSeparator(ONNX) → 스템 WAV 캐시
 playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
 export/      믹스/스템 WAV 내보내기
@@ -34,11 +35,13 @@ tools/       모델 변환 스크립트 (아래参照)
 ```
 
 핵심 불변식:
+- **AI OFF 재생은 압축 원본 스트리밍 금지 — 반드시 MixCache의 WAV를 재생한다.** 일부 기기(SM-S931N, Android 16 펌웨어)에서 MediaCodec 비동기 스트리밍 디코딩이 무음/노이즈로 깨진다(비동기 큐잉 강제 비활성화로도 불가 확인). 캐시는 곡 추가/앱 시작 때 백그라운드로 만들고, 없으면 재생 시점에 준비 후 자동 이어재생(preparingSongId 상태로 UI 표시)
+- **PlayerController.release()는 코루틴 스코프를 절대 cancel하지 않는다.** 싱글턴 컨트롤러의 스코프를 취소하면 이후 캐시 준비가 조용히 무시되어 "준비 중" 문구가 영구 노출된다(실제 발생한 버그)
 - **DemucsSeparator는 항상 고정 길이 세그먼트**(`Tier.segmentSamples`)로 추론. 마지막 청크는 0 패딩. ONNX 모델도 고정 shape로 export됨 — 동적 축 쓰면 안 됨
 - 오디오 처리 좌우로 interleaved stereo PCM16이 기본. 모노는 DspChain/SpectralStage에서 chCount=1 분기
-- WAV I/O는 little-endian. FOURCC('RIFF' 등)는 LE int로 읽음 (`WavIo.kt` 상수 참조)
-- PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리. ExoPlayer에는 handleAudioFocus=false로 수동 관리 통일
-- **MrAudioProcessor.onFlush(seek)에서는 DspChain을 반드시 재생성**할 것. SpectralStage의 FIFO에는 시크 전 위치의 오디오가 남아 있어 초기화하지 않으면 시크 직후 잡음이 붙는다
+- WAV I/O는 little-endian. FOURCC('RIFF' 등)은 LE int로 읽음 (`WavIo.kt` 상수 참조)
+- PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
+- 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(SourceWavPlayer.seekToFrame, muteMask setter). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 

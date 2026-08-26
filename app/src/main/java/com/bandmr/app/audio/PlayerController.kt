@@ -7,30 +7,30 @@ import android.media.AudioManager
 import android.content.BroadcastReceiver
 import android.content.Intent
 import androidx.core.content.ContextCompat
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.PlaybackParameters
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * AI OFF: ExoPlayer + MrAudioProcessor(실시간 DSP) / AI ON: StemMixPlayer(스템 믹서).
+ * AI ON: StemMixPlayer(스템 믹서) / AI OFF: SourceWavPlayer(원본 WAV 캐시 + 실시간 DSP).
  * 모드 전환 시 재생 위치를 유지한다.
  * 오디오 포커스 요청과 이어폰 분리(BECOMING_NOISY) 시 일시정지를 처리한다.
+ *
+ * AI OFF는 일부 기기에서 MediaCodec 스트리밍 디코딩이 깨지는 문제(무음·노이즈)가 있어
+ * 압축 원본을 직접 스트리밍하지 않고, [MixCache]로 미리 디코딩해 둔 44.1kHz WAV를
+ * AudioTrack으로 재생한다. 캐시는 곡 추가/앱 시작 때 백그라운드로 만들어지고,
+ * 없는 상태로 재생하면 그 자리에서 준비한 뒤([preparingSongId]) 자동으로 이어 재생한다.
  */
 class PlayerController(private val context: Context) {
 
-    private var exo: ExoPlayer? = null
     private var mixer: StemMixPlayer? = null
+    private var source: SourceWavPlayer? = null
 
     @Volatile
     private var aiMode = false
@@ -43,7 +43,12 @@ class PlayerController(private val context: Context) {
     /** 알림 등에 표시할 현재 곡 제목 */
     val nowPlayingTitle = MutableStateFlow<String?>(null)
 
+    /** 원본 WAV 캐시 생성 중인 곡 id (없으면 null) */
+    val preparingSongId = MutableStateFlow<Long?>(null)
+
     private var wasAutoEnded = false
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // ---------- 오디오 포커스 / 이어폰 분리 ----------
 
@@ -91,7 +96,7 @@ class PlayerController(private val context: Context) {
     }
 
     private fun pauseAll() {
-        if (aiMode) mixer?.pause() else exo?.pause()
+        if (aiMode) mixer?.pause() else source?.pause()
         isPlaying.value = false
         abandonFocus()
     }
@@ -99,9 +104,11 @@ class PlayerController(private val context: Context) {
     // ---------- 로딩 ----------
 
     fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int) {
-        DspBus.muteMask = muteMask
-        val modeChanged = aiOn != aiMode || currentSong?.id != song.id
-        if (!modeChanged && !needsReload(song, aiOn)) {
+        lastMask = muteMask
+        lastSemitones = semitones
+        val newAiMode = aiOn && song.isSeparated
+        val modeChanged = newAiMode != aiMode || currentSong?.id != song.id
+        if (!modeChanged && engineExists()) {
             applyParams(muteMask, semitones)
             return
         }
@@ -109,144 +116,192 @@ class PlayerController(private val context: Context) {
         val pos = positionMs()
 
         releaseEngines()
-        aiMode = aiOn && song.isSeparated
+        aiMode = newAiMode
         currentSong = song
         nowPlayingTitle.value = song.title
         registerNoisyReceiver()
 
         if (aiMode) {
-            val dir = File(song.stemsDir!!)
-            val files = buildMap {
-                Stem.entries.forEach { stem ->
-                    val f = File(dir, "${stem.fileName}.wav")
-                    if (f.exists()) put(stem, f)
-                }
-            }
-            mixer = StemMixPlayer(onEndedCallback = {
-                wasAutoEnded = true
-                isPlaying.value = false
-                abandonFocus()
-            }).also {
-                it.load(files)
-                it.semitones = semitones
-                it.gains = Stem.gainArray(muteMask)
-                durationMs.value = framesToMs(it.durationFrames)
-                it.seekToFrame(msToFrames(pos))
-                if (wasPlaying && !wasAutoEnded) it.play()
-            }
+            loadMixer(song, muteMask, semitones, wasPlaying, pos)
         } else {
-            val player = buildExo()
-            exo = player
-            player.setMediaItem(MediaItem.fromUri(android.net.Uri.parse(song.uri)))
-            player.prepare()
-            if (pos > 0) player.seekTo(pos)
-            player.playbackParameters = PlaybackParameters(1f, pitchRatio(semitones))
-            if (wasPlaying && !wasAutoEnded) player.play()
-            durationMs.value = song.durationMs
+            loadSource(song, muteMask, semitones, wasPlaying, pos)
         }
         wasAutoEnded = false
     }
 
-    private fun needsReload(song: Song, aiOn: Boolean): Boolean =
-        aiOn && song.isSeparated && mixer == null
-
-    private fun buildExo(): ExoPlayer {
-        val processor = MrAudioProcessor()
-        val factory = object : DefaultRenderersFactory(context) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean,
-            ): AudioSink =
-                DefaultAudioSink.Builder(context)
-                    .setAudioProcessors(arrayOf(processor))
-                    .build()
+    private fun loadMixer(song: Song, mask: Int, semi: Int, wasPlaying: Boolean, pos: Long) {
+        val dir = File(song.stemsDir!!)
+        val files = buildMap {
+            Stem.entries.forEach { stem ->
+                val f = File(dir, "${stem.fileName}.wav")
+                if (f.exists()) put(stem, f)
+            }
         }
-        return ExoPlayer.Builder(context, factory).build().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                /* handleAudioFocus = */ false,
-            )
-            addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlayingNow: Boolean) {
-                    this@PlayerController.isPlaying.value = isPlayingNow
-                    if (!isPlayingNow && !wasAutoEnded) abandonFocus()
-                }
+        mixer = StemMixPlayer(onEndedCallback = {
+            wasAutoEnded = true
+            isPlaying.value = false
+            abandonFocus()
+        }).also {
+            it.load(files)
+            it.semitones = semi
+            it.gains = Stem.gainArray(mask)
+            durationMs.value = framesToMs(it.durationFrames)
+            it.seekToFrame(msToFrames(pos))
+            if (wasPlaying && !wasAutoEnded) it.play()
+        }
+    }
 
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_ENDED) {
-                        this@PlayerController.isPlaying.value = false
-                        wasAutoEnded = true
-                        abandonFocus()
+    /** AI OFF 엔진 구성. 캐시가 없으면 준비 후 자동으로 이어 재생한다 */
+    private fun loadSource(song: Song, mask: Int, semi: Int, wasPlaying: Boolean, pos: Long) {
+        val f = MixCache.cacheFile(context, song.id)
+        val player = if (f.exists()) runCatching { SourceWavPlayer(f) }.getOrNull() else null
+        if (player == null) {
+            // 준비 중 재입장 시 사용자가 저장한 재생 의도를 덮어쓰지 않는다
+            if (pendingResumeSongId != song.id) {
+                pendingResume(song.id, wasPlaying && !wasAutoEnded, pos)
+            }
+            beginPrepare(song.id, android.net.Uri.parse(song.uri))
+            durationMs.value = song.durationMs
+            return
+        }
+        attachSource(player, mask, semi, wasPlaying && !wasAutoEnded, pos)
+        clearPendingResume(song.id)
+    }
+
+    private fun attachSource(player: SourceWavPlayer, mask: Int, semi: Int, play: Boolean, pos: Long) {
+        player.muteMask = mask
+        player.semitones = semi
+        source = player
+        durationMs.value = framesToMs(player.durationFrames)
+        player.seekToFrame(msToFrames(pos))
+        if (play) player.play()
+    }
+
+    // 캐시 준비 중 저장해 둔 재생 의도 (준비 완료 직후 자동 반영)
+    private var pendingResumeSongId: Long? = null
+    private var pendingResumePlay = false
+    private var pendingResumePosMs = 0L
+
+    private fun pendingResume(songId: Long, play: Boolean, posMs: Long) {
+        pendingResumeSongId = songId
+        pendingResumePlay = play
+        pendingResumePosMs = posMs
+    }
+
+    private fun clearPendingResume(songId: Long) {
+        if (pendingResumeSongId == songId) {
+            pendingResumeSongId = null
+            pendingResumePlay = false
+            pendingResumePosMs = 0L
+        }
+    }
+
+    /** 원본 WAV 캐시 생성 (중복 호출 안전). 완료 시 대기 중이던 재생을 이어간다 */
+    private fun beginPrepare(songId: Long, uri: android.net.Uri) {
+        if (preparingSongId.value == songId) return
+        preparingSongId.value = songId
+        scope.launch(Dispatchers.IO) {
+            val ok = runCatching { MixCache.prepare(context, songId, uri) }.isSuccess
+            withContext(Dispatchers.Main) {
+                if (preparingSongId.value == songId) preparingSongId.value = null
+                if (!ok) return@withContext
+                val cur = currentSong ?: return@withContext
+                if (cur.id == songId && !aiMode) {
+                    val f = MixCache.cacheFile(context, songId)
+                    val player = runCatching { SourceWavPlayer(f) }.getOrNull()
+                    if (player != null) {
+                        val resume = pendingResumeSongId == songId
+                        attachSource(
+                            player,
+                            lastMask,
+                            lastSemitones,
+                            resume && pendingResumePlay,
+                            if (resume) pendingResumePosMs else 0L,
+                        )
+                        isPlaying.value = player.isPlaying
                     }
+                    clearPendingResume(songId)
                 }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    this@PlayerController.isPlaying.value = false
-                    abandonFocus()
-                }
-            })
+            }
         }
+    }
+
+    private var lastMask = 0
+    private var lastSemitones = 0
+
+    private fun engineExists(): Boolean =
+        if (aiMode) mixer != null else source != null
+
+    private fun activeIsPlaying(): Boolean =
+        if (aiMode) mixer?.isPlaying == true else source?.isPlaying == true
+
+    private fun applyParams(muteMask: Int, semitones: Int) {
+        setMuteMask(muteMask)
+        setSemitones(semitones)
     }
 
     // ---------- 컨트롤 ----------
 
     fun playPause() {
-        val willPlay = !(if (aiMode) mixer?.isPlaying == true else exo?.isPlaying == true)
+        val willPlay = !activeIsPlaying()
         if (willPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
-        if (aiMode) mixer?.let {
-            if (it.isPlaying) it.pause() else it.play()
-            isPlaying.value = it.isPlaying
-        } else exo?.let {
-            if (it.isPlaying) it.pause() else it.play()
+        when {
+            aiMode -> mixer?.let {
+                if (it.isPlaying) it.pause() else it.play()
+                isPlaying.value = it.isPlaying
+            }
+            source != null -> source?.let {
+                if (it.isPlaying) it.pause() else it.play()
+                isPlaying.value = it.isPlaying
+            }
+            else -> {
+                // 캐시 준비 중: 의지만 저장해 두면 준비 직후 자동 재생된다
+                if (willPlay) pendingResume(currentSong?.id ?: return, true, 0L)
+            }
         }
     }
 
     fun seekTo(ms: Long) {
-        if (aiMode) mixer?.seekToFrame(msToFrames(ms))
-        else exo?.seekTo(ms)
+        when {
+            aiMode -> mixer?.seekToFrame(msToFrames(ms))
+            source != null -> source?.seekToFrame(msToFrames(ms))
+            else -> pendingResume(currentSong?.id ?: return, pendingResumePlay, ms.coerceAtLeast(0L))
+        }
     }
 
     fun setMuteMask(mask: Int) {
-        DspBus.muteMask = mask
         mixer?.gains = Stem.gainArray(mask)
+        source?.muteMask = mask
     }
 
     fun setSemitones(n: Int) {
-        if (aiMode) mixer?.semitones = n
-        else exo?.playbackParameters = PlaybackParameters(1f, pitchRatio(n))
+        mixer?.semitones = n
+        source?.semitones = n
     }
 
     fun positionMs(): Long =
         if (aiMode) framesToMs(mixer?.positionFrames() ?: 0L)
-        else exo?.currentPosition ?: 0L
+        else framesToMs(source?.positionFrames() ?: 0L)
 
     fun release() {
         releaseEngines()
         unregisterNoisyReceiver()
         abandonFocus()
+        // 주의: scope는 취소하지 않는다. 싱글턴 컨트롤러에서 cancel하면
+        // 이후 모든 캐시 준비 코루틴이 조용히 무시된다(문구만 남는 버그).
         currentSong = null
         nowPlayingTitle.value = null
         isPlaying.value = false
         durationMs.value = 0L
+        preparingSongId.value = null
+        pendingResumeSongId?.let { clearPendingResume(it) }
     }
 
     // ---------- 유틸 ----------
 
     private fun releaseEngines() {
-        exo?.release(); exo = null
         mixer?.release(); mixer = null
-    }
-
-    private fun activeIsPlaying(): Boolean =
-        if (aiMode) mixer?.isPlaying == true else exo?.isPlaying == true
-
-    private fun applyParams(muteMask: Int, semitones: Int) {
-        setMuteMask(muteMask)
-        setSemitones(semitones)
+        source?.release(); source = null
     }
 
     private fun msToFrames(ms: Long): Long = ms * sampleRateCompat() / 1000
@@ -254,9 +309,5 @@ class PlayerController(private val context: Context) {
     private fun framesToMs(frames: Long): Long =
         if (frames <= 0) 0 else frames * 1000 / sampleRateCompat()
 
-    private fun sampleRateCompat(): Long = 44100L
-
-    companion object {
-        fun pitchRatio(semitones: Int): Float = Math.pow(2.0, semitones / 12.0).toFloat()
-    }
+    private fun sampleRateCompat(): Long = 44_100L
 }

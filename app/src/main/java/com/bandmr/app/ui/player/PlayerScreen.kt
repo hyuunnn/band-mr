@@ -79,6 +79,8 @@ fun PlayerScreen(songId: Long) {
         PlaybackService.start(Locator.context)
     }
 
+    val preparingSongId by ctrl.preparingSongId.collectAsState()
+
     LaunchedEffect(song?.id, song?.separatedTier, aiOn) {
         val s = song ?: return@LaunchedEffect
         muteMask = s.muteMask
@@ -121,6 +123,14 @@ fun PlayerScreen(songId: Long) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(s.title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+
+        if (preparingSongId == songId && !separated) {
+            Text(
+                "원본을 기기에 맞게 준비하는 중… (수 초 소요)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         TransportCard(
             ctrl = ctrl,
@@ -338,8 +348,8 @@ private fun PitchCard(semitones: Int, onChange: (Int) -> Unit) {
                 style = MaterialTheme.typography.headlineSmall,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { onChange((semitones - 12).coerceIn(-12, 12)) }) {
-                    Text("-1옥")
+                OutlinedButton(onClick = { onChange((semitones - 1).coerceIn(-12, 12)) }) {
+                    Text("-1")
                 }
                 Slider(
                     value = semitones.toFloat(),
@@ -348,8 +358,8 @@ private fun PitchCard(semitones: Int, onChange: (Int) -> Unit) {
                     steps = 23,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
-                OutlinedButton(onClick = { onChange((semitones + 12).coerceIn(-12, 12)) }) {
-                    Text("+1옥")
+                OutlinedButton(onClick = { onChange((semitones + 1).coerceIn(-12, 12)) }) {
+                    Text("+1")
                 }
             }
         }

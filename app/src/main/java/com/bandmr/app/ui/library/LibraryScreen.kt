@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -60,7 +61,15 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                         android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
                     )
                     val (title, durationMs) = readMetadata(uri)
-                    Locator.songDao.insert(Song(title = title, uri = uri.toString(), durationMs = durationMs))
+                    val newId = Locator.songDao.insert(
+                        Song(title = title, uri = uri.toString(), durationMs = durationMs)
+                    )
+                    // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환
+                    withContext(Dispatchers.IO) {
+                        if (!MixCache.cacheFile(Locator.context, newId).exists()) {
+                            runCatching { MixCache.prepare(Locator.context, newId, uri) }
+                        }
+                    }
                 }
             }
         }
@@ -114,6 +123,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                             Locator.playerController.release()
                         }
                         song.stemsDir?.let { withContext(Dispatchers.IO) { File(it).deleteRecursively() } }
+                        MixCache.delete(Locator.context, song.id)
                         Locator.songDao.delete(song)
                     }
                     pendingDelete = null
@@ -163,6 +173,18 @@ private suspend fun readMetadata(uri: Uri): Pair<String, Long> =
                 duration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             }
         }
-        val fallbackName = uri.lastPathSegment?.substringAfterLast('/') ?: "제목 없음"
+        val fallbackName = queryDisplayName(uri)
+            ?: uri.lastPathSegment?.substringAfterLast('/')
+            ?: "제목 없음"
         (title?.takeIf { it.isNotBlank() } ?: fallbackName) to duration
     }
+
+/** 제목 태그가 없는 파일(예: yt-dlp 변환본)을 위해 표시용 파일명을 조회한다 */
+private fun queryDisplayName(uri: Uri): String? =
+    runCatching {
+        Locator.context.contentResolver.query(
+            uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null,
+        )?.use { c ->
+            if (c.moveToFirst()) c.getString(0)?.substringBeforeLast('.') else null
+        }
+    }.getOrNull()
