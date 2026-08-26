@@ -39,6 +39,18 @@ class PlaybackService : Service() {
         scope.launch {
             Locator.playerController.nowPlayingTitle.collect { promoteOrUpdate() }
         }
+        // 곡 삭제 등으로 컨트롤러가 해제되면 알림을 걷고 서비스도 종료
+        scope.launch {
+            Locator.playerController.nowPlayingTitle.collect { title ->
+                if (title == null && !Locator.playerController.isPlaying.value) {
+                    promoted = false
+                    ServiceCompat.stopForeground(
+                        this@PlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE,
+                    )
+                    stopSelf()
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -46,6 +58,7 @@ class PlaybackService : Service() {
             ACTION_TOGGLE -> Locator.playerController.playPause()
             ACTION_STOP -> {
                 Locator.playerController.release()
+                promoted = false
                 ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY

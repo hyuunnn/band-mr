@@ -36,6 +36,15 @@ class PitchShifter {
         bufL[write] = l
         bufR[write] = r
 
+        // 0반음은 지연·크로스페이드 없는 패스스루 (연습 앱 특성상 기본 상태가 0이므로 중요)
+        if (ratio == 1f) {
+            outL = l
+            outR = r
+            write++
+            if (write >= window) write = 0
+            return
+        }
+
         phase += (ratio - 1f) / window
         phase -= floor(phase)
 

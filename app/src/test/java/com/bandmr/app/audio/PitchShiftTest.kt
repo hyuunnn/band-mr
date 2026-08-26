@@ -1,5 +1,6 @@
 package com.bandmr.app.audio
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import kotlin.math.PI
 import kotlin.math.abs
@@ -36,17 +37,11 @@ class PitchShiftTest {
     }
 
     @Test
-    fun `0반음은 일정 지연의 원 신호와 동일`() {
+    fun `0반음은 무지연 패스스루`() {
         val (input, out) = runShifter(0)
-        // dual-tap 구조상 고정 지연(WINDOW/2=900) 존재. 지연 보정 후 RMS 오차가 작아야 한다.
-        val delay = 900
-        var err = 0.0
-        var ref = 0.0
-        for (i in delay + 100 until out.size) {
-            err += (out[i] - input[i - delay]).let { it * it }
-            ref += input[i] * input[i]
+        for (i in input.indices) {
+            assertEquals("i=$i", input[i], out[i], 1e-6f)
         }
-        assertTrue("relative err=${kotlin.math.sqrt(err / ref)}", kotlin.math.sqrt(err / ref) < 0.15)
     }
 
     @Test

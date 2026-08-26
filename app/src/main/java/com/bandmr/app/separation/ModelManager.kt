@@ -18,6 +18,9 @@ sealed interface ModelState {
     data class Failed(val message: String) : ModelState
 }
 
+/** 다운받은 파일 자체가 손상된 경우(부분 파일을 남기면 안 됨) */
+private class IntegrityException(message: String) : IOException(message)
+
 /** 3종(경량/균형/품질) 모델의 다운로드·삭제·상태 관리 */
 class ModelManager(private val context: Context) {
 
@@ -38,6 +41,17 @@ class ModelManager(private val context: Context) {
             setState(tier, ModelState.Downloading(0f))
             val tmp = File(context.cacheDir, "model_${tier.id}.tmp")
             try {
+                // 이어받기 준비: 기존 부분 파일의 프리픽스 해시 선계산
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                var offset = if (tmp.exists()) tmp.length() else 0L
+                if (offset > 0L) {
+                    tmp.inputStream().use { input ->
+                        val buf = ByteArray(DEFAULT_BUF)
+                        var r: Int
+                        while (input.read(buf).also { r = it } >= 0) digest.update(buf, 0, r)
+                    }
+                }
+
                 val url = URL(tier.url)
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15_000
@@ -45,29 +59,44 @@ class ModelManager(private val context: Context) {
                     instanceFollowRedirects = true
                 }
                 try {
-                    if (conn.responseCode !in 200..299) {
-                        throw IOException("다운로드 실패: HTTP ${conn.responseCode}")
+                    if (offset > 0L) conn.setRequestProperty("Range", "bytes=$offset-")
+                    val code = conn.responseCode
+                    if (code !in 200..299) {
+                        throw IOException("다운로드 실패: HTTP $code")
                     }
-                    val total = conn.contentLengthLong
-                    val digest = java.security.MessageDigest.getInstance("SHA-256")
+                    // 서버가 이어받기를 지원하지 않으면(200 응답) 처음부터 다시
+                    val resuming = code == HttpURLConnection.HTTP_PARTIAL && offset > 0L
+                    if (!resuming) {
+                        offset = 0L
+                        digest.reset()
+                        if (tmp.exists()) tmp.delete()
+                    }
+                    val remaining = conn.contentLengthLong
+                    val totalBytes = if (resuming) offset + remaining else remaining
+
                     conn.inputStream.use { input ->
-                        tmp.outputStream().use { output ->
+                        val output = if (resuming) {
+                            java.io.FileOutputStream(tmp, true)
+                        } else {
+                            tmp.outputStream()
+                        }
+                        output.use { out ->
                             val buf = ByteArray(DEFAULT_BUF)
                             var read: Int
-                            var done = 0L
-                            var lastPct = -1
+                            var done = offset
+                            var lastPct = if (totalBytes > 0) ((done * 100) / totalBytes).toInt() else -1
                             while (input.read(buf).also { read = it } >= 0) {
                                 if (read > 0) {
-                                    output.write(buf, 0, read)
+                                    out.write(buf, 0, read)
                                     digest.update(buf, 0, read)
-                                }
-                                done += read
-                                if (total > 0) {
-                                    // % 단위로만 갱신해 StateFlow 업데이트 빈도를 줄인다
-                                    val pct = (done * 100 / total).toInt()
-                                    if (pct != lastPct) {
-                                        lastPct = pct
-                                        setState(tier, ModelState.Downloading(done.toFloat() / total))
+                                    done += read
+                                    if (totalBytes > 0) {
+                                        // % 단위로만 갱신해 StateFlow 업데이트 빈도를 줄인다
+                                        val pct = ((done * 100) / totalBytes).toInt()
+                                        if (pct != lastPct) {
+                                            lastPct = pct
+                                            setState(tier, ModelState.Downloading(done.toFloat() / totalBytes))
+                                        }
                                     }
                                 }
                             }
@@ -77,11 +106,11 @@ class ModelManager(private val context: Context) {
                     tier.sha256?.let { expected ->
                         val actual = digest.digest().joinToString("") { "%02x".format(it) }
                         if (!actual.equals(expected, ignoreCase = true)) {
-                            throw IOException("모델 파일 무결성 오류 (해시 불일치)")
+                            throw IntegrityException("모델 파일 무결성 오류 (해시 불일치)")
                         }
                     } ?: run {
                         if (tmp.length() < MIN_VALID_BYTES) {
-                            throw IOException("비정상 모델 파일")
+                            throw IntegrityException("비정상 모델 파일")
                         }
                     }
                 } finally {
@@ -96,7 +125,8 @@ class ModelManager(private val context: Context) {
                 }
                 setState(tier, ModelState.Ready)
             } catch (t: Throwable) {
-                tmp.delete()
+                // 손상된 파일은 삭제, 네트워크 실패는 부분 파일을 남겨 이어받기 유도
+                if (t is IntegrityException) tmp.delete()
                 setState(tier, ModelState.Failed(t.message ?: "알 수 없는 오류"))
                 throw t
             }

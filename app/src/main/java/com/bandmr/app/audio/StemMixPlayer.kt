@@ -18,6 +18,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
     private var thread: Thread? = null
     private var track: AudioTrack? = null
     private val stateLock = Object()
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     @Volatile
     var isPlaying = false
@@ -83,7 +84,8 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
     fun pause() {
         synchronized(stateLock) {
             isPlaying = false
-            track?.pause()
+            // flush로 대기 중인 WRITE_BLOCKING write를 확실히 풀어준다 (스레드 정지 방지)
+            track?.let { runCatching { it.pause(); it.flush() } }
         }
     }
 
@@ -171,7 +173,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             if (pos >= totalFrames) {
                 synchronized(stateLock) { isPlaying = false }
                 track?.pause()
-                android.os.Handler(android.os.Looper.getMainLooper()).post { onEndedCallback() }
+                mainHandler.post { onEndedCallback() }
                 continue
             }
             java.util.Arrays.fill(mixedFloat, 0f)
@@ -200,7 +202,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             if (framesToWrite <= 0) {
                 synchronized(stateLock) { isPlaying = false }
                 track?.pause()
-                android.os.Handler(android.os.Looper.getMainLooper()).post { onEndedCallback() }
+                mainHandler.post { onEndedCallback() }
                 continue
             }
             val sh = shifter
@@ -213,7 +215,10 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             }
             val wrote = track?.write(outShort, 0, framesToWrite * 2, AudioTrack.WRITE_BLOCKING) ?: 0
             if (wrote < 0) break
-            framePos = pos + framesToWrite
+            // 진행 중에 시크가 끼어들었으면(framePos 변경) 스테일 값으로 덮어쓰지 않는다
+            synchronized(stateLock) {
+                if (framePos == pos) framePos += framesToWrite
+            }
             if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) track?.play()
         }
         track?.release()
