@@ -1,6 +1,7 @@
 package com.bandmr.app.separation
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -124,6 +125,10 @@ class ModelManager(private val context: Context) {
                     tmp.delete()
                 }
                 setState(tier, ModelState.Ready)
+            } catch (e: CancellationException) {
+                // 취소는 실패가 아니다. 부분 파일은 남겨 이어받기 유도
+                setState(tier, ModelState.NotDownloaded)
+                throw e
             } catch (t: Throwable) {
                 // 손상된 파일은 삭제, 네트워크 실패는 부분 파일을 남겨 이어받기 유도
                 if (t is IntegrityException) tmp.delete()

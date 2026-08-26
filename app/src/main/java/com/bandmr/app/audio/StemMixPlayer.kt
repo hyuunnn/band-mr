@@ -177,16 +177,15 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
                 continue
             }
             java.util.Arrays.fill(mixedFloat, 0f)
-            // 들리는 스템 중 가장 짧게 읽힌 프레임 수로 출력 길이 제한
+            // 들리는 스템 중 가장 짧게 읽힌 프레임 수로 출력 길이 제한.
+            // 전부 뮤트/EOF면 무음을 출력하며 진행한다 (전체 뮤트가 곡 종료로 오인되지 않도록)
             var minGot = Int.MAX_VALUE
-            var anyAudible = false
             for (s in 0 until nStems) {
                 val gain = gains[s]
                 val reader = readers[s] ?: continue
                 if (gain <= 0f) continue
                 val got = reader.read(pos, stemShort, CHUNK)
                 if (got <= 0) continue
-                anyAudible = true
                 if (got < minGot) minGot = got
                 var i = 0
                 while (i < got * 2) {
@@ -195,10 +194,10 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
                 }
             }
             val remainingFrames = (totalFrames - pos).toInt()
-            val framesToWrite = when {
-                !anyAudible -> 0
-                else -> minOf(minGot, remainingFrames)
-            }
+            val framesToWrite = minOf(
+                if (minGot == Int.MAX_VALUE) CHUNK else minGot,
+                remainingFrames,
+            )
             if (framesToWrite <= 0) {
                 synchronized(stateLock) { isPlaying = false }
                 track?.pause()

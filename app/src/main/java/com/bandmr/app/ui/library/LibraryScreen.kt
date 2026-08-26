@@ -119,7 +119,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                 TextButton(onClick = {
                     scope.launch {
                         // 재생 중인 곡이면 먼저 정지·해제 (삭제된 파일 재생 방지)
-                        if (Locator.playerController.nowPlayingTitle.value == song.title) {
+                        if (Locator.playerController.currentSongId() == song.id) {
                             Locator.playerController.release()
                         }
                         song.stemsDir?.let { withContext(Dispatchers.IO) { File(it).deleteRecursively() } }

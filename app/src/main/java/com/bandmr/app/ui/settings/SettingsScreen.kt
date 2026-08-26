@@ -97,7 +97,8 @@ fun SettingsScreen() {
                             enabled = busyTier == null,
                             onClick = {
                                 busyTier = tier.id
-                                scope.launch {
+                                // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
+                                Locator.appScope.launch {
                                     runCatching { Locator.modelManager.download(tier) }
                                     busyTier = null
                                 }

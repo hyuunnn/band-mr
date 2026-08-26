@@ -46,6 +46,9 @@ class PlayerController(private val context: Context) {
     /** 원본 WAV 캐시 생성 중인 곡 id (없으면 null) */
     val preparingSongId = MutableStateFlow<Long?>(null)
 
+    /** 원본 WAV 캐시 준비에 실패한 곡 id (재생 버튼으로 재시도 가능) */
+    val prepareFailedSongId = MutableStateFlow<Long?>(null)
+
     private var wasAutoEnded = false
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -101,6 +104,13 @@ class PlayerController(private val context: Context) {
         abandonFocus()
     }
 
+    /** 곡이 끝까지 재생되어 엔진이 스스로 멈췄을 때 (양쪽 엔진 공용) */
+    private fun onAutoEnded() {
+        wasAutoEnded = true
+        isPlaying.value = false
+        abandonFocus()
+    }
+
     // ---------- 로딩 ----------
 
     fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int) {
@@ -137,11 +147,7 @@ class PlayerController(private val context: Context) {
                 if (f.exists()) put(stem, f)
             }
         }
-        mixer = StemMixPlayer(onEndedCallback = {
-            wasAutoEnded = true
-            isPlaying.value = false
-            abandonFocus()
-        }).also {
+        mixer = StemMixPlayer(onEndedCallback = ::onAutoEnded).also {
             it.load(files)
             it.semitones = semi
             it.gains = Stem.gainArray(mask)
@@ -154,7 +160,7 @@ class PlayerController(private val context: Context) {
     /** AI OFF 엔진 구성. 캐시가 없으면 준비 후 자동으로 이어 재생한다 */
     private fun loadSource(song: Song, mask: Int, semi: Int, wasPlaying: Boolean, pos: Long) {
         val f = MixCache.cacheFile(context, song.id)
-        val player = if (f.exists()) runCatching { SourceWavPlayer(f) }.getOrNull() else null
+        val player = if (f.exists()) runCatching { newSourcePlayer(f) }.getOrNull() else null
         if (player == null) {
             // 준비 중 재입장 시 사용자가 저장한 재생 의도를 덮어쓰지 않는다
             if (pendingResumeSongId != song.id) {
@@ -167,6 +173,9 @@ class PlayerController(private val context: Context) {
         attachSource(player, mask, semi, wasPlaying && !wasAutoEnded, pos)
         clearPendingResume(song.id)
     }
+
+    private fun newSourcePlayer(file: File): SourceWavPlayer =
+        SourceWavPlayer(file, onEndedCallback = ::onAutoEnded)
 
     private fun attachSource(player: SourceWavPlayer, mask: Int, semi: Int, play: Boolean, pos: Long) {
         player.muteMask = mask
@@ -200,15 +209,21 @@ class PlayerController(private val context: Context) {
     private fun beginPrepare(songId: Long, uri: android.net.Uri) {
         if (preparingSongId.value == songId) return
         preparingSongId.value = songId
+        if (prepareFailedSongId.value == songId) prepareFailedSongId.value = null
         scope.launch(Dispatchers.IO) {
             val ok = runCatching { MixCache.prepare(context, songId, uri) }.isSuccess
             withContext(Dispatchers.Main) {
                 if (preparingSongId.value == songId) preparingSongId.value = null
-                if (!ok) return@withContext
+                if (!ok) {
+                    // 실패를 노출하고 저장해 둔 재생 의도도 폐기 (스테일 자동 재생 방지)
+                    prepareFailedSongId.value = songId
+                    clearPendingResume(songId)
+                    return@withContext
+                }
                 val cur = currentSong ?: return@withContext
                 if (cur.id == songId && !aiMode) {
                     val f = MixCache.cacheFile(context, songId)
-                    val player = runCatching { SourceWavPlayer(f) }.getOrNull()
+                    val player = runCatching { newSourcePlayer(f) }.getOrNull()
                     if (player != null) {
                         val resume = pendingResumeSongId == songId
                         attachSource(
@@ -255,8 +270,14 @@ class PlayerController(private val context: Context) {
                 isPlaying.value = it.isPlaying
             }
             else -> {
-                // 캐시 준비 중: 의지만 저장해 두면 준비 직후 자동 재생된다
-                if (willPlay) pendingResume(currentSong?.id ?: return, true, 0L)
+                // 캐시 준비 중/실패: 재생 의도를 저장해 두면 준비 완료 직후 자동 재생된다.
+                // 실패 후라면 beginPrepare가 재시도 진입점이 된다 (준비 중이면 no-op)
+                if (willPlay) {
+                    val song = currentSong ?: return
+                    val keepPos = if (pendingResumeSongId == song.id) pendingResumePosMs else 0L
+                    pendingResume(song.id, true, keepPos)
+                    beginPrepare(song.id, android.net.Uri.parse(song.uri))
+                }
             }
         }
     }
@@ -279,6 +300,9 @@ class PlayerController(private val context: Context) {
         source?.semitones = n
     }
 
+    /** 현재 로드된 곡 id (곡 삭제 시 재생 중 여부 판별용) */
+    fun currentSongId(): Long? = currentSong?.id
+
     fun positionMs(): Long =
         if (aiMode) framesToMs(mixer?.positionFrames() ?: 0L)
         else framesToMs(source?.positionFrames() ?: 0L)
@@ -294,6 +318,7 @@ class PlayerController(private val context: Context) {
         isPlaying.value = false
         durationMs.value = 0L
         preparingSongId.value = null
+        prepareFailedSongId.value = null
         pendingResumeSongId?.let { clearPendingResume(it) }
     }
 

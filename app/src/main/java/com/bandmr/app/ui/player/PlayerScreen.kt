@@ -80,6 +80,7 @@ fun PlayerScreen(songId: Long) {
     }
 
     val preparingSongId by ctrl.preparingSongId.collectAsState()
+    val prepareFailedSongId by ctrl.prepareFailedSongId.collectAsState()
 
     LaunchedEffect(song?.id, song?.separatedTier, aiOn) {
         val s = song ?: return@LaunchedEffect
@@ -129,6 +130,14 @@ fun PlayerScreen(songId: Long) {
                 "원본을 기기에 맞게 준비하는 중… (수 초 소요)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (prepareFailedSongId == songId) {
+            Text(
+                "원본 준비에 실패했습니다. 재생 버튼을 누르면 다시 시도합니다",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
             )
         }
 

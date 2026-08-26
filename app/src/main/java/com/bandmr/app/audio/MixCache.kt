@@ -50,7 +50,9 @@ object MixCache {
                 return final
             } finally {
                 raw.delete()
-                if (!part.renameTo(final)) part.delete()
+                // 성공 시 part는 이미 final로 rename됨. 실패 시 남은 부분 파일을
+                // final로 승격하면 손상 캐시가 재생에 쓰이므로 반드시 삭제만 한다.
+                part.delete()
             }
         }
     }

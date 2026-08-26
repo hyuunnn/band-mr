@@ -260,8 +260,6 @@ TIERS = [
     ("htdemucs-quality-fp32.onnx", 344064, "fp32"),
 ]
 
-from onnxruntime.quantization import QuantType, quantize_dynamic  # noqa: E402  # noqa: E402
-
 PRODUCED = []
 for fname, seg, kind in TIERS:
     dest = os.path.join(OUT_DIR, fname)

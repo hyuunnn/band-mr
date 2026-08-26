@@ -23,8 +23,7 @@ class BandMrApp : Application() {
 
     /** 캐시 없는 기존 곡들을 백그라운드로 미리 변환해 첫 재생이 즉시 되도록 한다 */
     private fun preCacheMixes() {
-        val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        appScope.launch {
+        Locator.appScope.launch(Dispatchers.IO) {
             runCatching {
                 Locator.songDao.getAllOnce().forEach { song ->
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
@@ -41,6 +40,9 @@ class BandMrApp : Application() {
 /** 간단한 수동 DI 컨테이너 */
 object Locator {
     private lateinit var appContext: Application
+
+    /** 화면 수명과 무관하게 끝까지 실행되어야 하는 작업용 (모델 다운로드, 캐시 프리페치 등) */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun init(app: Application) {
         appContext = app
