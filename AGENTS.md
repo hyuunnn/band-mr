@@ -5,7 +5,7 @@
 ## 빌드 / 테스트
 
 ```bash
-# homebrew openjdk@17는 삭제됨 → Temurin 17 사용 (시스템 기본 java 26은 Gradle 8.9가 거부)
+# homebrew openjdk@17는 삭제됨 → Temurin 17 사용 (시스템 기본 java 26은 Gradle이 거부)
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 
 ./gradlew :app:testDebugUnitTest      # 단위 테스트 (30개)
@@ -13,7 +13,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 ```
 
 - Android SDK: `/opt/homebrew/share/android-commandlinetools` (local.properties의 `sdk.dir` 참조, 커밋 금지). adb/sdkmanager는 `/opt/homebrew/bin`에 있음
-- compileSdk/targetSdk 35, minSdk 31, AGP 8.7.3, Kotlin 2.0.21, ORT Android 1.18.0 (media3/ExoPlayer는 제거됨 — 아래 아키텍처 참조)
+- compileSdk 37 / targetSdk 36, minSdk 31, Gradle 9.5.0, AGP 9.3.2(빌트인 Kotlin — kotlin.android 플러그인 없음), Kotlin 2.4.10, KSP 2.3.11(Kotlin과 독립 버전), ORT Android 1.29.0 (media3/ExoPlayer는 제거됨 — 아래 아키텍처 참조)
 - 실기기(SM-S931N, Android 16)가 adb로 연결되면 실기기 검증 가능. 그 외 런타임 검증은 빌드+JVM 단위테스트
 
 ## 검증 규칙 (중요)

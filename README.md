@@ -55,7 +55,7 @@ AI ON (사전 분리 후 캐시, 고품질)
 
 ## 빌드
 
-요구사항: Android Studio (Koala 이상 권장), JDK 17+, Android SDK 35
+요구사항: Android Studio Quail 2(2026.1.2) 이상, JDK 17+, Android SDK 37
 
 ```bash
 # Android Studio에서 열거나
@@ -63,7 +63,7 @@ AI ON (사전 분리 후 캐시, 고품질)
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-minSdk 31 (Android 12+) / targetSdk 35
+minSdk 31 (Android 12+) / targetSdk 36
 
 ## 🤖 AI 모델
 
