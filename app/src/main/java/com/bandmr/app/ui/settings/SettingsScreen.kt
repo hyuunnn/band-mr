@@ -111,7 +111,7 @@ fun SettingsScreen() {
 
         Text(
             "참고\n" +
-                "· AI OFF: 재생 중 실시간 신호처리(위상 상쇄/필터)로 제거 — 즉시 동작, 절전\n" +
+                "· AI OFF: 재생 중 실시간 신호처리(중앙 마스킹/필터)로 제거 — 즉시 동작, 절전\n" +
                 "· AI ON: 곡당 1회 사전 분리 후 캐시 사용 — 정확하지만 처리에 시간이 걸림\n" +
                 "· 품질 우선 모델은 RAM 4GB 이상 기기를 권장합니다.",
             style = MaterialTheme.typography.bodySmall,

@@ -50,6 +50,7 @@ import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
@@ -63,6 +64,7 @@ fun PlayerScreen(songId: Long) {
 
     var muteMask by remember { mutableIntStateOf(0) }
     var semitones by remember { mutableIntStateOf(0) }
+    var vocalStrength by remember { mutableFloatStateOf(1f) }
     var dragging by remember { mutableStateOf(false) }
     var dragPosMs by remember { mutableFloatStateOf(0f) }
     var posMs by remember { mutableLongStateOf(0L) }
@@ -89,6 +91,12 @@ fun PlayerScreen(songId: Long) {
         muteMask = s.muteMask
         semitones = s.semitones
         ctrl.ensureLoaded(s, aiOn, s.muteMask, s.semitones)
+    }
+
+    // 저장된 보컬 제거 강도 로드 후 컨트롤러에 반영
+    LaunchedEffect(Unit) {
+        vocalStrength = Locator.settings.vocalStrength.first()
+        ctrl.setVocalStrength(vocalStrength)
     }
 
     val playing by ctrl.isPlaying.collectAsState()
@@ -175,6 +183,14 @@ fun PlayerScreen(songId: Long) {
         StemCard(
             separated = separated && aiOn,
             muteMask = muteMask,
+            vocalStrength = vocalStrength,
+            onVocalStrengthChange = { v ->
+                vocalStrength = v
+                ctrl.setVocalStrength(v) // 재생 중 즉시 반영
+            },
+            onVocalStrengthDone = {
+                scope.launch { Locator.settings.setVocalStrength(vocalStrength) }
+            },
             onToggle = { stem, checked ->
                 val newMask = if (checked) muteMask or stem.bit else muteMask and stem.bit.inv()
                 muteMask = newMask
@@ -206,6 +222,7 @@ fun PlayerScreen(songId: Long) {
             separated = separated,
             muteMask = muteMask,
             semitones = semitones,
+            vocalStrength = vocalStrength,
             exporting = exporting,
             exportMsg = exportMsg,
             setExporting = { exporting = it },
@@ -318,6 +335,9 @@ private fun ModeCard(
 private fun StemCard(
     separated: Boolean,
     muteMask: Int,
+    vocalStrength: Float,
+    onVocalStrengthChange: (Float) -> Unit,
+    onVocalStrengthDone: () -> Unit,
     onToggle: (Stem, Boolean) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
@@ -339,6 +359,32 @@ private fun StemCard(
                         if (!separated) {
                             Text(stem.dspHint, style = MaterialTheme.typography.labelSmall)
                         }
+                    }
+                }
+                // AI OFF에서 보컬 뮤트 중일 때만 강도 조절 노출 (재생 중 실시간 반영)
+                if (stem == Stem.VOCAL && !separated && muteMask and stem.bit != 0) {
+                    Column(Modifier.padding(start = 48.dp, end = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "제거 강도",
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${(vocalStrength * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                        Slider(
+                            value = vocalStrength,
+                            onValueChange = onVocalStrengthChange,
+                            onValueChangeFinished = onVocalStrengthDone,
+                            valueRange = 0f..1f,
+                        )
+                        Text(
+                            "낮음 = 반주 손상 적음 · 높음 = 보컬 최대 제거",
+                            style = MaterialTheme.typography.labelSmall,
+                        )
                     }
                 }
             }
@@ -384,6 +430,7 @@ private fun ExportCard(
     separated: Boolean,
     muteMask: Int,
     semitones: Int,
+    vocalStrength: Float,
     exporting: Boolean,
     exportMsg: String?,
     setExporting: (Boolean) -> Unit,
@@ -400,7 +447,7 @@ private fun ExportCard(
             setExportMsg(null)
             scope.launch {
                 runCatching {
-                    exporter.exportMix(song, muteMask, semitones, aiOn, uri)
+                    exporter.exportMix(song, muteMask, semitones, aiOn, uri, vocalStrength)
                 }.onSuccess { setExportMsg("저장 완료") }
                     .onFailure { setExportMsg("실패: ${it.message}") }
                 setExporting(false)

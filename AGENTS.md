@@ -8,7 +8,7 @@
 # homebrew openjdk@17는 삭제됨 → Temurin 17 사용 (시스템 기본 java 26은 Gradle이 거부)
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (30개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (35개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 

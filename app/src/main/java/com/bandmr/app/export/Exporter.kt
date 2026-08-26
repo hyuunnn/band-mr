@@ -26,12 +26,13 @@ class Exporter(private val context: Context) {
         semitones: Int,
         aiOn: Boolean,
         dest: Uri,
+        vocalStrength: Float = 1f,
         onProgress: (Float) -> Unit = {},
     ): Unit = withContext(Dispatchers.IO) {
         if (aiOn && song.isSeparated) {
             exportMixFromStems(song, muteMask, semitones, dest, onProgress)
         } else {
-            exportMixFromOriginal(song, muteMask, semitones, dest, onProgress)
+            exportMixFromOriginal(song, muteMask, semitones, vocalStrength, dest, onProgress)
         }
     }
 
@@ -97,6 +98,7 @@ class Exporter(private val context: Context) {
         song: Song,
         muteMask: Int,
         semitones: Int,
+        vocalStrength: Float,
         dest: Uri,
         onProgress: (Float) -> Unit,
     ) = withContext(Dispatchers.IO) {
@@ -107,7 +109,10 @@ class Exporter(private val context: Context) {
                 context, song.uri.toUri(), raw,
             ) { p -> onProgress(p * 0.4f) }
 
-            val chain = DspChain(AudioDecode.TARGET_SR, 2).also { it.muteMask = muteMask }
+            val chain = DspChain(AudioDecode.TARGET_SR, 2).also {
+                it.muteMask = muteMask
+                it.vocalStrength = vocalStrength
+            }
             val shifter = PitchShifter().also { it.semitones = semitones }
             val tmp = File(context.cacheDir, "export_mix.wav")
             tmp.delete()

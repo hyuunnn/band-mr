@@ -42,7 +42,7 @@
     <!-- DSP 세부 태그 -->
     <g font-size="11">
       <rect x="52" y="240" width="188" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>
-      <text x="146" y="257" text-anchor="middle" fill="#5B3FBF">보컬 = 위상 상쇄 (저역 보존)</text>
+      <text x="146" y="257" text-anchor="middle" fill="#5B3FBF">보컬 = 중앙 마스킹 (저역 보존)</text>
       <rect x="252" y="240" width="196" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>
       <text x="350" y="257" text-anchor="middle" fill="#5B3FBF">베이스 = f0 배음 노칭 + HPF</text>
       <rect x="52" y="274" width="188" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>

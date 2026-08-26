@@ -2,6 +2,7 @@ package com.bandmr.app.audio
 
 /**
  * STFT 기반 스펙트럼 처리 스테이지.
+ *  - 보컬 제거: 패닝 인덱스 기반 중앙 성분 마스킹 (Avendano 2003 계열)
  *  - 드럼 제거: 주파수축 중간값 필터링(HPSS)으로 타악 성분 억제
  *  - 베이스 제거: f0 검출 후 배음 콤 노칭
  *
@@ -44,12 +45,26 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
     private var fifoSize = 0
 
     private val histScratch = FloatArray(MEDIAN_TIME)
-    private val re = FloatArray(n)
-    private val im = FloatArray(n)
+    // 채널별 스펙트럼 워크스페이스 (보컬 마스킹은 L/R을 함께 봐야 함)
+    private val chRe = Array(2) { FloatArray(n) }
+    private val chIm = Array(2) { FloatArray(n) }
     private val mags = FloatArray(bins)
     private val medV = FloatArray(bins)
     private val ilace = FloatArray(hop * chCount)
     private val scratch = FloatArray(MEDIAN_FREQ)
+
+    /** 이 빈 미만의 저역은 보컬 마스킹에서 보존 (킥/베이스 중앙 성분) */
+    private val vocalKeepBins =
+        kotlin.math.ceil(VOCAL_KEEP_HZ * n / sampleRate.toDouble()).toInt().coerceAtLeast(1)
+
+    /**
+     * 보컬 제거 강도 0..1. 감쇠 시작 유사도와 최대 감쇠 깊이를 함께 조절한다.
+     *  0 = 부드럽게 (시작 0.8, 최대 -12dB → 보컬이 작게 들리는 수준)
+     *  1 = 강하게 (시작 0.45, 최대 -40dB → 사실상 제거)
+     * 재생 중 변경해도 안전하다 (프레임 단위로 읽는 무상태 파라미터).
+     */
+    @Volatile
+    var vocalStrength: Float = 1f
 
     /** 베이스 f0 검출용 저역 통과 상태 */
     private var lpState = 0f
@@ -57,25 +72,32 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
 
     /**
      * interleaved float 입력을 받아 처리 후 내부 FIFO에 적산.
-     * [muteDrums]/[muteBass]가 모두 false면 순수 패스스루.
+     * 세 뮤트가 모두 false면 순수 패스스루.
      */
-    fun feed(input: FloatArray, offset: Int, count: Int, muteDrums: Boolean, muteBass: Boolean) {
-        if (!muteDrums && !muteBass) {
+    fun feed(
+        input: FloatArray,
+        offset: Int,
+        count: Int,
+        muteDrums: Boolean,
+        muteBass: Boolean,
+        muteVocal: Boolean = false,
+    ) {
+        if (!muteDrums && !muteBass && !muteVocal) {
             appendOut(input, offset, count)
             return
         }
         var pos = offset
         var remaining = count
-        val frameBytes = n * chCount
+        val blockSamples = n * chCount
         while (remaining > 0) {
-            val space = frameBytes - pendingLen
+            val space = blockSamples - pendingLen
             val take = minOf(space, remaining)
             System.arraycopy(input, pos, pending, pendingLen, take)
             pendingLen += take
             pos += take
             remaining -= take
-            if (pendingLen == frameBytes) {
-                processFrame(muteDrums, muteBass)
+            if (pendingLen == blockSamples) {
+                processFrame(muteDrums, muteBass, muteVocal)
                 shiftPending()
             }
         }
@@ -109,10 +131,12 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         pendingLen = keep
     }
 
-    private fun processFrame(muteDrums: Boolean, muteBass: Boolean) {
+    private fun processFrame(muteDrums: Boolean, muteBass: Boolean, muteVocal: Boolean) {
         val bassF0 = if (muteBass) detectBassF0() else -1f
 
         for (ch in 0 until chCount) {
+            val re = chRe[ch]
+            val im = chIm[ch]
             // 창 적용 + FFT
             for (i in 0 until n) {
                 re[i] = pending[i * chCount + ch] * window[i]
@@ -120,10 +144,17 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
             }
             fft.run(re, im, inverse = false)
 
-            if (muteDrums) applyPercussiveSuppression(ch)
+            if (muteDrums) applyPercussiveSuppression(ch, re, im)
 
-            if (muteBass && bassF0 > 0f) applyBassNotch(bassF0)
+            if (muteBass && bassF0 > 0f) applyBassNotch(bassF0, re, im)
+        }
 
+        // 보컬(중앙) 마스킹은 L/R 스펙트럼을 함께 봐야 하므로 채널 루프 밖에서 적용
+        if (muteVocal && chCount == 2) applyCenterSuppression()
+
+        for (ch in 0 until chCount) {
+            val re = chRe[ch]
+            val im = chIm[ch]
             fft.run(re, im, inverse = true)
             System.arraycopy(re, 0, specCh[ch], 0, n)
         }
@@ -146,8 +177,41 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         }
     }
 
+    /**
+     * 패닝 인덱스 기반 중앙 성분(보컬) 억제.
+     * 빈 단위 정규화 상호상관 sim = 2·Re(X_L·X_R*) / (|X_L|²+|X_R|²) ∈ [-1,1]이
+     * 1에 가까울수록(=진폭·위상이 같은 중앙 패닝) 강하게 감쇠한다.
+     * 시간영역 L-R 상쇄 대비: 스테레오 이미지가 보존되고, 위상이 어긋난
+     * 사이드 성분(리버브·스테레오 악기)은 sim이 낮아 건드리지 않는다.
+     * 저역(vocalKeepBins 미만)은 킥/베이스 중앙 성분 보존을 위해 통과.
+     */
+    private fun applyCenterSuppression() {
+        val s = vocalStrength.coerceIn(0f, 1f)
+        val simThr = CENTER_THR_SOFT + (CENTER_THR_HARD - CENTER_THR_SOFT) * s
+        val depthDb = CENTER_DEPTH_SOFT_DB + (CENTER_DEPTH_HARD_DB - CENTER_DEPTH_SOFT_DB) * s
+        val maxSuppress = 1f - Math.pow(10.0, -depthDb / 20.0).toFloat() // dB → 선형 배율
+
+        val reL = chRe[0]; val imL = chIm[0]
+        val reR = chRe[1]; val imR = chIm[1]
+        val half = n / 2
+        for (j in vocalKeepBins..half) {
+            val crossRe = reL[j] * reR[j] + imL[j] * imR[j]
+            val pwr = reL[j] * reL[j] + imL[j] * imL[j] + reR[j] * reR[j] + imR[j] * imR[j]
+            val sim = 2f * crossRe / (pwr + 1e-12f)
+            if (sim <= simThr) continue
+            val t = (sim - simThr) / (1f - simThr)
+            val keep = 1f - maxSuppress * t * t // 소프트 램프 (뮤지컬 노이즈 완화)
+            reL[j] *= keep; imL[j] *= keep
+            reR[j] *= keep; imR[j] *= keep
+            if (j in 1 until half) {
+                reL[n - j] *= keep; imL[n - j] *= keep
+                reR[n - j] *= keep; imR[n - j] *= keep
+            }
+        }
+    }
+
     /** 주파수축 중간값(타악 추정) 대비 시간축 중간값(화성 추정) 소프트 마스크로 타악 억제 */
-    private fun applyPercussiveSuppression(ch: Int) {
+    private fun applyPercussiveSuppression(ch: Int, re: FloatArray, im: FloatArray) {
         val half = n / 2
         for (j in 0..half) {
             mags[j] = kotlin.math.hypot(re[j].toDouble(), im[j].toDouble()).toFloat()
@@ -195,7 +259,7 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
     }
 
     /** 베이스 f0와 그 배음들을 가우시안 노치로 감쇠 */
-    private fun applyBassNotch(f0: Float) {
+    private fun applyBassNotch(f0: Float, re: FloatArray, im: FloatArray) {
         val binHz = sampleRate.toFloat() / n
         val f0Bin = f0 / binHz
         val maxHarm = ((LOW_CUTOFF_HZ / f0).toInt()).coerceAtMost(8)
@@ -279,6 +343,15 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         private const val LOW_CUTOFF_HZ = 320f
         private const val CONFIDENCE_THR = 0.30f
         private const val NOTCH_GAIN = 0.85f
+
+        /** 보컬 마스킹에서 보존할 저역 상한 */
+        private const val VOCAL_KEEP_HZ = 150f
+        /** 감쇠 램프 시작 유사도: 강도 0(부드럽게) ~ 1(강하게) */
+        private const val CENTER_THR_SOFT = 0.8f
+        private const val CENTER_THR_HARD = 0.45f
+        /** 완전 중앙(sim=1)에서의 최대 감쇠 깊이(dB): 강도 0 ~ 1 */
+        private const val CENTER_DEPTH_SOFT_DB = 12.0
+        private const val CENTER_DEPTH_HARD_DB = 40.0
 
         /** ~280Hz 1차 저역통과 계수 (44.1k 기준) */
         private val LP_COEF = 0.04f

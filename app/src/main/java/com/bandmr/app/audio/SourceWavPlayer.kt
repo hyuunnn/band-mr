@@ -54,6 +54,14 @@ class SourceWavPlayer(
             }
         }
 
+    /** 보컬 제거 강도 0..1. 상태 리셋 없이 즉시 반영된다 */
+    @Volatile
+    var vocalStrength: Float = 1f
+        set(value) {
+            field = value
+            chain.vocalStrength = value
+        }
+
     private var shifter = newShifter(0)
 
     private var chain = newChain()
@@ -100,7 +108,10 @@ class SourceWavPlayer(
     // ---------- 내부 ----------
 
     private fun newChain(): DspChain =
-        DspChain(sampleRate, channels).also { it.muteMask = muteMask }
+        DspChain(sampleRate, channels).also {
+            it.muteMask = muteMask
+            it.vocalStrength = vocalStrength
+        }
 
     private fun rebuildChain() {
         synchronized(stateLock) { chain = newChain() }

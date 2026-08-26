@@ -181,6 +181,7 @@ class PlayerController(private val context: Context) {
     private fun attachSource(player: SourceWavPlayer, mask: Int, semi: Int, play: Boolean, pos: Long) {
         player.muteMask = mask
         player.semitones = semi
+        player.vocalStrength = vocalStrength
         source = player
         durationMs.value = framesToMs(player.durationFrames)
         player.seekToFrame(msToFrames(pos))
@@ -245,6 +246,7 @@ class PlayerController(private val context: Context) {
 
     private var lastMask = 0
     private var lastSemitones = 0
+    private var vocalStrength = 1f
 
     private fun engineExists(): Boolean =
         if (aiMode) mixer != null else source != null
@@ -304,6 +306,12 @@ class PlayerController(private val context: Context) {
     fun setSemitones(n: Int) {
         mixer?.semitones = n
         source?.semitones = n
+    }
+
+    /** AI OFF 보컬 제거 강도 0..1 (설정에서 로드/변경 시 호출) */
+    fun setVocalStrength(v: Float) {
+        vocalStrength = v
+        source?.vocalStrength = v
     }
 
     /** 현재 로드된 곡 id (곡 삭제 시 재생 중 여부 판별용) */

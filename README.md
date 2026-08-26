@@ -35,7 +35,7 @@
 ```
 AI OFF (WAV 캐시, 절전)
   원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ SourceWavPlayer(DspChain)
-                                      ├ 보컬 제거: 대역 한정 L-R 위상 상쇄 (저역 중앙 성분 보존)
+                                      ├ 보컬 제거: STFT 패닝 인덱스 중앙 마스킹 (저역 중앙 성분 보존)
                                       ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
                                       ├ 드럼 제거: STFT HPSS 타악 억제 (근사)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
