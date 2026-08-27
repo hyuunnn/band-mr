@@ -2,6 +2,7 @@ package com.bandmr.app.youtube
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
@@ -23,10 +24,15 @@ import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import kotlin.coroutines.coroutineContext
+
+internal const val HTTP_COPY_BUF = 64 * 1024
+private const val TAG = "YouTubeImport"
 
 /** 추출 API(NewPipe)와 구간 다운로드(googlevideo) 요청에 공통으로 쓰는 UA */
 private const val USER_AGENT =
@@ -111,6 +117,7 @@ object YouTubeImport {
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
+            Log.e(TAG, "import failed", t)
             state.value = ImportState.Failed(userMessage(t))
         }
     }
@@ -198,13 +205,18 @@ object YouTubeImport {
         if (final.exists()) return final
 
         val part = File(dir, "${final.name}.part")
+        if (part.exists()) part.delete()
         var conn: HttpURLConnection? = null
+        var succeeded = false
         try {
             conn = URL(url).openConnection() as HttpURLConnection
             conn.connectTimeout = 15_000
             conn.readTimeout = 30_000
             conn.instanceFollowRedirects = true
+            conn.useCaches = false
             conn.setRequestProperty("User-Agent", USER_AGENT)
+            conn.setRequestProperty("Accept-Encoding", "identity")
+            conn.setRequestProperty("Referer", "https://www.youtube.com")
 
             // 만료된 구간별 URL은 403으로 답한다 — 암묵적 스트림 예외 대신 상태 코드를 명시해 확인
             val code = conn.responseCode
@@ -214,40 +226,47 @@ object YouTubeImport {
             val total = conn.contentLengthLong.takeIf { it > 0 }
             var received = 0L
             var lastPercent = -1
+            var copyReturned = false
 
-            conn.inputStream.use { ins ->
-                part.outputStream().use { out ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        coroutineContext.ensureActive()
-                        val n = ins.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                        received += n
-                        // 갱신 빈도 제한: 크기 불명은 512KB마다, 크기 확인 시 1% 경계마다만
-                        if (total != null) {
-                            val pct = ((received * 100) / total).toInt()
-                            if (pct != lastPercent) {
-                                lastPercent = pct
+            try {
+                conn.inputStream.use { ins ->
+                    part.outputStream().use { out ->
+                        received = copyHttpBody(ins, out, total) { rec ->
+                            received = rec
+                            // 갱신 빈도 제한: 크기 불명은 512KB마다, 크기 확인 시 1% 경계마다만
+                            if (total != null) {
+                                val pct = ((rec * 100) / total).toInt()
+                                if (pct != lastPercent) {
+                                    lastPercent = pct
+                                    state.value = ImportState.Downloading(
+                                        state.value.currentTitle(), pct / 100f,
+                                        rec, total,
+                                    )
+                                }
+                            } else if (rec % (512 * 1024) < HTTP_COPY_BUF.toLong()) {
                                 state.value = ImportState.Downloading(
-                                    state.value.currentTitle(), pct / 100f,
-                                    received, total,
+                                    state.value.currentTitle(), null, rec, null,
                                 )
                             }
-                        } else if (received % (512 * 1024) < buf.size.toLong()) {
-                            state.value = ImportState.Downloading(
-                                state.value.currentTitle(), null, received, null,
-                            )
                         }
+                        copyReturned = true
                     }
                 }
+            } catch (e: IOException) {
+                // 본문 복사가 끝난 뒤의 close/RST, 또는 디스크에 전량이 있으면 정상 종료
+                if (!shouldKeepDownload(e, received, total, part.length(), copyReturned)) {
+                    throw e
+                }
             }
-            check(part.renameTo(final)) { "다운로드 파일 이동 실패: $part" }
+            if (part.length() <= 0L) {
+                throw IOException("다운로드 파일이 비어 있습니다")
+            }
+            promotePart(part, final)
+            succeeded = true
             return final
         } finally {
-            // 커넥션 명시 해제(keep-alive 소켓 점유 방지) + 실패 시 부분 파일 정리
             conn?.disconnect()
-            if (part.exists()) part.delete()
+            if (!succeeded && part.exists()) part.delete()
         }
     }
 
@@ -313,4 +332,76 @@ internal fun newPipeResponse(
     body: String,
     latestUrl: String,
 ): Response = Response(code, httpMessage, headers, body, latestUrl)
+
+internal fun downloadReachedTotal(received: Long, total: Long?): Boolean =
+    total != null && received >= total
+
+internal fun isBenignDisconnect(e: IOException): Boolean {
+    if (e is java.net.SocketException) return true
+    val m = e.message?.lowercase() ?: return false
+    return "unexpected end" in m ||
+        "connection reset" in m ||
+        "connection closed" in m ||
+        "broken pipe" in m ||
+        "software caused connection abort" in m
+}
+
+/** 본문 복사가 끝났거나, 디스크/카운터가 이미 전량이면 close/RST 예외를 무시한다. */
+internal fun shouldKeepDownload(
+    e: IOException,
+    received: Long,
+    total: Long?,
+    fileLength: Long,
+    copyReturned: Boolean,
+): Boolean {
+    if (copyReturned) return true
+    if (downloadReachedTotal(received, total) || (total != null && fileLength >= total)) return true
+    return isBenignDisconnect(e) && fileLength > 0L && total == null
+}
+
+/** rename이 같은 마운트에서 실패하는 기기용 copy 폴백. ModelManager와 동일. */
+internal fun promotePart(part: File, final: File) {
+    if (final.exists()) final.delete()
+    if (part.renameTo(final)) return
+    part.copyTo(final, overwrite = true)
+    part.delete()
+    check(final.exists() && final.length() > 0L) { "다운로드 파일 이동 실패: $part" }
+}
+
+/**
+ * HTTP 본문을 [output]에 복사한다. Content-Length만큼 받은 뒤의 read 예외와
+ * 길이 미상일 때의 RST는 서버가 연결을 끊은 정상 종료로 본다.
+ */
+internal suspend fun copyHttpBody(
+    input: InputStream,
+    output: OutputStream,
+    total: Long?,
+    onProgress: (received: Long) -> Unit = {},
+): Long {
+    val buf = ByteArray(HTTP_COPY_BUF)
+    var received = 0L
+    while (true) {
+        coroutineContext.ensureActive()
+        val n = try {
+            input.read(buf)
+        } catch (e: IOException) {
+            if (downloadReachedTotal(received, total) ||
+                (total == null && received > 0 && isBenignDisconnect(e))
+            ) {
+                break
+            }
+            throw e
+        }
+        if (n < 0) break
+        if (n == 0) continue
+        output.write(buf, 0, n)
+        received += n
+        onProgress(received)
+        if (downloadReachedTotal(received, total)) break
+    }
+    if (total != null && received < total) {
+        throw IOException("다운로드가 중간에 끊겼습니다 ($received / $total)")
+    }
+    return received
+}
 
