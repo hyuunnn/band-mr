@@ -129,4 +129,22 @@ class YouTubeUrlTest {
         // webm(opus)과 미상 MIME 모두 rank 0 → 비트레이트 우선
         assertEquals("unknown", chosen?.url)
     }
+
+    @Test
+    fun `NewPipe Response는 HTTP 상태문구가 아니라 JSON 본문을 body로 보관한다`() {
+        // 과거 생성자 인자 스왑 버그: responseBody()가 "OK"가 되어
+        // YoutubeParsingHelper가 "JSON response is too short"를 던졌다
+        val json = """{"responseContext":{},"playabilityStatus":{"status":"OK"}}"""
+        val r = newPipeResponse(
+            200,
+            "OK",
+            mapOf("Content-Type" to listOf("application/json")),
+            json,
+            "https://www.youtube.com/youtubei/v1/player",
+        )
+        assertEquals(json, r.responseBody())
+        assertEquals("OK", r.responseMessage())
+        assertEquals(200, r.responseCode())
+        assertEquals("application/json", r.getHeader("Content-Type"))
+    }
 }

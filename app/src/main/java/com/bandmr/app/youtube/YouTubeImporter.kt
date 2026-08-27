@@ -294,10 +294,23 @@ private class HttpDownloader : Downloader() {
             val body = bodyStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             val headers = conn.headerFields.filterKeys { it != null }
                 .mapKeysTo(mutableMapOf<String, List<String>>()) { it.key as String }
-            return Response(code, body, headers, conn.responseMessage, conn.url.toString())
+            return newPipeResponse(code, conn.responseMessage, headers, body, conn.url.toString())
         } finally {
             conn.disconnect()
         }
     }
 }
+
+/**
+ * NewPipe [Response] 생성자 순서는 (code, message, headers, body, latestUrl).
+ * body/message를 바꾸면 추출기가 HTTP 상태문구("OK")를 JSON으로 읽고
+ * `JSON response is too short`로 죽는다.
+ */
+internal fun newPipeResponse(
+    code: Int,
+    httpMessage: String?,
+    headers: Map<String, List<String>>,
+    body: String,
+    latestUrl: String,
+): Response = Response(code, httpMessage, headers, body, latestUrl)
 
