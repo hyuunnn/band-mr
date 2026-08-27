@@ -29,6 +29,8 @@ audio/       AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시�
 separation/  AudioDecode(MediaCodec→44.1k raw) → DemucsSeparator(ONNX) → 스템 WAV 캐시
 playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
 export/      믹스/스템 WAV 내보내기
+youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스트림 추출·다운로드(filesDir/sources)
+             → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
 data/        Room(Song), DataStore(설정)
 ui/          Compose (라이브러리/플레이어/설정)
 tools/       모델 변환 스크립트 (아래 참조)
@@ -36,6 +38,7 @@ tools/       모델 변환 스크립트 (아래 참조)
 
 핵심 불변식:
 - **AI OFF 재생은 압축 원본 스트리밍 금지 — 반드시 MixCache의 WAV를 재생한다.** 일부 기기(SM-S931N, Android 16 펌웨어)에서 MediaCodec 비동기 스트리밍 디코딩이 무음/노이즈로 깨진다(비동기 큐잉 강제 비활성화로도 불가 확인). 캐시는 곡 추가/앱 시작 때 백그라운드로 만들고, 없으면 재생 시점에 준비 후 자동 이어재생(preparingSongId 상태로 UI 표시)
+- 유튜브 임포트 원본도 압축 파일(file:// URI)일 뿐 동일 규칙 적용 — sources/<videoId>.<ext>를 두고 MixCache WAV로만 재생. NewPipeExtractor는 GPL-3.0이라 배포 시 THIRD_PARTY_NOTICES.md 고지 필수
 - **PlayerController.release()는 코루틴 스코프를 절대 cancel하지 않는다.** 싱글턴 컨트롤러의 스코프를 취소하면 이후 캐시 준비가 조용히 무시되어 "준비 중" 문구가 영구 노출된다(실제 발생한 버그)
 - **DemucsSeparator는 항상 고정 길이 세그먼트**(`Tier.segmentSamples`)로 추론. 마지막 청크는 0 패딩. ONNX 모델도 고정 shape로 export됨 — 동적 축 쓰면 안 됨
 - 오디오 처리 좌우로 interleaved stereo PCM16이 기본. 모노는 DspChain/SpectralStage에서 chCount=1 분기

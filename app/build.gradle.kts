@@ -47,6 +47,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // NewPipeExtractor(minSdk 33 미만 요구사항): java.nio 확장 API desugaring
+        isCoreLibraryDesugaringEnabled = true
     }
     // 빌트인 Kotlin: jvmTarget은 compileOptions.targetCompatibility(17)를 따른다
     buildFeatures {
@@ -84,6 +86,13 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.29.0")
 
     implementation("androidx.documentfile:documentfile:1.1.0")
+
+    // 유튜브 링크 → 오디오 스트림 추출 (GPL-3.0 — 배포 시 라이선스 영향, THIRD_PARTY_NOTICES.md 참조)
+    // JitPack 태그 빌드: https://jitpack.io/#TeamNewPipe/NewPipeExtractor
+    // minifyEnabled=false라 ProGuard keep 규칙(rhino)은 불필요
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
+
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     testImplementation("junit:junit:4.13.2")
 }

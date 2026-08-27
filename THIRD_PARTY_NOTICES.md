@@ -47,6 +47,17 @@ Apache License 2.0 — Copyright The Android Open Source Project.
 
 Apache License 2.0 — Copyright JetBrains s.r.o. 및 기여자들.
 
+## NewPipeExtractor (유튜브 링크 가져오기)
+
+앱의 `youtube/` 패키지는 [TeamNewPipe/NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)
+(JitPack `com.github.TeamNewPipe:NewPipeExtractor`)를 사용해 유튜브 영상 정보와
+오디오 스트림 URL을 추출합니다. **GNU General Public License v3.0 이후(GPL-3.0+)**,
+Copyright © Team NewPipe — https://www.gnu.org/licenses/gpl-3.0.txt
+
+이 라이브러리를 링크하므로 배포되는 APK 전체는 GPL-3.0 호환 조건이 적용됩니다.
+전이 의존성: jsoup(MIT), rhino/rhino-engine(MPL-2.0), protobuf-javalite(BSD-3-Clause),
+nanojson(Apache-2.0), jsr305(Apache-2.0).
+
 ## JUnit
 
 단위 테스트에만 사용. Eclipse Public License 1.0.

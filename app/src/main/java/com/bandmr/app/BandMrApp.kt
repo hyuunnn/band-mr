@@ -28,6 +28,7 @@ class BandMrApp : Application() {
             runCatching {
                 val songs = Locator.songDao.getAllOnce()
                 cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
+                cleanUpSourceFiles(songs)
                 songs.forEach { song ->
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
                         runCatching {
@@ -51,6 +52,19 @@ class BandMrApp : Application() {
         File(filesDir, "stems").listFiles()?.forEach { d ->
             val id = d.name.toLongOrNull()
             if (id == null || id !in validIds) d.deleteRecursively()
+        }
+    }
+
+    /**
+     * 참조가 끊긴 다운로드 원본(filesDir/sources, 유튜브 임포트) 정리.
+     * 곡 삭제와 DB 쓰기 경쟁으로 남은 고아 .part·원본을 제거한다.
+     */
+    private fun cleanUpSourceFiles(songs: List<com.bandmr.app.data.Song>) {
+        val referenced = songs.mapNotNullTo(HashSet()) { s ->
+            s.uri.takeIf { it.startsWith("file://") }?.toUri()?.path
+        }
+        File(filesDir, "sources").listFiles()?.forEach { f ->
+            if (f.absolutePath !in referenced) f.delete()
         }
     }
 }

@@ -11,22 +11,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,13 +42,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
+import com.bandmr.app.youtube.ImportState
+import com.bandmr.app.youtube.YouTubeImport
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -52,6 +62,9 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     val songs by Locator.songDao.observeAll().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var pendingDelete by remember { mutableStateOf<Song?>(null) }
+    val importState by YouTubeImport.state.collectAsState()
+    var showLinkDialog by remember { mutableStateOf(false) }
+    var linkUrl by remember { mutableStateOf("") }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -80,11 +93,24 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
 
     Scaffold(
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { picker.launch(arrayOf("audio/*")) },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("곡 추가") },
-            )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        linkUrl = ""
+                        showLinkDialog = true
+                    },
+                    icon = { Icon(Icons.Default.Link, contentDescription = null) },
+                    text = { Text("링크로 추가") },
+                )
+                ExtendedFloatingActionButton(
+                    onClick = { picker.launch(arrayOf("audio/*")) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("곡 추가") },
+                )
+            }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -113,6 +139,94 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
         }
     }
 
+    if (showLinkDialog) {
+        val busy = YouTubeImport.isRunning()
+        LaunchedEffect(importState) {
+            if (importState is ImportState.Done) {
+                delay(600)
+                showLinkDialog = false
+                YouTubeImport.hideDialog()
+            }
+        }
+        AlertDialog(
+            onDismissRequest = {
+                // 진행 중이어도 다이얼로그만 닫으면 백그라운드(appScope)에서 계속 진행된다
+                showLinkDialog = false
+                YouTubeImport.hideDialog()
+            },
+            title = { Text("유튜브 링크로 곡 추가") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = linkUrl,
+                        onValueChange = { linkUrl = it },
+                        singleLine = true,
+                        enabled = !busy,
+                        placeholder = { Text("https://youtu.be/… 또는 watch?v=…") },
+                    )
+                    when (val st = importState) {
+                        is ImportState.Resolving ->
+                            StatusRow(text = "영상 정보를 가져오는 중…")
+                        is ImportState.Downloading -> {
+                            val p = st.progress
+                            if (p != null) {
+                                LinearProgressIndicator(
+                                    progress = { p },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            } else {
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
+                            }
+                            Text(
+                                buildString {
+                                    append(st.title)
+                                    val mb = st.receivedBytes / (1024 * 1024)
+                                    if (st.totalBytes != null) {
+                                        append(" · ${p?.let { "${(it * 100).toInt()}%" } ?: "$mb MB"}")
+                                    } else if (mb > 0) {
+                                        append(" · $mb MB")
+                                    }
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        is ImportState.PreparingCache ->
+                            StatusRow(text = "'${st.title}' 재생 캐시 준비 중…")
+                        is ImportState.Failed -> Text(
+                            st.message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        ImportState.Idle -> Unit
+                        is ImportState.Done -> Unit
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = linkUrl.isNotBlank() && !busy,
+                    onClick = { YouTubeImport.start(linkUrl) },
+                ) {
+                    Text(if (busy) "진행 중…" else "추가")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (busy) {
+                        TextButton(onClick = {
+                            YouTubeImport.cancel()
+                            showLinkDialog = false
+                        }) { Text("중단") }
+                    }
+                    TextButton(onClick = {
+                        showLinkDialog = false
+                        YouTubeImport.hideDialog()
+                    }) { Text("닫기") }
+                }
+            },
+        )
+    }
+
     pendingDelete?.let { song ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
@@ -132,6 +246,18 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                         }
                         song.stemsDir?.let { withContext(Dispatchers.IO) { File(it).deleteRecursively() } }
                         MixCache.delete(Locator.context, song.id)
+                        // 다른 곡이 참조하지 않는 파일 소스(유튜브 다운로드 원본 등) 정리.
+                        // files/sources 아래 경로만 허용해 의도치 않은 삭제를 차단한다
+                        val shared = Locator.songDao.getAllOnce()
+                            .any { it.id != song.id && it.uri == song.uri }
+                        if (!shared && song.uri.startsWith("file://")) {
+                            val sourcesDir =
+                                File(Locator.context.filesDir, "sources").canonicalFile
+                            song.uri.toUri().path?.let { p ->
+                                File(p).takeIf { it.canonicalFile.parentFile == sourcesDir }
+                                    ?.delete()
+                            }
+                        }
                         Locator.songDao.delete(song)
                     }
                     pendingDelete = null
@@ -139,6 +265,17 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("취소") } },
         )
+    }
+}
+
+@Composable
+private fun StatusRow(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CircularProgressIndicator(Modifier.size(16.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall)
     }
 }
 
