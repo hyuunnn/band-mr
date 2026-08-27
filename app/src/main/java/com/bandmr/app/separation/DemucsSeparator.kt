@@ -4,51 +4,40 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import com.bandmr.app.audio.DspChain
+import com.bandmr.app.audio.WavReader
 import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Stem
 import java.io.File
-import java.io.RandomAccessFile
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
 /**
  * Demucs ONNX 모델로 스템 분리.
- * 입력: 44.1kHz 스테레오 PCM16 raw 파일 / 출력: 스템별 WAV + 오버랩 크로스페이드.
+ * 입력: MixCache와 동일한 44.1kHz 스테레오 PCM16 WAV / 출력: 스템별 WAV + 오버랩 크로스페이드.
  *
  * htdemucs는 모델 내부에서 크기 스펙트로그램을 자체 정규화하므로
  * 파형은 raw [-1,1] 값을 그대로 넣는다(원본 apply_model 경로와 동일).
  * 첫 구간은 램프인, 마지막 구간은 램프아웃을 생략한다(곡 시작/끝 페이드 방지).
+ * ONNX 세션은 [OrtModelCache]가 모델 파일 단위로 재사용한다.
  */
 class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnvironment()) {
 
     fun separate(
         modelFile: File,
         config: ModelConfig,
-        inputRaw: File,
-        totalFrames: Long,
+        inputWav: File,
         outDir: File,
         segmentSamples: Int,
         onProgress: (Float, String) -> Unit = { _, _ -> },
         isCancelled: () -> Boolean = { false },
     ): Map<Stem, File> {
-        val opts = OrtSession.SessionOptions().apply {
-            setIntraOpNumThreads(4)
-        }
-        val session = env.createSession(modelFile.absolutePath, opts)
-        try {
-            return runSeparation(session, config, inputRaw, totalFrames, outDir, segmentSamples, onProgress, isCancelled)
-        } finally {
-            runCatching { session.close() }
-            runCatching { opts.close() }
-        }
+        val session = OrtModelCache.sessionFor(modelFile, env)
+        return runSeparation(session, config, inputWav, outDir, segmentSamples, onProgress, isCancelled)
     }
 
     private fun runSeparation(
         session: OrtSession,
         config: ModelConfig,
-        inputRaw: File,
-        totalFrames: Long,
+        inputWav: File,
         outDir: File,
         seg: Int,
         onProgress: (Float, String) -> Unit,
@@ -76,7 +65,7 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
         val carry = FloatArray(nStems * 2 * fade)
         val inPlanar = FloatArray(2 * seg)
         val outArr = FloatArray(nStems * 2 * seg)
-        val readBytes = ByteArray(seg * 4)
+        val readShorts = ShortArray(seg * 2)
         val tmpL = FloatArray(seg)
         val tmpR = FloatArray(seg)
         val shortBuf = ShortArray(seg * 2)
@@ -84,30 +73,21 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
         val inputName = session.inputNames.iterator().next()
 
         try {
-            RandomAccessFile(inputRaw, "r").use { raf ->
+            WavReader(inputWav).use { reader ->
+                require(reader.sampleRate == sr && reader.channels == 2) {
+                    "분리 입력은 ${sr}Hz 스테레오 WAV여야 합니다 (got ${reader.sampleRate}Hz/${reader.channels}ch)"
+                }
+                val totalFrames = reader.totalFrames
                 var pos = 0L
                 while (pos < totalFrames) {
                     // 취소는 오류가 아니므로 CancellationException으로 전파한다
                     // (SeparationService가 Idle 상태로 정리하고 UI에 오류를 띄우지 않음)
                     if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
-                    val len = minOf(seg.toLong(), totalFrames - pos).toInt()
+                    val want = minOf(seg.toLong(), totalFrames - pos).toInt()
+                    val len = reader.read(pos, readShorts, want)
+                    if (len == 0) break
                     val isLast = pos + len >= totalFrames
-
-                    // ---- 입력 로드: interleaved s16le → planar float ----
-                    java.util.Arrays.fill(inPlanar, 0f)
-                    val byteLen = len * 4
-                    raf.seek(pos * 4L)
-                    var done = 0
-                    while (done < byteLen) {
-                        val n = raf.read(readBytes, done, byteLen - done)
-                        if (n < 0) break
-                        done += n
-                    }
-                    val bb = ByteBuffer.wrap(readBytes).order(ByteOrder.LITTLE_ENDIAN)
-                    for (frame in 0 until len) {
-                        inPlanar[frame] = bb.short / 32768f          // L
-                        inPlanar[seg + frame] = bb.short / 32768f    // R
-                    }
+                    interleavedS16ToPlanar(readShorts, len, seg, inPlanar)
 
                     // ---- 추론 ----
                     OnnxTensor.createTensor(
@@ -180,6 +160,25 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
         internal const val FADE_DIVISOR = 4
 
         /**
+         * interleaved stereo s16 → 모델 입력 planar float [L(seg) | R(seg)].
+         * [frames] 이후는 0 패딩(마지막 청크).
+         */
+        internal fun interleavedS16ToPlanar(
+            src: ShortArray,
+            frames: Int,
+            seg: Int,
+            dst: FloatArray,
+        ) {
+            java.util.Arrays.fill(dst, 0f)
+            var i = 0
+            while (i < frames) {
+                dst[i] = src[i * 2] / 32768f
+                dst[seg + i] = src[i * 2 + 1] / 32768f
+                i++
+            }
+        }
+
+        /**
          * 크로스페이드 가중치.
          *  - 첫 구간: 램프인 없음(1로 시작)
          *  - 마지막 구간: 램프아웃 없음(1로 끝남)
@@ -195,5 +194,37 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
             }
             return w.coerceIn(0f, 1f)
         }
+    }
+}
+
+/**
+ * 모델 파일당 ONNX 세션 1개를 프로세스 동안 유지한다.
+ * 등급을 바꾸면 이전 세션을 닫고 새 파일을 연다.
+ */
+internal object OrtModelCache {
+    private val lock = Any()
+    private var cachedPath: String? = null
+    private var session: OrtSession? = null
+    private var opts: OrtSession.SessionOptions? = null
+
+    fun sessionFor(modelFile: File, env: OrtEnvironment): OrtSession = synchronized(lock) {
+        val path = modelFile.absolutePath
+        session?.let { if (cachedPath == path) return it }
+        closeLocked()
+        val o = OrtSession.SessionOptions().apply { setIntraOpNumThreads(4) }
+        session = env.createSession(path, o)
+        opts = o
+        cachedPath = path
+        session!!
+    }
+
+    fun close() = synchronized(lock) { closeLocked() }
+
+    private fun closeLocked() {
+        runCatching { session?.close() }
+        runCatching { opts?.close() }
+        session = null
+        opts = null
+        cachedPath = null
     }
 }
