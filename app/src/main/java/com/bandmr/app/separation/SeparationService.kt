@@ -102,7 +102,6 @@ class SeparationService : Service() {
     }
 
     private fun cleanupFiles(songId: Long) {
-        File(cacheDir, "sep_$songId.raw").delete()
         File(filesDir, "stems/$songId").deleteRecursively()
     }
 

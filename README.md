@@ -18,6 +18,7 @@
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
+| 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
 ![앱 화면 구성 — 라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
 
@@ -42,7 +43,7 @@ AI OFF (WAV 캐시, 절전)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MediaCodec 디코딩 ──▶ Demucs ONNX 추론(6스템)
+  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(6스템, 세션 재사용)
              ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치
 ```
 
@@ -69,7 +70,7 @@ minSdk 31 (Android 12+) / targetSdk 36
 ## 🤖 AI 모델
 
 AI를 ON하면 설정에서 모델 3종 중 하나를 선택해 다운로드할 수 있습니다.
-모델은 이 저장소의 [Releases](https://github.com/hyuunnn/band-mr/releases/tag/model-v1)에
+모델은 이 저장소의 [Releases](https://github.com/hyuunnn/band-mr/releases/tag/model-v2)에
 호스팅되어 있으며, 다운로드 시 SHA-256 무결성이 검증됩니다.
 
 | 등급 | 세그먼트 | 특징 |
@@ -113,10 +114,14 @@ app/src/main/java/com/bandmr/app/
 ├── separation/
 │   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 핀)
 │   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
-│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw PCM (안티에일리어싱 리샘플)
-│   ├── DemucsSeparator.kt     # ONNX 추론 + 오버랩 크로스페이드
+│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw (MixCache·내보내기용)
+│   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
+│   │                          # OrtModelCache가 모델 파일당 세션 1개 재사용
 │   ├── SeparationService.kt   # Foreground Service + 진행 알림
 │   └── SepBus.kt              # 서비스↔UI 상태 버스
+├── youtube/
+│   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
+│   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
 ├── export/Exporter.kt         # 믹스/스템 내보내기
 ├── data/                      # Room(Song), DataStore(설정)
 └── ui/                        # Compose 화면들
@@ -127,7 +132,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/STFT/리샘플러/청크 수학 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/STFT/리샘플러/청크 수학/유튜브 단위 테스트
 ```
 
 ## 알려진 한계
@@ -137,6 +142,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 - 피치 시프터는 실시간용 그래뉼러 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
 - 품질 우선 모델은 메모리를 많이 사용하므로 RAM 4GB 이상 기기를 권장합니다.
 - 모델 파일이 약 178MB라 최초 다운로드에 시간이 걸릴 수 있습니다 (Wi-Fi 권장).
+- 유튜브 가져오기와 모델 다운로드는 화면을 열어 둔 채 진행해야 합니다. 앱을 내리면 끊길 수 있습니다.
 - 알림 컨트롤은 MediaSession 없이 구현되어 블루투스 헤드셋 버튼/잠금화면 연동은 제한적입니다.
 
 ---

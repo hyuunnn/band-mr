@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""htdemucs / htdemucs_6s -> 복소수 없는 ONNX(fp32) 변환 + 검증.
+"""htdemucs_6s -> 복소수 없는 ONNX(fp32) 변환 + 검증.
 
-사용법: python export_demucs_onnx.py <출력폴더> [모델명=htdemucs]
-앱 배포용은 htdemucs_6s (6스템: drums/bass/other/vocals/guitar/piano).
+사용법: python export_demucs_onnx.py <출력폴더>
+6스템: drums/bass/other/vocals/guitar/piano.
 
 torch.stft/istft는 complex dtype을 반환해 ONNX export가 불가능하다.
 demucs.spec의 spectro/ispectro를 실수(re/im 쌍) 연산으로 재구현해 교체한다.
-htdemucs는 cac=True가 기본이라 complex 사용이 view뿐이므로 이 치환만으로
+htdemucs_6s는 cac=True가 기본이라 complex 사용이 view뿐이므로 이 치환만으로
 원본과 수치 동등한 동적 그래프가 만들어진다.
 
 - STFT: reflect 패딩 후 Conv1D(stride=hop)로 창+DFT 투영 동시 수행
@@ -27,10 +27,16 @@ import numpy as np
 import torch as th
 import torch.nn.functional as F
 
-OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else "."
-# htdemucs(4스템) 또는 htdemucs_6s(6스템: +guitar/piano)
-MODEL_NAME = sys.argv[2] if len(sys.argv) > 2 else "htdemucs"
-MODEL_TAG = MODEL_NAME.replace("_", "")  # 파일명용 (htdemucs6s)
+USAGE = "사용법: python export_demucs_onnx.py <출력폴더>"
+if len(sys.argv) < 2:
+    print(USAGE, file=sys.stderr)
+    sys.exit(2)
+if len(sys.argv) > 2 and sys.argv[2] != "htdemucs_6s":
+    print(f"{USAGE}\n이 스크립트는 htdemucs_6s만 변환합니다.", file=sys.stderr)
+    sys.exit(2)
+OUT_DIR = sys.argv[1]
+MODEL_NAME = "htdemucs_6s"
+MODEL_TAG = "htdemucs6s"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -148,6 +154,7 @@ wrapper = get_model(MODEL_NAME).cpu().eval()
 model = wrapper.models[0] if hasattr(wrapper, "models") else wrapper
 model.use_train_segment = False
 N_SRC = len(model.sources)
+assert N_SRC == 6, f"htdemucs_6s가 아님: sources={list(model.sources)}"
 log(f"모델={MODEL_NAME}, 스템 순서={list(model.sources)} (총 {N_SRC}개)")
 
 # nn.MultiheadAttention은 ONNX export 시 융합 연산자(aten::_native_multi_head_attention)가
@@ -204,7 +211,7 @@ with th.no_grad():
 log(f"원본(complex) 경로 기준 출력: {tuple(Y_REF.shape)}")
 
 # ---------------------------------------------------------------- 패치 적용
-import demucs.htdemucs as hd  # noqa: E402
+import demucs.htdemucs as hd  # noqa: E402  # HTDemucs 구현 모듈. 가중치는 htdemucs_6s
 
 hd.spectro = spectro_pair
 hd.ispectro = ispectro_pair
@@ -256,7 +263,7 @@ with th.no_grad():
 rel = ((Y_REF - Y_NEW).norm() / Y_REF.norm()).item()
 mx = (Y_REF - Y_NEW).abs().max().item()
 log(f"패치 수치 검증: rel_err={rel:.2e}, max_abs_diff={mx:.2e}")
-# htdemucs=~5e-5, htdemucs_6s=~1e-4 수준 — fp32 연산 순서 차이의 정상 범위
+# htdemucs_6s=~1e-4 수준 — fp32 연산 순서 차이의 정상 범위
 assert rel < 1e-3, "패치된 경로가 원본과 다름"
 del Y_REF, Y_NEW
 

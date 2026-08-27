@@ -67,14 +67,14 @@
     <line x1="606" y1="164" x2="628" y2="164" stroke="#E8730C" stroke-width="2" marker-end="url(#ar)"/>
 
     <rect x="632" y="136" width="96" height="56" rx="10" fill="#ffffff" stroke="#FFCF9E" stroke-width="1.5"/>
-    <text x="680" y="159" text-anchor="middle" fill="#33334a">MediaCodec</text>
-    <text x="680" y="175" text-anchor="middle" fill="#33334a" font-size="11">44.1kHz 디코딩</text>
+    <text x="680" y="159" text-anchor="middle" fill="#33334a">MixCache</text>
+    <text x="680" y="175" text-anchor="middle" fill="#33334a" font-size="11">WAV (44.1k)</text>
 
     <line x1="728" y1="164" x2="750" y2="164" stroke="#E8730C" stroke-width="2" marker-end="url(#ar)"/>
 
     <rect x="754" y="128" width="186" height="72" rx="10" fill="#E8730C"/>
     <text x="847" y="156" text-anchor="middle" fill="#ffffff" font-weight="bold">Demucs ONNX</text>
-    <text x="847" y="174" text-anchor="middle" fill="#FFE7CC" font-size="11">htdemucs_6s · 곡당 1회</text>
+    <text x="847" y="174" text-anchor="middle" fill="#FFE7CC" font-size="11">htdemucs_6s · 세션 재사용</text>
 
     <!-- 스템 캐시 -->
     <line x1="847" y1="200" x2="847" y2="226" stroke="#E8730C" stroke-width="2" marker-end="url(#arg)"/>
@@ -82,10 +82,12 @@
     <rect x="520" y="230" width="420" height="64" rx="10" fill="#ffffff" stroke="#FFCF9E" stroke-width="1.5"/>
     <text x="536" y="256" fill="#33334a" font-size="12">스템 WAV 캐시</text>
     <g font-size="10">
-      <rect x="650" y="242" width="64" height="20" rx="10" fill="#F3E8FF"/><text x="682" y="255" text-anchor="middle" fill="#5B3FBF">drums</text>
-      <rect x="720" y="242" width="64" height="20" rx="10" fill="#F3E8FF"/><text x="752" y="255" text-anchor="middle" fill="#5B3FBF">bass</text>
-      <rect x="790" y="242" width="64" height="20" rx="10" fill="#F3E8FF"/><text x="822" y="255" text-anchor="middle" fill="#5B3FBF">other</text>
-      <rect x="860" y="242" width="64" height="20" rx="10" fill="#F3E8FF"/><text x="892" y="255" text-anchor="middle" fill="#5B3FBF">vocals</text>
+      <rect x="620" y="242" width="48" height="20" rx="10" fill="#F3E8FF"/><text x="644" y="255" text-anchor="middle" fill="#5B3FBF">drums</text>
+      <rect x="672" y="242" width="48" height="20" rx="10" fill="#F3E8FF"/><text x="696" y="255" text-anchor="middle" fill="#5B3FBF">bass</text>
+      <rect x="724" y="242" width="48" height="20" rx="10" fill="#F3E8FF"/><text x="748" y="255" text-anchor="middle" fill="#5B3FBF">other</text>
+      <rect x="776" y="242" width="48" height="20" rx="10" fill="#F3E8FF"/><text x="800" y="255" text-anchor="middle" fill="#5B3FBF">vocals</text>
+      <rect x="828" y="242" width="48" height="20" rx="10" fill="#F3E8FF"/><text x="852" y="255" text-anchor="middle" fill="#5B3FBF">guitar</text>
+      <rect x="880" y="242" width="48" height="20" rx="10" fill="#F3E8FF"/><text x="904" y="255" text-anchor="middle" fill="#5B3FBF">piano</text>
     </g>
     <text x="536" y="280" font-size="11" fill="#8888a0">한 번만 분리 — 이후엔 바로 재사용</text>
 

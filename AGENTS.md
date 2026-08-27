@@ -8,7 +8,7 @@
 # homebrew openjdk@17는 삭제됨 → Temurin 17 사용 (시스템 기본 java 26은 Gradle이 거부)
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (35개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (59개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -26,11 +26,14 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 ```
 audio/       AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
              MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관
-separation/  AudioDecode(MediaCodec→44.1k raw) → DemucsSeparator(ONNX) → 스템 WAV 캐시
+separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
+             AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
+             OrtModelCache: 모델 파일당 OrtSession 1개를 프로세스 동안 재사용(등급 변경 시에만 재오픈)
 playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
 export/      믹스/스템 WAV 내보내기
 youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스트림 추출·다운로드(filesDir/sources)
              → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
+             임포트·모델 다운로드는 appScope(FGS 아님). 화면을 열어 둔 채 받아야 함(앱을 내리면 끊길 수 있음)
 data/        Room(Song), DataStore(설정)
 ui/          Compose (라이브러리/플레이어/설정)
 tools/       모델 변환 스크립트 (아래 참조)
@@ -47,6 +50,8 @@ tools/       모델 변환 스크립트 (아래 참조)
 - 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(SourceWavPlayer.seekToFrame, muteMask setter). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
+- **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다.
+- **OrtSession은 곡마다 닫지 않는다.** `OrtModelCache`가 같은 모델 경로면 재사용한다. 경량/균형/품질을 바꾸면 그때만 닫고 다시 연다
 
 ## AI 모델 (GitHub Releases 호스팅)
 
@@ -55,12 +60,12 @@ tools/       모델 변환 스크립트 (아래 참조)
 - URL: `github.com/hyuunnn/band-mr/releases/download/model-v2/*.onnx` — 저장소 public이라 익명 다운로드 됨
 - 라이선스: 가중치는 Meta의 demucs(MIT)에서 파생 — 고지는 `THIRD_PARTY_NOTICES.md` 유지할 것
 - `ModelCatalog.kt`에 SHA-256 핀. **모델을 다시 올리면 해시 3개 반드시 갱신**
-- 온디바이스 모델 파일명은 `model-6s.onnx` (4스템 시절 `model.onnx`와 구분용 버저닝, ModelManager가 구파일 자동 정리)
+- 온디바이스 모델 파일명은 `model-6s.onnx`
 - 원본 PyTorch 대비 활성 구간 corr=1.0000 확인 완료
 
-## htdemucs ONNX 변환 주의사항 (tools/export_demucs_onnx.py)
+## htdemucs_6s ONNX 변환 주의사항 (tools/export_demucs_onnx.py)
 
-사용법: `python export_demucs_onnx.py <출력폴더> htdemucs_6s` (두 번째 인자 생략 시 4스템 htdemucs)
+사용법: `python export_demucs_onnx.py <출력폴더>` (htdemucs_6s 전용)
 
 그대로는 export 불가 — 아래 우회가 모두 필요:
 1. `torch.stft/istft` complex 반환 → `demucs.htdemucs.spectro/ispectro`를 re/im 쌍 텐서 버전으로 교체

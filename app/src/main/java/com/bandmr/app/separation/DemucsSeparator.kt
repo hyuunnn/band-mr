@@ -14,7 +14,7 @@ import java.nio.FloatBuffer
  * Demucs ONNX 모델로 스템 분리.
  * 입력: MixCache와 동일한 44.1kHz 스테레오 PCM16 WAV / 출력: 스템별 WAV + 오버랩 크로스페이드.
  *
- * htdemucs는 모델 내부에서 크기 스펙트로그램을 자체 정규화하므로
+ * htdemucs_6s는 모델 내부에서 크기 스펙트로그램을 자체 정규화하므로
  * 파형은 raw [-1,1] 값을 그대로 넣는다(원본 apply_model 경로와 동일).
  * 첫 구간은 램프인, 마지막 구간은 램프아웃을 생략한다(곡 시작/끝 페이드 방지).
  * ONNX 세션은 [OrtModelCache]가 모델 파일 단위로 재사용한다.
