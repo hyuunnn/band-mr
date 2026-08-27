@@ -6,6 +6,7 @@ import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.AppDatabase
 import com.bandmr.app.data.SettingsStore
+import com.bandmr.app.data.Song
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.separation.ModelManager
 import kotlinx.coroutines.CoroutineScope
@@ -59,7 +60,7 @@ class BandMrApp : Application() {
      * 참조가 끊긴 다운로드 원본(filesDir/sources, 유튜브 임포트) 정리.
      * 곡 삭제와 DB 쓰기 경쟁으로 남은 고아 .part·원본을 제거한다.
      */
-    private fun cleanUpSourceFiles(songs: List<com.bandmr.app.data.Song>) {
+    private fun cleanUpSourceFiles(songs: List<Song>) {
         val referenced = songs.mapNotNullTo(HashSet()) { s ->
             s.uri.takeIf { it.startsWith("file://") }?.toUri()?.path
         }

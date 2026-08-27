@@ -100,6 +100,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                 ExtendedFloatingActionButton(
                     onClick = {
                         linkUrl = ""
+                        YouTubeImport.dismiss() // 이전 성공/실패 메시지 잔존 방지
                         showLinkDialog = true
                     },
                     icon = { Icon(Icons.Default.Link, contentDescription = null) },
@@ -145,14 +146,14 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             if (importState is ImportState.Done) {
                 delay(600)
                 showLinkDialog = false
-                YouTubeImport.hideDialog()
+                YouTubeImport.dismiss()
             }
         }
         AlertDialog(
             onDismissRequest = {
                 // 진행 중이어도 다이얼로그만 닫으면 백그라운드(appScope)에서 계속 진행된다
                 showLinkDialog = false
-                YouTubeImport.hideDialog()
+                YouTubeImport.dismiss()
             },
             title = { Text("유튜브 링크로 곡 추가") },
             text = {
@@ -181,8 +182,9 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                                 buildString {
                                     append(st.title)
                                     val mb = st.receivedBytes / (1024 * 1024)
-                                    if (st.totalBytes != null) {
-                                        append(" · ${p?.let { "${(it * 100).toInt()}%" } ?: "$mb MB"}")
+                                    // progress와 totalBytes는 항상 동행한다(불명 크기면 둘 다 null)
+                                    if (p != null) {
+                                        append(" · ${(p * 100).toInt()}%")
                                     } else if (mb > 0) {
                                         append(" · $mb MB")
                                     }
@@ -220,7 +222,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     }
                     TextButton(onClick = {
                         showLinkDialog = false
-                        YouTubeImport.hideDialog()
+                        YouTubeImport.dismiss()
                     }) { Text("닫기") }
                 }
             },

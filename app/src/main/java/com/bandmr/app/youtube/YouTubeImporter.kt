@@ -1,5 +1,6 @@
 package com.bandmr.app.youtube
 
+import android.content.Context
 import android.net.Uri
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
@@ -18,6 +19,7 @@ import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import java.io.File
 import java.io.IOException
@@ -26,11 +28,15 @@ import java.net.URL
 import java.util.Locale
 import kotlin.coroutines.coroutineContext
 
+/** 추출 API(NewPipe)와 구간 다운로드(googlevideo) 요청에 공통으로 쓰는 UA */
+private const val USER_AGENT =
+    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+
 sealed interface ImportState {
     data object Idle : ImportState
 
     /** 링크 파싱·정보 추출 중 */
-    data class Resolving(val query: String) : ImportState
+    data object Resolving : ImportState
 
     /**
      * 오디오 다운로드 중. [progress]는 0..1, Content-Length 미제공 시 null(불명).
@@ -69,9 +75,6 @@ object YouTubeImport {
     /** 라이브러리 목록 과다 스크롤 방지용 표시명 상한 */
     private const val MAX_TITLE_LEN = 120
 
-    private const val USER_AGENT =
-        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-
     @Volatile
     private var newPipeReady = false
 
@@ -86,8 +89,11 @@ object YouTubeImport {
         return true
     }
 
-    /** 백그라운드에서 계속 진행하고 UI만 닫고 싶을 때 상태 노출을 끈다 */
-    fun hideDialog() {
+    /**
+     * 터미널 상태(Done/Failed)의 UI 노출을 끊는다. 실행 중에는 건드리지 않는다 —
+     * 다이얼로그를 닫을 때와 다시 열 때 남은 성공/실패 메시지를 초기화하는 용도.
+     */
+    fun dismiss() {
         if (!isRunning()) state.value = ImportState.Idle
     }
 
@@ -114,23 +120,26 @@ object YouTubeImport {
             ?: throw IllegalArgumentException("유효한 유튜브 링크가 아닙니다")
         val context = Locator.context
 
-        state.value = ImportState.Resolving(input)
+        state.value = ImportState.Resolving
         val info = withContext(Dispatchers.IO) { resolveInfo(videoId) }
 
         val title = info.name.orEmpty().ifBlank { "제목 없음" }.take(MAX_TITLE_LEN)
+        // deprecated getUrl 대신 getContent 사용. 빈 콘텐츠/매니페스트 전용 스트림도
+        // 후보에 넣되(AAC만 있을 때 폴백 용도) 선택 시 맨 뒤로 밀린다
         val candidates = withContext(Dispatchers.IO) {
             info.audioStreams.map {
                 AudioCandidate(
-                    url = it.url,
+                    url = it.content,
                     mimeType = it.format?.mimeType,
                     avgBitrateKbps = it.averageBitrate,
+                    progressiveHttp = it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP,
                 )
             }
         }
         // 선택 로직 자체는 순수하지만 AudioStream 접근이 모두 포함된 상태라 IO 위에서 처리
         val bestUrl = AudioChooser.choose(candidates)?.url
             ?: throw IllegalStateException("다운로드 가능한 오디오 스트림이 없습니다")
-        val ext = info.audioStreams.firstOrNull { it.url == bestUrl }
+        val ext = info.audioStreams.firstOrNull { it.content == bestUrl }
             ?.format?.suffix ?: "m4a"
 
         state.value = ImportState.Downloading(title, null, 0, null)
@@ -143,13 +152,14 @@ object YouTubeImport {
             Song(
                 title = title,
                 uri = Uri.fromFile(source).toString(),
-                durationMs = info.duration * 1000L,
+                // 라이브·길이 불명 영상은 음수가 나올 수 있다
+                durationMs = info.duration.coerceAtLeast(0) * 1000L,
             ),
         )
         withContext(Dispatchers.IO) {
             MixCache.prepare(context, songId, Uri.fromFile(source))
         }
-        state.value = ImportState.Done(songId, info.name)
+        state.value = ImportState.Done(songId, title)
     }
 
     private fun resolveInfo(videoId: String): StreamInfo {
@@ -178,7 +188,7 @@ object YouTubeImport {
      * 이어받기 가치가 없다(ModelManager의 .tmp 보존 규칙은 모델 전용).
      */
     private suspend fun download(
-        context: android.content.Context,
+        context: Context,
         videoId: String,
         url: String,
         ext: String,
@@ -188,13 +198,19 @@ object YouTubeImport {
         if (final.exists()) return final
 
         val part = File(dir, "${final.name}.part")
+        var conn: HttpURLConnection? = null
         try {
-            val conn = URL(url).openConnection() as HttpURLConnection
+            conn = URL(url).openConnection() as HttpURLConnection
             conn.connectTimeout = 15_000
             conn.readTimeout = 30_000
             conn.instanceFollowRedirects = true
             conn.setRequestProperty("User-Agent", USER_AGENT)
 
+            // 만료된 구간별 URL은 403으로 답한다 — 암묵적 스트림 예외 대신 상태 코드를 명시해 확인
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                throw IOException("스트림 서버 응답 오류 (HTTP $code)")
+            }
             val total = conn.contentLengthLong.takeIf { it > 0 }
             var received = 0L
             var lastPercent = -1
@@ -208,15 +224,17 @@ object YouTubeImport {
                         if (n < 0) break
                         out.write(buf, 0, n)
                         received += n
-                        // 전체 1% 경계마다만 상태 갱신 (리소스 절약, StateFlow도 conflate 함)
-                        if (total != null && received >= (lastPercent + 1) * total / 100.0) {
+                        // 갱신 빈도 제한: 크기 불명은 512KB마다, 크기 확인 시 1% 경계마다만
+                        if (total != null) {
                             val pct = ((received * 100) / total).toInt()
-                            lastPercent = pct
-                            state.value = ImportState.Downloading(
-                                state.value.currentTitle(), received.toFloat() / total,
-                                received, total,
-                            )
-                        } else if (total == null && received % (512 * 1024) < buf.size.toLong()) {
+                            if (pct != lastPercent) {
+                                lastPercent = pct
+                                state.value = ImportState.Downloading(
+                                    state.value.currentTitle(), pct / 100f,
+                                    received, total,
+                                )
+                            }
+                        } else if (received % (512 * 1024) < buf.size.toLong()) {
                             state.value = ImportState.Downloading(
                                 state.value.currentTitle(), null, received, null,
                             )
@@ -227,6 +245,8 @@ object YouTubeImport {
             check(part.renameTo(final)) { "다운로드 파일 이동 실패: $part" }
             return final
         } finally {
+            // 커넥션 명시 해제(keep-alive 소켓 점유 방지) + 실패 시 부분 파일 정리
+            conn?.disconnect()
             if (part.exists()) part.delete()
         }
     }
@@ -243,8 +263,9 @@ private fun ImportState.currentTitle(): String =
     (this as? ImportState.Downloading)?.title.orEmpty()
 
 /**
- * NewPipeExtractor 요청 전송기. HttpURLConnection 기반으로 OkHttp 등 추가 의존성 없이 동작.
- * 추출기는 페이지 html/json 본문 문자열만 필요로 한다.
+ * NewPipeExtractor 요청 전송기. OkHttp 등 추가 의존성 없이 HttpURLConnection 기반으로 동작.
+ * 유튜브 스트림 추출은 innertube API(/player 등)에 JSON 본문을 POST로 보내므로
+ * [Request.dataToSend]가 있으면 반드시 함께 전송한다.
  */
 private class HttpDownloader : Downloader() {
 
@@ -254,7 +275,7 @@ private class HttpDownloader : Downloader() {
             connectTimeout = 15_000
             readTimeout = 30_000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", USER_AGENT2)
+            setRequestProperty("User-Agent", USER_AGENT)
             request.headers().forEach { (name, values) ->
                 if (!name.equals("user-agent", ignoreCase = true)) {
                     setRequestProperty(name, values.joinToString(", "))
@@ -262,20 +283,21 @@ private class HttpDownloader : Downloader() {
             }
         }
         try {
+            val data = request.dataToSend()
+            if (data != null && data.isNotEmpty()) {
+                conn.doOutput = true
+                conn.setFixedLengthStreamingMode(data.size)
+                conn.outputStream.use { it.write(data) }
+            }
             val code = conn.responseCode
             val bodyStream = conn.errorStream ?: conn.inputStream
             val body = bodyStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             val headers = conn.headerFields.filterKeys { it != null }
                 .mapKeysTo(mutableMapOf<String, List<String>>()) { it.key as String }
-            return Response(code, body, headers, null, conn.url.toString())
+            return Response(code, body, headers, conn.responseMessage, conn.url.toString())
         } finally {
             conn.disconnect()
         }
-    }
-
-    private companion object {
-        const val USER_AGENT2 =
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
     }
 }
 

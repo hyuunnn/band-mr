@@ -23,16 +23,10 @@ object YouTubeUrl {
         val firstToken = input.split(Regex("\\s+")).first()
         if (VIDEO_ID.matches(firstToken)) return firstToken
 
-        // https:// 없이 도메인부터 시작하는 입력 허용
-        var text = firstToken.removePrefix("//")
-        if (!text.startsWith("http://", ignoreCase = true) &&
-            !text.startsWith("https://", ignoreCase = true)
-        ) {
-            text = "https://$text"
-        }
-        if (text.startsWith("http://", ignoreCase = true)) {
-            // 평문 http도 받아주되, 파서 결과는 동일하게 처리
-            text = "https://${text.substringAfter("://")}"
+        // 스킴 생략 입력만 https://를 붙인다. 파서는 host/path/query만 쓰므로
+        // 평문 http든 https든 동일하게 해석된다 (스킴 승격 로직 불필요)
+        val text = firstToken.removePrefix("//").let {
+            if (it.startsWith("http", ignoreCase = true)) it else "https://$it"
         }
 
         val uri = runCatching { java.net.URI(text) }.getOrNull() ?: return null
@@ -77,22 +71,28 @@ data class AudioCandidate(
     val mimeType: String?,
     /** 평균 비트레이트 kbps. 알 수 없으면 0 이하 */
     val avgBitrateKbps: Int,
+    /**
+     * 단일 파일 직접 다운로드 가능 여부(DeliveryMethod.PROGRESSIVE_HTTP).
+     * false면 콘텐츠가 DASH/HLS 매니페스트라 이 앱의 파일 다운로더와 맞지 않는다
+     */
+    val progressiveHttp: Boolean = true,
 )
 
 object AudioChooser {
 
     /**
-     * 연습용 원본 소스 선택 기준:
-     * 1) AAC(M4A) 컨테이너 우선 — MediaCodec/MediaMetadataRetriever 호환이 가장 안정적이고
-     *    Opus 대비 실질 음질 차이는 연습 목적에서 미미하다.
-     * 2) 같은 등급 내에서는 높은 비트레이트 우선.
+     * 연습용 원본 소스 선택 기준 (우선순위):
+     * 1) 단일 파일 직접 다운로드 가능(progress) — 매니페스트는 아예 후순위
+     * 2) AAC(M4A) 컨테이너 — MediaCodec/MediaMetadataRetriever 호환 최우선
+     * 3) 높은 비트레이트
      *
      * @return 선택된 후보, 전부 무효면 null
      */
     fun choose(candidates: List<AudioCandidate>): AudioCandidate? =
         candidates.filter { !it.url.isNullOrBlank() }
             .maxWithOrNull(
-                compareBy<AudioCandidate> { mimeRank(it.mimeType) }
+                compareBy<AudioCandidate> { it.progressiveHttp }
+                    .thenBy { mimeRank(it.mimeType) }
                     .thenBy { it.avgBitrateKbps },
             )
 

@@ -1,7 +1,6 @@
 package com.bandmr.app.youtube
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -37,6 +36,7 @@ class YouTubeUrlTest {
     @Test
     fun `스킴 생략과 공백 입력 허용`() {
         assertEquals(ID, YouTubeUrl.videoIdOf("www.youtube.com/watch?v=$ID"))
+        assertEquals(ID, YouTubeUrl.videoIdOf("//youtu.be/$ID")) // 프로토콜 상대 링크
         assertEquals(
             ID,
             YouTubeUrl.videoIdOf("  https://youtu.be/$ID   여름 연습곡 후보 "),
@@ -98,6 +98,18 @@ class YouTubeUrlTest {
     }
 
     @Test
+    fun `매니페스트 전용 스트림은 진행형 다운로드보다 후순위`() {
+        val chosen = AudioChooser.choose(
+            listOf(
+                // DASH/HLS 매니페스트(단일 파일 다운로드 불가) — MIME·비트레이트가 더 좋아도 밀림
+                AudioCandidate("dash", "audio/mp4", 256, progressiveHttp = false),
+                AudioCandidate("prog-opus", "audio/webm", 128),
+            ),
+        )
+        assertEquals("prog-opus", chosen?.url)
+    }
+
+    @Test
     fun `URL 없는 후보와 빈 목록은 안전하게 처리`() {
         val chosen = AudioChooser.choose(
             listOf(AudioCandidate(null, "audio/mp4", 256), AudioCandidate("", "audio/mp4", 128)),
@@ -114,8 +126,7 @@ class YouTubeUrlTest {
                 AudioCandidate("opus", "audio/webm", 160),
             ),
         )
-        // webm(opus)은 rank 0, 미상 MIME도 rank 0 → 비트레이트 우선
+        // webm(opus)과 미상 MIME 모두 rank 0 → 비트레이트 우선
         assertEquals("unknown", chosen?.url)
-        assertFalse(chosen == null)
     }
 }
