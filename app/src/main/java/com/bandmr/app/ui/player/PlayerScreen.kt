@@ -223,11 +223,14 @@ fun PlayerScreen(songId: Long) {
             speed = speed,
             onChange = { v ->
                 val snapped = PlaybackSpeed.snap(v)
-                speed = snapped
-                ctrl.setSpeed(snapped)
-                scope.launch {
-                    Locator.songDao.get(songId)?.let {
-                        Locator.songDao.update(it.copy(speed = snapped))
+                // 슬라이더 드래그는 이벤트가 잦으므로 스냅 값이 실제로 바뀔 때만 반영/저장
+                if (snapped != speed) {
+                    speed = snapped
+                    ctrl.setSpeed(snapped)
+                    scope.launch {
+                        Locator.songDao.get(songId)?.let {
+                            Locator.songDao.update(it.copy(speed = snapped))
+                        }
                     }
                 }
             },
@@ -459,10 +462,6 @@ private fun SpeedCard(speed: Float, onChange: (Float) -> Unit) {
             Text(
                 PlaybackSpeed.formatLabel(speed),
                 style = MaterialTheme.typography.headlineSmall,
-            )
-            Text(
-                "키는 그대로 두고 빠르기만 바꿉니다",
-                style = MaterialTheme.typography.bodySmall,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = { onChange(PlaybackSpeed.step(speed, -1)) }) {

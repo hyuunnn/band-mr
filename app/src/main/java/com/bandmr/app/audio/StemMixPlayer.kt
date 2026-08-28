@@ -16,6 +16,9 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
     private var totalFrames = 0L
 
     private var thread: Thread? = null
+
+    // 오디오 스레드가 생성하고 UI 스레드가 speed 적용 시 읽으므로 가시성 보장 필요
+    @Volatile
     private var track: AudioTrack? = null
     private val stateLock = Object()
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())

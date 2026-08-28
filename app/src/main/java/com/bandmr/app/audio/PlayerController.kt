@@ -114,7 +114,7 @@ class PlayerController(private val context: Context) {
 
     // ---------- 로딩 ----------
 
-    fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int, speed: Float = PlaybackSpeed.DEFAULT) {
+    fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int, speed: Float) {
         lastMask = muteMask
         lastSemitones = semitones
         lastSpeed = PlaybackSpeed.snap(speed)
