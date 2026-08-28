@@ -2,6 +2,7 @@ package com.bandmr.app.ui.player
 
 import android.Manifest
 import android.os.Build
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +77,7 @@ fun PlayerScreen(songId: Long) {
     var vocalStrength by remember { mutableFloatStateOf(1f) }
     var dragging by remember { mutableStateOf(false) }
     var dragPosMs by remember { mutableFloatStateOf(0f) }
+    var lastScrubSeekAt by remember { mutableLongStateOf(0L) }
     var posMs by remember { mutableLongStateOf(0L) }
     var loopStartMs by remember { mutableStateOf<Long?>(null) }
     var loopEndMs by remember { mutableStateOf<Long?>(null) }
@@ -173,8 +175,20 @@ fun PlayerScreen(songId: Long) {
             dragging = dragging,
             dragPosMs = dragPosMs,
             onDraggingChange = { dragging = it },
-            onDrag = { dragPosMs = it },
-            onDragEnd = { ctrl.seekTo(dragPosMs.toLong()); dragging = false },
+            onDrag = { v ->
+                dragPosMs = v
+                val now = SystemClock.uptimeMillis()
+                if (now - lastScrubSeekAt >= SCRUB_SEEK_INTERVAL_MS) {
+                    lastScrubSeekAt = now
+                    ctrl.seekTo(v.toLong())
+                }
+            },
+            onDragEnd = {
+                ctrl.seekTo(dragPosMs.toLong())
+                posMs = ctrl.positionMs()
+                lastScrubSeekAt = 0L
+                dragging = false
+            },
             onSkip = { delta ->
                 dragging = false
                 ctrl.skipBy(delta)
@@ -336,7 +350,10 @@ private fun TransportCard(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(formatTime(posMs), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    formatTime(if (dragging) dragPosMs.toLong() else posMs),
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 Text(formatTime(durationMs), style = MaterialTheme.typography.labelMedium)
             }
             Row(
@@ -406,6 +423,9 @@ private fun TransportCard(
         }
     }
 }
+
+/** 시크 리셋(DSP/시프터)이 너무 잦지 않게 드래그 중 시크 간격 */
+private const val SCRUB_SEEK_INTERVAL_MS = 100L
 
 internal fun formatTime(ms: Long): String {
     val totalSec = ms / 1000
