@@ -58,6 +58,13 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             }
         }
 
+    /** A-B 반복. [PlaybackLoop.DISABLED_FRAME]이면 꺼짐. 오디오 스레드가 읽는다. */
+    @Volatile
+    var loopStartFrame: Long = PlaybackLoop.DISABLED_FRAME
+
+    @Volatile
+    var loopEndFrame: Long = PlaybackLoop.DISABLED_FRAME
+
     private var shifter = newShifter(0)
 
     fun load(files: Map<Stem, File>) {
@@ -87,7 +94,11 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
 
     fun play() {
         if (totalFrames == 0L) return
-        if (framePos >= totalFrames) framePos = 0
+        val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
+        if (framePos >= limit) {
+            val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
+            if (restart != null) seekToFrame(restart) else framePos = 0
+        }
         synchronized(stateLock) {
             isPlaying = true
             stateLock.notifyAll()
@@ -124,6 +135,17 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
     }
 
     // ---------- 내부 ----------
+
+    private fun wrapOrEnd() {
+        val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
+        if (restart != null) {
+            seekToFrame(restart)
+        } else {
+            synchronized(stateLock) { isPlaying = false }
+            track?.pause()
+            mainHandler.post { onEndedCallback() }
+        }
+    }
 
     private fun newShifter(semi: Int): PitchShifter =
         PitchShifter().also { it.semitones = semi }
@@ -188,12 +210,12 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             if (!play || track == null) continue
 
             val pos = framePos
-            if (pos >= totalFrames) {
-                synchronized(stateLock) { isPlaying = false }
-                track?.pause()
-                mainHandler.post { onEndedCallback() }
+            val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
+            if (pos >= limit) {
+                wrapOrEnd()
                 continue
             }
+            val request = PlaybackLoop.chunkFrames(pos, limit, CHUNK)
             java.util.Arrays.fill(mixedFloat, 0f)
             // 들리는 스템 중 가장 짧게 읽힌 프레임 수로 출력 길이 제한.
             // 전부 뮤트/EOF면 무음을 출력하며 진행한다 (전체 뮤트가 곡 종료로 오인되지 않도록)
@@ -202,7 +224,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
                 val gain = gains[s]
                 val reader = readers[s] ?: continue
                 if (gain <= 0f) continue
-                val got = reader.read(pos, stemShort, CHUNK)
+                val got = reader.read(pos, stemShort, request)
                 if (got <= 0) continue
                 if (got < minGot) minGot = got
                 var i = 0
@@ -211,15 +233,12 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
                     i++
                 }
             }
-            val remainingFrames = (totalFrames - pos).toInt()
             val framesToWrite = minOf(
-                if (minGot == Int.MAX_VALUE) CHUNK else minGot,
-                remainingFrames,
+                if (minGot == Int.MAX_VALUE) request else minGot,
+                request,
             )
             if (framesToWrite <= 0) {
-                synchronized(stateLock) { isPlaying = false }
-                track?.pause()
-                mainHandler.post { onEndedCallback() }
+                wrapOrEnd()
                 continue
             }
             val sh = shifter

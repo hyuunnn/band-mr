@@ -16,6 +16,10 @@ data class Song(
     val semitones: Int = 0,
     /** 재생 속도. 0.25 ~ 2.0 (0.05 단위), 기본 1.0 (원곡) */
     val speed: Float = 1f,
+    /** A-B 반복 시작(ms). null이면 미지정 */
+    val loopStartMs: Long? = null,
+    /** A-B 반복 끝(ms). 둘 다 있고 0.5초 이상이면 반복 */
+    val loopEndMs: Long? = null,
     /** 분리 완료 모델 등급. null이면 미분리 */
     val separatedTier: String? = null,
     /** 분리된 스템 wav가 있는 디렉터리 */

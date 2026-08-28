@@ -61,6 +61,13 @@
     <text x="202" y="143" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#ccccdd" text-anchor="middle">+5</text>
     <text x="250" y="143" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#ccccdd" text-anchor="middle">+10</text>
 
+    <!-- A-B 반복 -->
+    <rect x="24" y="158" width="100" height="22" rx="8" fill="#181822"/>
+    <text x="74" y="173" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#CFBCFF" text-anchor="middle">A 1:12</text>
+    <rect x="132" y="158" width="100" height="22" rx="8" fill="#181822"/>
+    <text x="182" y="173" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#CFBCFF" text-anchor="middle">B 1:48</text>
+    <text x="258" y="173" font-family="-apple-system,'Segoe UI',sans-serif" font-size="10" fill="#8888a0" text-anchor="middle">해제</text>
+
     <!-- 제거할 소리 -->
     <text x="24" y="188" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" font-weight="bold" fill="#ccccdd">제거할 소리</text>
     <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="12">
@@ -94,7 +101,7 @@
       <text x="244" y="361" fill="#CFBCFF" text-anchor="end">-2 반음</text>
     </g>
 
-    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스템 제거 · 점프 · 키 · 속도</text>
+    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스템 제거 · 점프 · A-B · 키 · 속도</text>
   </g>
 
   <!-- ======== 폰 3: 설정 ======== -->

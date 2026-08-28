@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.audio.PlaybackLoop
 import com.bandmr.app.audio.PlaybackSkip
 import com.bandmr.app.audio.PlaybackSpeed
 import com.bandmr.app.audio.PlayerController
@@ -76,6 +77,8 @@ fun PlayerScreen(songId: Long) {
     var dragging by remember { mutableStateOf(false) }
     var dragPosMs by remember { mutableFloatStateOf(0f) }
     var posMs by remember { mutableLongStateOf(0L) }
+    var loopStartMs by remember { mutableStateOf<Long?>(null) }
+    var loopEndMs by remember { mutableStateOf<Long?>(null) }
     var exporting by remember { mutableStateOf(false) }
     var exportMsg by remember { mutableStateOf<String?>(null) }
 
@@ -99,6 +102,9 @@ fun PlayerScreen(songId: Long) {
         muteMask = s.muteMask
         semitones = s.semitones
         speed = PlaybackSpeed.snap(s.speed)
+        loopStartMs = s.loopStartMs
+        loopEndMs = s.loopEndMs
+        ctrl.setLoop(s.loopStartMs, s.loopEndMs, apply = false)
         ctrl.ensureLoaded(s, aiOn, s.muteMask, s.semitones, speed)
     }
 
@@ -173,6 +179,38 @@ fun PlayerScreen(songId: Long) {
                 dragging = false
                 ctrl.skipBy(delta)
                 posMs = ctrl.positionMs()
+            },
+            loopStartMs = loopStartMs,
+            loopEndMs = loopEndMs,
+            onSetLoopPoint = { isStart ->
+                val mark = if (dragging) dragPosMs.toLong() else posMs
+                val duration = if (loadedDurationMs > 0) loadedDurationMs else s.durationMs
+                val (start, end) = PlaybackLoop.applyPoint(
+                    loopStartMs,
+                    loopEndMs,
+                    PlaybackSkip.clamp(mark, duration),
+                    isStart,
+                )
+                loopStartMs = start
+                loopEndMs = end
+                dragging = false
+                ctrl.setLoop(start, end)
+                posMs = ctrl.positionMs()
+                scope.launch {
+                    Locator.songDao.get(songId)?.let {
+                        Locator.songDao.update(it.copy(loopStartMs = start, loopEndMs = end))
+                    }
+                }
+            },
+            onClearLoop = {
+                loopStartMs = null
+                loopEndMs = null
+                ctrl.setLoop(null, null)
+                scope.launch {
+                    Locator.songDao.get(songId)?.let {
+                        Locator.songDao.update(it.copy(loopStartMs = null, loopEndMs = null))
+                    }
+                }
             },
         )
 
@@ -273,6 +311,10 @@ private fun TransportCard(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
     onSkip: (Long) -> Unit,
+    loopStartMs: Long?,
+    loopEndMs: Long?,
+    onSetLoopPoint: (isStart: Boolean) -> Unit,
+    onClearLoop: () -> Unit,
 ) {
     val isPlaying by ctrl.isPlaying.collectAsState()
     Card(Modifier.fillMaxWidth()) {
@@ -321,6 +363,46 @@ private fun TransportCard(
                     Icon(Icons.Filled.Forward10, contentDescription = "10초 앞으로")
                 }
             }
+            val start = loopStartMs
+            val end = loopEndMs
+            val armed = PlaybackLoop.isArmed(start, end)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = { onSetLoopPoint(true) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (start != null) "A ${formatTime(start)}" else "A 시작")
+                }
+                OutlinedButton(
+                    onClick = { onSetLoopPoint(false) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (end != null) "B ${formatTime(end)}" else "B 끝")
+                }
+                TextButton(
+                    onClick = onClearLoop,
+                    enabled = start != null || end != null,
+                ) { Text("해제") }
+            }
+            Text(
+                when {
+                    armed && start != null && end != null ->
+                        "${formatTime(start)} ~ ${formatTime(end)} 반복 중"
+                    start != null && end != null ->
+                        "구간은 ${PlaybackLoop.MIN_GAP_MS / 1000.0}초 이상이어야 합니다"
+                    start != null -> "끝을 지정하면 이 구간을 반복합니다"
+                    end != null -> "시작을 지정하면 이 구간을 반복합니다"
+                    else -> "현재 위치(또는 슬라이더)에 시작과 끝을 지정하세요"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (start != null && end != null && !armed)
+                    MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

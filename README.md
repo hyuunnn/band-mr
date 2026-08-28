@@ -17,8 +17,9 @@
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
 | 속도 조절 | 0.25×~2× (0.05 단위). 키와 독립, 곡마다 저장. 재생만 적용 |
 | 구간 점프 | −10 / −5 / +5 / +10초. 곡 시작·끝을 넘지 않음 |
+| A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
-| 내보내기 | ① 제거·키 설정으로 믹스 WAV 저장(배속은 넣지 않음) ② 스템별 WAV 개별 저장 |
+| 내보내기 | ① 제거·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
 | 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
@@ -27,7 +28,7 @@
 ## 재생 정책
 
 - **이어폰 분리**: 이어폰/블루투스가 분리되면 즉시 일시정지됩니다.
-- **백그라운드**: 플레이어 화면을 닫아도 재생이 계속되며, 알림에서 재생/일시정지·종료할 수 있습니다.
+- **백그라운드**: 플레이어 화면을 닫아도 재생이 계속되며, 알림에서 재생/일시정지·종료할 수 있습니다. A-B 반복도 화면과 무관하게 유지됩니다.
 
 ## AI ON/OFF 동작 방식
 
@@ -110,6 +111,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
 │   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
 │   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
+│   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -126,7 +128,7 @@ app/src/main/java/com/bandmr/app/
 ├── youtube/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
-├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 제거·키만, 배속 제외)
+├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 제거·키만, 배속·A-B 제외)
 ├── data/                      # Room(Song), DataStore(설정)
 └── ui/                        # Compose 화면들
 
@@ -136,7 +138,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/STFT/리샘플러/청크 수학/유튜브 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/STFT/리샘플러/청크 수학/유튜브 단위 테스트
 ```
 
 ## 알려진 한계

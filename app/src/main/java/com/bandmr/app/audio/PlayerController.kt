@@ -122,6 +122,8 @@ class PlayerController(private val context: Context) {
         val modeChanged = newAiMode != aiMode || currentSong?.id != song.id
         if (!modeChanged && engineExists()) {
             applyParams(muteMask, semitones, lastSpeed)
+            applyLoopToEngines()
+            snapIntoLoopIfNeeded()
             return
         }
         val wasPlaying = activeIsPlaying()
@@ -138,6 +140,8 @@ class PlayerController(private val context: Context) {
         } else {
             loadSource(song, muteMask, semitones, lastSpeed, wasPlaying, pos)
         }
+        applyLoopToEngines()
+        snapIntoLoopIfNeeded()
         wasAutoEnded = false
     }
 
@@ -240,6 +244,8 @@ class PlayerController(private val context: Context) {
                             resume && pendingResumePlay,
                             if (resume) pendingResumePosMs else 0L,
                         )
+                        applyLoopToEngines()
+                        snapIntoLoopIfNeeded()
                         isPlaying.value = player.isPlaying
                     }
                     clearPendingResume(songId)
@@ -252,6 +258,8 @@ class PlayerController(private val context: Context) {
     private var lastSemitones = 0
     private var lastSpeed = PlaybackSpeed.DEFAULT
     private var vocalStrength = 1f
+    private var lastLoopStartMs: Long? = null
+    private var lastLoopEndMs: Long? = null
 
     private fun engineExists(): Boolean =
         if (aiMode) mixer != null else source != null
@@ -297,7 +305,7 @@ class PlayerController(private val context: Context) {
     }
 
     fun seekTo(ms: Long) {
-        val target = PlaybackSkip.clamp(ms, knownDurationMs())
+        val target = PlaybackLoop.clampSeek(ms, lastLoopStartMs, lastLoopEndMs, knownDurationMs())
         when {
             aiMode -> mixer?.seekToFrame(msToFrames(target))
             source != null -> source?.seekToFrame(msToFrames(target))
@@ -308,6 +316,43 @@ class PlayerController(private val context: Context) {
     /** 현재 위치에서 [deltaMs]만큼 이동. 범위는 [seekTo]가 자른다. */
     fun skipBy(deltaMs: Long) {
         seekTo(positionMs() + deltaMs)
+    }
+
+    /**
+     * A-B 반복. 유효 구간이면 엔진이 B에서 A로 되돌리고, 시크/점프도 그 안에 가둔다.
+     * [apply] false면 값만 기억한다. 곡 로드 직후 이전 곡 엔진을 건드리지 않기 위함.
+     */
+    fun setLoop(startMs: Long?, endMs: Long?, apply: Boolean = true) {
+        lastLoopStartMs = startMs
+        lastLoopEndMs = endMs
+        if (!apply) return
+        applyLoopToEngines()
+        snapIntoLoopIfNeeded()
+    }
+
+    private fun snapIntoLoopIfNeeded() {
+        if (!PlaybackLoop.isArmed(lastLoopStartMs, lastLoopEndMs)) return
+        val pos = positionMs()
+        val clamped = PlaybackLoop.clampSeek(pos, lastLoopStartMs, lastLoopEndMs, knownDurationMs())
+        if (clamped != pos) seekTo(clamped)
+    }
+
+    private fun applyLoopToEngines() {
+        val start = lastLoopStartMs
+        val end = lastLoopEndMs
+        val startFrame: Long
+        val endFrame: Long
+        if (start != null && end != null && PlaybackLoop.isArmed(start, end)) {
+            startFrame = msToFrames(start)
+            endFrame = msToFrames(end)
+        } else {
+            startFrame = PlaybackLoop.DISABLED_FRAME
+            endFrame = PlaybackLoop.DISABLED_FRAME
+        }
+        mixer?.loopStartFrame = startFrame
+        mixer?.loopEndFrame = endFrame
+        source?.loopStartFrame = startFrame
+        source?.loopEndFrame = endFrame
     }
 
     fun setMuteMask(mask: Int) {
@@ -358,6 +403,8 @@ class PlayerController(private val context: Context) {
         durationMs.value = 0L
         preparingSongId.value = null
         prepareFailedSongId.value = null
+        lastLoopStartMs = null
+        lastLoopEndMs = null
         pendingResumeSongId?.let { clearPendingResume(it) }
     }
 

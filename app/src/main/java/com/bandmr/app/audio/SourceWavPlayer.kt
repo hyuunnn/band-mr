@@ -76,6 +76,13 @@ class SourceWavPlayer(
             chain.vocalStrength = value
         }
 
+    /** A-B 반복. [PlaybackLoop.DISABLED_FRAME]이면 꺼짐. 오디오 스레드가 읽는다. */
+    @Volatile
+    var loopStartFrame: Long = PlaybackLoop.DISABLED_FRAME
+
+    @Volatile
+    var loopEndFrame: Long = PlaybackLoop.DISABLED_FRAME
+
     private var shifter = newShifter(0)
 
     private var chain = newChain()
@@ -86,7 +93,11 @@ class SourceWavPlayer(
 
     fun play() {
         if (reader.totalFrames == 0L) return
-        if (framePos >= reader.totalFrames) framePos = 0
+        val limit = PlaybackLoop.limitFrames(reader.totalFrames, loopStartFrame, loopEndFrame)
+        if (framePos >= limit) {
+            val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
+            if (restart != null) seekToFrame(restart) else framePos = 0
+        }
         synchronized(stateLock) {
             isPlaying = true
             stateLock.notifyAll()
@@ -169,17 +180,19 @@ class SourceWavPlayer(
 
             val pos = framePos
             val total = reader.totalFrames
-            if (pos >= total) {
-                finish()
+            val limit = PlaybackLoop.limitFrames(total, loopStartFrame, loopEndFrame)
+            if (pos >= limit) {
+                wrapOrFinish()
                 continue
             }
+            val request = PlaybackLoop.chunkFrames(pos, limit, CHUNK)
             val got = try {
-                reader.read(pos, srcShort, CHUNK)
+                reader.read(pos, srcShort, request)
             } catch (_: Exception) {
                 -1
             }
             if (got <= 0) {
-                finish()
+                wrapOrFinish()
                 continue
             }
             val n = got * 2
@@ -206,6 +219,11 @@ class SourceWavPlayer(
         }
         track?.release()
         track = null
+    }
+
+    private fun wrapOrFinish() {
+        val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
+        if (restart != null) seekToFrame(restart) else finish()
     }
 
     /** 트랙 종료 처리: DSP 파이프라인 잔여분(약 1블록)을 밀어낸 뒤 끝난다 */
