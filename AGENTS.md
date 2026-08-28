@@ -9,7 +9,7 @@
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # → /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (84개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (88개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -30,8 +30,8 @@ audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·
              배속은 PlaybackSpeed → AudioTrack PlaybackParams (키와 독립, 곡마다 Song.speed 저장)
              점프는 PlaybackSkip(±5/±10초) → PlayerController.skipBy (0~duration 클램프)
              A-B는 PlaybackLoop(최소 0.5초) → 엔진이 B에서 A로 seek. Song.loopStartMs/EndMs 저장, 내보내기 제외
-             파형은 WaveformPeaks(MixCache WAV 피크) → WaveformBar. 캐시 없으면 슬라이더
-             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관
+             파형은 WaveformPeaks(MixCache WAV 피크) → WaveformBar. 캐시 없으면 슬라이더, MixCache.prepare rename 뒤 awaitReady로 자동 전환
+             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관. 완료는 CacheReadyGate 신호(폴링 아님)
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
              OrtModelCache: 모델 파일당 OrtSession 1개를 프로세스 동안 재사용(등급 변경 시에만 재오픈)
@@ -42,6 +42,7 @@ youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스�
              임포트·모델 다운로드는 appScope(FGS 아님). 화면을 열어 둔 채 받아야 함(앱을 내리면 끊길 수 있음)
 data/        Room(Song v4: stemGainsPacked·muteMask/키/배속/loopStartMs/EndMs), DataStore(설정)
              stemGainsPacked가 기준(악기별 0~100%). muteMask는 0%만 비트 ON으로 파생 저장. AI OFF DSP가 읽음
+             설정·분리 완료 저장은 컬럼별 UPDATE(updateStemLevels/Semitones/Speed/Loop/Separation). get→update(copy) 금지
 ui/          Compose (라이브러리/플레이어/설정). 파형 시크는 WaveformBar
 tools/       모델 변환 스크립트 (아래 참조)
 ```
@@ -59,7 +60,8 @@ tools/       모델 변환 스크립트 (아래 참조)
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
 - **A-B 랩은 오디오 스레드에서만 한다.** UI 폴링으로 B→A 하면 백그라운드에서 끊긴다. 시크/점프는 `PlaybackLoop.clampSeek`로 구간 안에 가둔다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용할 것(이전 곡 엔진에 먼저 걸면 안 됨)
-- **파형 피크는 songId 기준 remember.** `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다
+- **파형 피크는 songId 기준 remember.** `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 아직 없으면 `MixCache.awaitReady`로 rename 완료 신호만 기다린다(파일 폴링 금지)
+- **Song 저장은 컬럼별 UPDATE만 쓴다.** 볼륨·키·배속·A-B·분리 완료(`updateSeparation`)를 `get→copy→update`로 쓰면 먼저 쓴 필드가 날아간다
 - **내보내기는 배속·A-B를 넣지 않는다.** 연습용 배속/구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 - **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다.

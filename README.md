@@ -110,7 +110,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── SpectralStage.kt       # 드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
 │   ├── Fft.kt                 # radix-2 FFT (사전 계산 트위들 테이블)
 │   ├── Biquad.kt              # RBJ cookbook 바이쿼드 (스펙트럼 단계·리샘플러 사용)
-│   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache)
+│   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache). 완료는 awaitReady 신호
 │   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
 │   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
@@ -134,7 +134,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
 ├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 스템 볼륨·키만, 배속·A-B 제외)
-├── data/                      # Room(Song v4: stemGains/mute/키/배속/A-B), DataStore(설정)
+├── data/                      # Room(Song v4: stemGains/mute/키/배속/A-B), DataStore(설정). 저장은 컬럼별 UPDATE
 └── ui/                        # Compose (라이브러리/플레이어/설정)
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
 
@@ -144,7 +144,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/STFT/리샘플러/청크/스템 게인/유튜브 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/리샘플러/청크/스템 게인/유튜브 단위 테스트 (88개)
 ```
 
 ## 알려진 한계
