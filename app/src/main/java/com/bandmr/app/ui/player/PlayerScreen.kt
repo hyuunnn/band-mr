@@ -286,11 +286,13 @@ fun PlayerScreen(songId: Long) {
         PitchCard(
             semitones = semitones,
             onChange = { v ->
-                semitones = v
-                ctrl.setSemitones(v)
-                scope.launch {
-                    Locator.songDao.get(songId)?.let {
-                        Locator.songDao.update(it.copy(semitones = v))
+                if (v != semitones) {
+                    semitones = v
+                    ctrl.setSemitones(v)
+                    scope.launch {
+                        Locator.songDao.get(songId)?.let {
+                            Locator.songDao.update(it.copy(semitones = v))
+                        }
                     }
                 }
             },
