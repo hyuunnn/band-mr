@@ -1,35 +1,21 @@
 package com.bandmr.app.audio
 
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
 import com.bandmr.app.data.Stem
 import java.io.File
 
 /**
  * AI 분리 완료 후 스템 WAV 6개를 동기 재생하며 스템별 게인(제거)과 피치를 적용하는 커스텀 믹서.
+ * 트랙 출력·A-B·시크·배속 골격은 [AudioTrackEngine]이 담당한다.
  */
-class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
+class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
+    AudioTrackEngine(threadName = "StemMix", onEndedCallback = onEndedCallback) {
 
     private val readers = arrayOfNulls<WavReader>(Stem.entries.size)
-    private var sampleRate = 44100
-    private var totalFrames = 0L
 
-    private var thread: Thread? = null
+    // 스템 WAV는 DemucsSeparator가 전부 44.1k로 쓴다. load에서 실측값으로 덮어쓴다
+    override var sampleRate = 44100
 
-    // 오디오 스레드가 생성하고 UI 스레드가 speed 적용 시 읽으므로 가시성 보장 필요
-    @Volatile
-    private var track: AudioTrack? = null
-    private val stateLock = Object()
-    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-
-    @Volatile
-    var isPlaying = false
-        private set
-
-    @Volatile
-    var framePos = 0L
-        private set
+    override var totalFrames = 0L
 
     /** 스템별 게인. muted면 0 */
     @Volatile
@@ -37,35 +23,6 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
         set(value) {
             field = value.copyOf()
         }
-
-    @Volatile
-    var semitones = 0
-        set(value) {
-            if (field != value) {
-                field = value
-                shifter.semitones = value
-            }
-        }
-
-    /** 재생 속도(0.25~2.0). 키와 독립 — AudioTrack 타임스트레치 */
-    @Volatile
-    var speed: Float = PlaybackSpeed.DEFAULT
-        set(value) {
-            val v = PlaybackSpeed.snap(value)
-            if (field != v) {
-                field = v
-                applySpeed()
-            }
-        }
-
-    /** A-B 반복. [PlaybackLoop.DISABLED_FRAME]이면 꺼짐. 오디오 스레드가 읽는다. */
-    @Volatile
-    var loopStartFrame: Long = PlaybackLoop.DISABLED_FRAME
-
-    @Volatile
-    var loopEndFrame: Long = PlaybackLoop.DISABLED_FRAME
-
-    private var shifter = newShifter(0)
 
     fun load(files: Map<Stem, File>) {
         stopEngine()
@@ -88,197 +45,38 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
         framePos = 0
     }
 
-    val durationFrames: Long get() = totalFrames
-
-    fun positionFrames(): Long = framePos
-
-    fun play() {
-        if (totalFrames == 0L) return
-        val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
-        if (framePos >= limit) {
-            val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
-            if (restart != null) seekToFrame(restart) else framePos = 0
-        }
-        synchronized(stateLock) {
-            isPlaying = true
-            stateLock.notifyAll()
-        }
-        startEngineIfNeeded()
-        applySpeed()
-    }
-
-    fun pause() {
-        synchronized(stateLock) {
-            isPlaying = false
-            // flush로 대기 중인 WRITE_BLOCKING write를 확실히 풀어준다 (스레드 정지 방지)
-            track?.let { runCatching { it.pause(); it.flush() } }
-        }
-    }
-
-    fun seekToFrame(frame: Long) {
-        val f = frame.coerceIn(0, maxOf(0, totalFrames))
-        synchronized(stateLock) {
-            framePos = f
-            shifter = newShifter(semitones)
-            track?.pause()
-            track?.flush()
-            if (isPlaying && totalFrames > 0) {
-                track?.play()
-                applySpeed()
-            }
-        }
-    }
-
-    fun release() {
-        stopEngine()
-        readers.forEachIndexed { i, r -> runCatching { r?.close() }; readers[i] = null }
-    }
-
-    // ---------- 내부 ----------
-
-    private fun wrapOrEnd() {
-        val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
-        if (restart != null) {
-            seekToFrame(restart)
-        } else {
-            synchronized(stateLock) { isPlaying = false }
-            track?.pause()
-            mainHandler.post { onEndedCallback() }
-        }
-    }
-
-    private fun newShifter(semi: Int): PitchShifter =
-        PitchShifter().also { it.semitones = semi }
-
-    private fun applySpeed() {
-        PlaybackSpeed.applyTo(track, speed)
-    }
-
-    private fun startEngineIfNeeded() {
-        if (thread?.isAlive == true) return
-        running = true
-        thread = Thread({ loop() }, "StemMix").apply {
-            priority = Thread.MAX_PRIORITY
-            start()
-        }
-    }
-
-    @Volatile
-    private var running = false
-
-    private fun buildTrack(): AudioTrack {
-        val minBuf = AudioTrack.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_STEREO,
-            AudioFormat.ENCODING_PCM_16BIT,
-        ).coerceAtLeast(4096)
-        return AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                    .build()
-            )
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes(minBuf * 4)
-            .build()
-    }
+    // ---------- AudioTrackEngine 훅 ----------
 
     private val mixedFloat = FloatArray(CHUNK * 2)
-    private val outShort = ShortArray(CHUNK * 2)
     private val stemShort = ShortArray(CHUNK * 2)
 
-    private fun loop() {
-        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
-        track = buildTrack()
-        applySpeed()
-        val nStems = Stem.entries.size
-        while (running) {
-            val play: Boolean
-            synchronized(stateLock) {
-                play = isPlaying
-                if (!play) stateLock.wait()
-            }
-            if (!running) break
-            if (!play || track == null) continue
-
-            val pos = framePos
-            val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
-            if (pos >= limit) {
-                wrapOrEnd()
-                continue
-            }
-            val request = PlaybackLoop.chunkFrames(pos, limit, CHUNK)
-            java.util.Arrays.fill(mixedFloat, 0f)
-            // 들리는 스템 중 가장 짧게 읽힌 프레임 수로 출력 길이 제한.
-            // 전부 뮤트/EOF면 무음을 출력하며 진행한다 (전체 뮤트가 곡 종료로 오인되지 않도록)
-            var minGot = Int.MAX_VALUE
-            for (s in 0 until nStems) {
-                val gain = gains[s]
-                val reader = readers[s] ?: continue
-                if (gain <= 0f) continue
-                val got = reader.read(pos, stemShort, request)
-                if (got <= 0) continue
-                if (got < minGot) minGot = got
-                var i = 0
-                while (i < got * 2) {
-                    mixedFloat[i] += stemShort[i] / 32768f * gain
-                    i++
-                }
-            }
-            val framesToWrite = minOf(
-                if (minGot == Int.MAX_VALUE) request else minGot,
-                request,
-            )
-            if (framesToWrite <= 0) {
-                wrapOrEnd()
-                continue
-            }
-            val sh = shifter
+    override fun renderChunk(posFrames: Long, request: Int): Int {
+        java.util.Arrays.fill(mixedFloat, 0f)
+        // 들리는 스템 중 가장 짧게 읽힌 프레임 수로 출력 길이 제한.
+        // 전부 뮤트/EOF면 무음을 출력하며 진행한다 (전체 뮤트가 곡 종료로 오인되지 않도록)
+        var minGot = Int.MAX_VALUE
+        for (s in readers.indices) {
+            val gain = gains[s]
+            val reader = readers[s] ?: continue
+            if (gain <= 0f) continue
+            val got = reader.read(posFrames, stemShort, request)
+            if (got <= 0) continue
+            if (got < minGot) minGot = got
             var i = 0
-            while (i < framesToWrite * 2) {
-                sh.process(mixedFloat[i], mixedFloat[i + 1])
-                outShort[i] = DspChain.clampShort(sh.outL)
-                outShort[i + 1] = DspChain.clampShort(sh.outR)
-                i += 2
-            }
-            val wrote = track?.write(outShort, 0, framesToWrite * 2, AudioTrack.WRITE_BLOCKING) ?: 0
-            if (wrote < 0) break
-            // 진행 중에 시크가 끼어들었으면(framePos 변경) 스테일 값으로 덮어쓰지 않는다
-            synchronized(stateLock) {
-                if (framePos == pos) framePos += framesToWrite
-            }
-            if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                track?.play()
-                applySpeed()
+            while (i < got * 2) {
+                mixedFloat[i] += stemShort[i] / 32768f * gain
+                i++
             }
         }
-        track?.release()
-        track = null
+        val framesToWrite = minOf(
+            if (minGot == Int.MAX_VALUE) request else minGot,
+            request,
+        )
+        pitchFloatToOut(mixedFloat, framesToWrite)
+        return framesToWrite
     }
 
-    private fun stopEngine() {
-        synchronized(stateLock) {
-            isPlaying = false
-            running = false
-            stateLock.notifyAll()
-        }
-        thread?.join(500)
-        thread = null
-        track?.let {
-            runCatching { it.pause(); it.flush(); it.release() }
-        }
-        track = null
-    }
-
-    companion object {
-        private const val CHUNK = 2048
+    override fun closeSources() {
+        readers.forEachIndexed { i, r -> runCatching { r?.close() }; readers[i] = null }
     }
 }
