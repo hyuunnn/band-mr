@@ -12,13 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -42,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.audio.PlaybackSkip
 import com.bandmr.app.audio.PlaybackSpeed
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.Stem
@@ -163,6 +169,11 @@ fun PlayerScreen(songId: Long) {
             onDraggingChange = { dragging = it },
             onDrag = { dragPosMs = it },
             onDragEnd = { ctrl.seekTo(dragPosMs.toLong()); dragging = false },
+            onSkip = { delta ->
+                dragging = false
+                ctrl.skipBy(delta)
+                posMs = ctrl.positionMs()
+            },
         )
 
         ModeCard(
@@ -261,6 +272,7 @@ private fun TransportCard(
     onDraggingChange: (Boolean) -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    onSkip: (Long) -> Unit,
 ) {
     val isPlaying by ctrl.isPlaying.collectAsState()
     Card(Modifier.fillMaxWidth()) {
@@ -278,21 +290,36 @@ private fun TransportCard(
                 onValueChangeFinished = onDragEnd,
                 valueRange = 0f..maxOf(1f, durationMs.toFloat()),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Text(formatTime(posMs), style = MaterialTheme.typography.labelMedium)
-                FilledIconButton(
-                    onClick = { ctrl.playPause() },
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                ) {
+                Text(formatTime(durationMs), style = MaterialTheme.typography.labelMedium)
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { onSkip(-PlaybackSkip.LARGE_MS) }) {
+                    Icon(Icons.Filled.Replay10, contentDescription = "10초 뒤로")
+                }
+                IconButton(onClick = { onSkip(-PlaybackSkip.SMALL_MS) }) {
+                    Icon(Icons.Filled.Replay5, contentDescription = "5초 뒤로")
+                }
+                FilledIconButton(onClick = { ctrl.playPause() }) {
                     Icon(
                         if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = "재생/일시정지",
                     )
                 }
-                Text(
-                    formatTime(durationMs),
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                IconButton(onClick = { onSkip(PlaybackSkip.SMALL_MS) }) {
+                    Icon(Icons.Filled.Forward5, contentDescription = "5초 앞으로")
+                }
+                IconButton(onClick = { onSkip(PlaybackSkip.LARGE_MS) }) {
+                    Icon(Icons.Filled.Forward10, contentDescription = "10초 앞으로")
+                }
             }
         }
     }

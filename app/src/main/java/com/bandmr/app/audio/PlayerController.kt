@@ -297,11 +297,17 @@ class PlayerController(private val context: Context) {
     }
 
     fun seekTo(ms: Long) {
+        val target = PlaybackSkip.clamp(ms, knownDurationMs())
         when {
-            aiMode -> mixer?.seekToFrame(msToFrames(ms))
-            source != null -> source?.seekToFrame(msToFrames(ms))
-            else -> pendingResume(currentSong?.id ?: return, pendingResumePlay, ms.coerceAtLeast(0L))
+            aiMode -> mixer?.seekToFrame(msToFrames(target))
+            source != null -> source?.seekToFrame(msToFrames(target))
+            else -> pendingResume(currentSong?.id ?: return, pendingResumePlay, target)
         }
+    }
+
+    /** 현재 위치에서 [deltaMs]만큼 이동. 범위는 [seekTo]가 자른다. */
+    fun skipBy(deltaMs: Long) {
+        seekTo(positionMs() + deltaMs)
     }
 
     fun setMuteMask(mask: Int) {
@@ -330,8 +336,15 @@ class PlayerController(private val context: Context) {
     fun currentSongId(): Long? = currentSong?.id
 
     fun positionMs(): Long =
-        if (aiMode) framesToMs(mixer?.positionFrames() ?: 0L)
-        else framesToMs(source?.positionFrames() ?: 0L)
+        when {
+            aiMode -> framesToMs(mixer?.positionFrames() ?: 0L)
+            source != null -> framesToMs(source?.positionFrames() ?: 0L)
+            pendingResumeSongId == currentSong?.id -> pendingResumePosMs
+            else -> 0L
+        }
+
+    private fun knownDurationMs(): Long =
+        durationMs.value.takeIf { it > 0 } ?: currentSong?.durationMs ?: 0L
 
     fun release() {
         releaseEngines()

@@ -16,6 +16,7 @@
 | 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
 | 속도 조절 | 0.25×~2× (0.05 단위). 키와 독립, 곡마다 저장. 재생만 적용 |
+| 구간 점프 | −10 / −5 / +5 / +10초. 곡 시작·끝을 넘지 않음 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 제거·키 설정으로 믹스 WAV 저장(배속은 넣지 않음) ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
@@ -108,6 +109,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
 │   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
+│   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -134,7 +136,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/STFT/리샘플러/청크 수학/유튜브 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/STFT/리샘플러/청크 수학/유튜브 단위 테스트
 ```
 
 ## 알려진 한계

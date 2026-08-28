@@ -27,6 +27,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.prope
 ```
 audio/       AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
              배속은 PlaybackSpeed → AudioTrack PlaybackParams (키와 독립, 곡마다 Song.speed 저장)
+             점프는 PlaybackSkip(±5/±10초) → PlayerController.skipBy (0~duration 클램프)
              MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
