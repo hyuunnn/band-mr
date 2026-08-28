@@ -14,6 +14,8 @@ data class Song(
     val muteMask: Int = 0,
     /** -12 ~ +12 반음 */
     val semitones: Int = 0,
+    /** 재생 속도. 0.25 ~ 2.0 (0.05 단위), 기본 1.0 (원곡) */
+    val speed: Float = 1f,
     /** 분리 완료 모델 등급. null이면 미분리 */
     val separatedTier: String? = null,
     /** 분리된 스템 wav가 있는 디렉터리 */

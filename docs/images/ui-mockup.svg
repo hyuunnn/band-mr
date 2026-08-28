@@ -84,13 +84,13 @@
 
     <!-- 키 조절 -->
     <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="11">
-      <text x="24" y="360" fill="#ccccdd">키 조절</text>
+      <text x="24" y="360" fill="#ccccdd">키 · 속도</text>
       <rect x="80" y="352" width="150" height="5" rx="2.5" fill="#26262f"/>
       <circle cx="115" cy="354.5" r="6" fill="#CFBCFF"/>
       <text x="244" y="361" fill="#CFBCFF" text-anchor="end">-2 반음</text>
     </g>
 
-    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스템 제거 · 키 조절</text>
+    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스템 제거 · 키 · 속도</text>
   </g>
 
   <!-- ======== 폰 3: 설정 ======== -->

@@ -54,6 +54,17 @@ class SourceWavPlayer(
             }
         }
 
+    /** 재생 속도(0.25~2.0). 키와 독립 — AudioTrack 타임스트레치 */
+    @Volatile
+    var speed: Float = PlaybackSpeed.DEFAULT
+        set(value) {
+            val v = PlaybackSpeed.snap(value)
+            if (field != v) {
+                field = v
+                applySpeed()
+            }
+        }
+
     /** 보컬 제거 강도 0..1. 상태 리셋 없이 즉시 반영된다 */
     @Volatile
     var vocalStrength: Float = 1f
@@ -78,6 +89,7 @@ class SourceWavPlayer(
             stateLock.notifyAll()
         }
         startEngineIfNeeded()
+        applySpeed()
     }
 
     fun pause() {
@@ -96,7 +108,10 @@ class SourceWavPlayer(
             chain = newChain()
             track?.pause()
             track?.flush()
-            if (isPlaying && reader.totalFrames > 0) track?.play()
+            if (isPlaying && reader.totalFrames > 0) {
+                track?.play()
+                applySpeed()
+            }
         }
     }
 
@@ -120,6 +135,10 @@ class SourceWavPlayer(
     private fun newShifter(semi: Int): PitchShifter =
         PitchShifter().also { it.semitones = semi }
 
+    private fun applySpeed() {
+        PlaybackSpeed.applyTo(track, speed)
+    }
+
     private fun startEngineIfNeeded() {
         if (thread?.isAlive == true) return
         running = true
@@ -130,12 +149,12 @@ class SourceWavPlayer(
     }
 
     private val srcShort = ShortArray(CHUNK * 2)
-    private val outFloat = FloatArray(CHUNK * 2)
     private val outShort = ShortArray(CHUNK * 2)
 
     private fun loop() {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
         track = buildTrack()
+        applySpeed()
         while (running) {
             val play: Boolean
             synchronized(stateLock) {
@@ -177,7 +196,10 @@ class SourceWavPlayer(
             synchronized(stateLock) {
                 if (framePos == pos) framePos += got
             }
-            if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) track?.play()
+            if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                track?.play()
+                applySpeed()
+            }
         }
         track?.release()
         track = null

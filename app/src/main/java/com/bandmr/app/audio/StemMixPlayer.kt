@@ -44,6 +44,17 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             }
         }
 
+    /** 재생 속도(0.25~2.0). 키와 독립 — AudioTrack 타임스트레치 */
+    @Volatile
+    var speed: Float = PlaybackSpeed.DEFAULT
+        set(value) {
+            val v = PlaybackSpeed.snap(value)
+            if (field != v) {
+                field = v
+                applySpeed()
+            }
+        }
+
     private var shifter = newShifter(0)
 
     fun load(files: Map<Stem, File>) {
@@ -79,6 +90,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             stateLock.notifyAll()
         }
         startEngineIfNeeded()
+        applySpeed()
     }
 
     fun pause() {
@@ -96,7 +108,10 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             shifter = newShifter(semitones)
             track?.pause()
             track?.flush()
-            if (isPlaying && totalFrames > 0) track?.play()
+            if (isPlaying && totalFrames > 0) {
+                track?.play()
+                applySpeed()
+            }
         }
     }
 
@@ -109,6 +124,10 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
 
     private fun newShifter(semi: Int): PitchShifter =
         PitchShifter().also { it.semitones = semi }
+
+    private fun applySpeed() {
+        PlaybackSpeed.applyTo(track, speed)
+    }
 
     private fun startEngineIfNeeded() {
         if (thread?.isAlive == true) return
@@ -154,6 +173,7 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
     private fun loop() {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
         track = buildTrack()
+        applySpeed()
         val nStems = Stem.entries.size
         while (running) {
             val play: Boolean
@@ -213,7 +233,10 @@ class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
             synchronized(stateLock) {
                 if (framePos == pos) framePos += framesToWrite
             }
-            if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) track?.play()
+            if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                track?.play()
+                applySpeed()
+            }
         }
         track?.release()
         track = null

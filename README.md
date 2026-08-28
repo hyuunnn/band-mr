@@ -15,8 +15,9 @@
 | AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
 | 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
+| 속도 조절 | 0.25×~2× (0.05 단위). 키와 독립, 곡마다 저장. 재생만 적용 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
-| 내보내기 | ① 현재 설정으로 믹스 WAV 저장 ② 스템별 WAV 개별 저장 |
+| 내보내기 | ① 제거·키 설정으로 믹스 WAV 저장(배속은 넣지 않음) ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
 | 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
@@ -44,7 +45,7 @@ AI OFF (WAV 캐시, 절전)
 
 AI ON (사전 분리 후 캐시, 고품질)
   원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(6스템, 세션 재사용)
-             ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치
+             ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치/배속
 ```
 
 </details>
@@ -106,6 +107,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache)
 │   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
+│   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -122,7 +124,7 @@ app/src/main/java/com/bandmr/app/
 ├── youtube/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
-├── export/Exporter.kt         # 믹스/스템 내보내기
+├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 제거·키만, 배속 제외)
 ├── data/                      # Room(Song), DataStore(설정)
 └── ui/                        # Compose 화면들
 
@@ -132,7 +134,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/STFT/리샘플러/청크 수학/유튜브 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/STFT/리샘플러/청크 수학/유튜브 단위 테스트
 ```
 
 ## 알려진 한계
@@ -140,6 +142,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 - 비AI 모드의 기타 제거는 근사 처리입니다(정확한 분리는 AI 모드 사용).
 - 비AI 모드의 드럼 제거는 STFT 기반 HPSS 근사로, 실제 트랜지언트 일부가 함께 약해질 수 있습니다.
 - 피치 시프터는 실시간용 그래뉼러 방식으로 ±5반음 이상에서 워블 아티팩트가 있을 수 있습니다.
+- 재생 배속은 AudioTrack 타임스트레치라, 일부 기기는 0.25×처럼 느린 값을 거부할 수 있습니다.
 - 품질 우선 모델은 메모리를 많이 사용하므로 RAM 4GB 이상 기기를 권장합니다.
 - 모델 파일이 약 178MB라 최초 다운로드에 시간이 걸릴 수 있습니다 (Wi-Fi 권장).
 - 유튜브 가져오기와 모델 다운로드는 화면을 열어 둔 채 진행해야 합니다. 앱을 내리면 끊길 수 있습니다.

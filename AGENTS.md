@@ -25,12 +25,13 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 
 ```
 audio/       AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
+             배속은 PlaybackSpeed → AudioTrack PlaybackParams (키와 독립, 곡마다 Song.speed 저장)
              MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
              OrtModelCache: 모델 파일당 OrtSession 1개를 프로세스 동안 재사용(등급 변경 시에만 재오픈)
 playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
-export/      믹스/스템 WAV 내보내기
+export/      믹스/스템 WAV 내보내기. 믹스는 제거 마스크+키만 반영하고 배속은 넣지 않음
 youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스트림 추출·다운로드(filesDir/sources)
              → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
              임포트·모델 다운로드는 appScope(FGS 아님). 화면을 열어 둔 채 받아야 함(앱을 내리면 끊길 수 있음)
@@ -49,6 +50,8 @@ tools/       모델 변환 스크립트 (아래 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
 - 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(SourceWavPlayer.seekToFrame, muteMask setter). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
+- 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
+- **내보내기는 배속을 넣지 않는다.** 연습용 배속과 저장 파일(원곡 템포)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 - **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다.
 - **OrtSession은 곡마다 닫지 않는다.** `OrtModelCache`가 같은 모델 경로면 재사용한다. 경량/균형/품질을 바꾸면 그때만 닫고 다시 연다

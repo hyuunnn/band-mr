@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.audio.PlaybackSpeed
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.Stem
 import com.bandmr.app.export.Exporter
@@ -64,6 +65,7 @@ fun PlayerScreen(songId: Long) {
 
     var muteMask by remember { mutableIntStateOf(0) }
     var semitones by remember { mutableIntStateOf(0) }
+    var speed by remember { mutableFloatStateOf(PlaybackSpeed.DEFAULT) }
     var vocalStrength by remember { mutableFloatStateOf(1f) }
     var dragging by remember { mutableStateOf(false) }
     var dragPosMs by remember { mutableFloatStateOf(0f) }
@@ -90,7 +92,8 @@ fun PlayerScreen(songId: Long) {
         val s = song ?: return@LaunchedEffect
         muteMask = s.muteMask
         semitones = s.semitones
-        ctrl.ensureLoaded(s, aiOn, s.muteMask, s.semitones)
+        speed = PlaybackSpeed.snap(s.speed)
+        ctrl.ensureLoaded(s, aiOn, s.muteMask, s.semitones, speed)
     }
 
     // 저장된 보컬 제거 강도 로드 후 컨트롤러에 반영
@@ -211,6 +214,20 @@ fun PlayerScreen(songId: Long) {
                 scope.launch {
                     Locator.songDao.get(songId)?.let {
                         Locator.songDao.update(it.copy(semitones = v))
+                    }
+                }
+            },
+        )
+
+        SpeedCard(
+            speed = speed,
+            onChange = { v ->
+                val snapped = PlaybackSpeed.snap(v)
+                speed = snapped
+                ctrl.setSpeed(snapped)
+                scope.launch {
+                    Locator.songDao.get(songId)?.let {
+                        Locator.songDao.update(it.copy(speed = snapped))
                     }
                 }
             },
@@ -425,6 +442,55 @@ private fun PitchCard(semitones: Int, onChange: (Int) -> Unit) {
                 )
                 OutlinedButton(onClick = { onChange((semitones + 1).coerceIn(-12, 12)) }) {
                     Text("+1")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpeedCard(speed: Float, onChange: (Float) -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("속도 조절", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onChange(PlaybackSpeed.DEFAULT) }) { Text("초기화") }
+            }
+            Text(
+                PlaybackSpeed.formatLabel(speed),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Text(
+                "키는 그대로 두고 빠르기만 바꿉니다",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { onChange(PlaybackSpeed.step(speed, -1)) }) {
+                    Text("−")
+                }
+                Slider(
+                    value = speed,
+                    onValueChange = onChange,
+                    valueRange = PlaybackSpeed.MIN..PlaybackSpeed.MAX,
+                    steps = PlaybackSpeed.sliderSteps,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                OutlinedButton(onClick = { onChange(PlaybackSpeed.step(speed, 1)) }) {
+                    Text("+")
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                TextButton(onClick = { onChange(PlaybackSpeed.MIN) }) {
+                    Text("0.25×", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = { onChange(PlaybackSpeed.DEFAULT) }) {
+                    Text("1×", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = { onChange(PlaybackSpeed.MAX) }) {
+                    Text("2×", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

@@ -114,13 +114,14 @@ class PlayerController(private val context: Context) {
 
     // ---------- 로딩 ----------
 
-    fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int) {
+    fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int, speed: Float = PlaybackSpeed.DEFAULT) {
         lastMask = muteMask
         lastSemitones = semitones
+        lastSpeed = PlaybackSpeed.snap(speed)
         val newAiMode = aiOn && song.isSeparated
         val modeChanged = newAiMode != aiMode || currentSong?.id != song.id
         if (!modeChanged && engineExists()) {
-            applyParams(muteMask, semitones)
+            applyParams(muteMask, semitones, lastSpeed)
             return
         }
         val wasPlaying = activeIsPlaying()
@@ -133,14 +134,14 @@ class PlayerController(private val context: Context) {
         registerNoisyReceiver()
 
         if (aiMode) {
-            loadMixer(song, muteMask, semitones, wasPlaying, pos)
+            loadMixer(song, muteMask, semitones, lastSpeed, wasPlaying, pos)
         } else {
-            loadSource(song, muteMask, semitones, wasPlaying, pos)
+            loadSource(song, muteMask, semitones, lastSpeed, wasPlaying, pos)
         }
         wasAutoEnded = false
     }
 
-    private fun loadMixer(song: Song, mask: Int, semi: Int, wasPlaying: Boolean, pos: Long) {
+    private fun loadMixer(song: Song, mask: Int, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
         val dir = File(song.stemsDir!!)
         val files = buildMap {
             Stem.entries.forEach { stem ->
@@ -151,6 +152,7 @@ class PlayerController(private val context: Context) {
         mixer = StemMixPlayer(onEndedCallback = ::onAutoEnded).also {
             it.load(files)
             it.semitones = semi
+            it.speed = speed
             it.gains = Stem.gainArray(mask)
             durationMs.value = framesToMs(it.durationFrames)
             it.seekToFrame(msToFrames(pos))
@@ -159,7 +161,7 @@ class PlayerController(private val context: Context) {
     }
 
     /** AI OFF 엔진 구성. 캐시가 없으면 준비 후 자동으로 이어 재생한다 */
-    private fun loadSource(song: Song, mask: Int, semi: Int, wasPlaying: Boolean, pos: Long) {
+    private fun loadSource(song: Song, mask: Int, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
         val f = MixCache.cacheFile(context, song.id)
         val player = if (f.exists()) runCatching { newSourcePlayer(f) }.getOrNull() else null
         if (player == null) {
@@ -171,16 +173,17 @@ class PlayerController(private val context: Context) {
             durationMs.value = song.durationMs
             return
         }
-        attachSource(player, mask, semi, wasPlaying && !wasAutoEnded, pos)
+        attachSource(player, mask, semi, speed, wasPlaying && !wasAutoEnded, pos)
         clearPendingResume(song.id)
     }
 
     private fun newSourcePlayer(file: File): SourceWavPlayer =
         SourceWavPlayer(file, onEndedCallback = ::onAutoEnded)
 
-    private fun attachSource(player: SourceWavPlayer, mask: Int, semi: Int, play: Boolean, pos: Long) {
+    private fun attachSource(player: SourceWavPlayer, mask: Int, semi: Int, speed: Float, play: Boolean, pos: Long) {
         player.muteMask = mask
         player.semitones = semi
+        player.speed = speed
         player.vocalStrength = vocalStrength
         source = player
         durationMs.value = framesToMs(player.durationFrames)
@@ -233,6 +236,7 @@ class PlayerController(private val context: Context) {
                             player,
                             lastMask,
                             lastSemitones,
+                            lastSpeed,
                             resume && pendingResumePlay,
                             if (resume) pendingResumePosMs else 0L,
                         )
@@ -246,6 +250,7 @@ class PlayerController(private val context: Context) {
 
     private var lastMask = 0
     private var lastSemitones = 0
+    private var lastSpeed = PlaybackSpeed.DEFAULT
     private var vocalStrength = 1f
 
     private fun engineExists(): Boolean =
@@ -254,9 +259,10 @@ class PlayerController(private val context: Context) {
     private fun activeIsPlaying(): Boolean =
         if (aiMode) mixer?.isPlaying == true else source?.isPlaying == true
 
-    private fun applyParams(muteMask: Int, semitones: Int) {
+    private fun applyParams(muteMask: Int, semitones: Int, speed: Float) {
         setMuteMask(muteMask)
         setSemitones(semitones)
+        setSpeed(speed)
     }
 
     // ---------- 컨트롤 ----------
@@ -306,6 +312,12 @@ class PlayerController(private val context: Context) {
     fun setSemitones(n: Int) {
         mixer?.semitones = n
         source?.semitones = n
+    }
+
+    fun setSpeed(v: Float) {
+        lastSpeed = PlaybackSpeed.snap(v)
+        mixer?.speed = lastSpeed
+        source?.speed = lastSpeed
     }
 
     /** AI OFF 보컬 제거 강도 0..1 (설정에서 로드/변경 시 호출) */

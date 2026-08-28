@@ -19,7 +19,7 @@ import java.io.RandomAccessFile
 /** 가공 믹스 및 스템 개별 파일 내보내기 */
 class Exporter(private val context: Context) {
 
-    /** 현재 설정(제거 마스크 + 반음)으로 재생 중인 오디오를 WAV로 저장 */
+    /** 현재 설정(제거 마스크 + 반음)으로 재생 중인 오디오를 WAV로 저장. 배속은 연습용이라 넣지 않는다 */
     suspend fun exportMix(
         song: Song,
         muteMask: Int,
@@ -120,7 +120,6 @@ class Exporter(private val context: Context) {
                 RandomAccessFile(raw, "r").use { raf ->
                     renderDspChunks(raf, totalFrames, chain, shifter, writer, onProgress)
                 }
-                // 스펙트럼 파이프라인 지연분 플러시 (체인이 마지막 단계이므로 그대로 기록)
                 chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
             }
             copyTmpToDest(tmp, dest)
