@@ -7,7 +7,7 @@ import com.bandmr.app.data.Stem
 import java.io.File
 
 /**
- * AI 분리 완료 후 스템 WAV 4개를 동기 재생하며 스템별 게인(제거)과 피치를 적용하는 커스텀 믹서.
+ * AI 분리 완료 후 스템 WAV 6개를 동기 재생하며 스템별 게인(제거)과 피치를 적용하는 커스텀 믹서.
  */
 class StemMixPlayer(private val onEndedCallback: () -> Unit = {}) {
 

@@ -48,19 +48,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PlaybackLoop
 import com.bandmr.app.audio.PlaybackSkip
 import com.bandmr.app.audio.PlaybackSpeed
 import com.bandmr.app.audio.PlayerController
+import com.bandmr.app.audio.WaveformPeaks
 import com.bandmr.app.data.Stem
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.playback.PlaybackService
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PlayerScreen(songId: Long) {
@@ -81,6 +85,7 @@ fun PlayerScreen(songId: Long) {
     var posMs by remember { mutableLongStateOf(0L) }
     var loopStartMs by remember { mutableStateOf<Long?>(null) }
     var loopEndMs by remember { mutableStateOf<Long?>(null) }
+    var waveformPeaks by remember(songId) { mutableStateOf<FloatArray?>(null) }
     var exporting by remember { mutableStateOf(false) }
     var exportMsg by remember { mutableStateOf<String?>(null) }
 
@@ -114,6 +119,14 @@ fun PlayerScreen(songId: Long) {
     LaunchedEffect(Unit) {
         vocalStrength = Locator.settings.vocalStrength.first()
         ctrl.setVocalStrength(vocalStrength)
+    }
+
+    LaunchedEffect(songId, preparingSongId) {
+        val file = MixCache.cacheFile(Locator.context, songId)
+        if (!file.exists()) return@LaunchedEffect
+        waveformPeaks = withContext(Dispatchers.IO) {
+            runCatching { WaveformPeaks.fromWav(file) }.getOrNull()
+        }
     }
 
     val playing by ctrl.isPlaying.collectAsState()
@@ -196,6 +209,7 @@ fun PlayerScreen(songId: Long) {
             },
             loopStartMs = loopStartMs,
             loopEndMs = loopEndMs,
+            waveformPeaks = waveformPeaks,
             onSetLoopPoint = { isStart ->
                 val mark = if (dragging) dragPosMs.toLong() else posMs
                 val duration = if (loadedDurationMs > 0) loadedDurationMs else s.durationMs
@@ -327,25 +341,42 @@ private fun TransportCard(
     onSkip: (Long) -> Unit,
     loopStartMs: Long?,
     loopEndMs: Long?,
+    waveformPeaks: FloatArray?,
     onSetLoopPoint: (isStart: Boolean) -> Unit,
     onClearLoop: () -> Unit,
 ) {
     val isPlaying by ctrl.isPlaying.collectAsState()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Slider(
-                value = when {
-                    dragging -> dragPosMs
-                    durationMs > 0 -> posMs.toFloat().coerceIn(0f, durationMs.toFloat())
-                    else -> 0f
-                },
-                onValueChange = {
-                    if (!dragging) onDraggingChange(true)
-                    onDrag(it)
-                },
-                onValueChangeFinished = onDragEnd,
-                valueRange = 0f..maxOf(1f, durationMs.toFloat()),
-            )
+            val peaks = waveformPeaks
+            if (peaks != null && peaks.isNotEmpty()) {
+                WaveformBar(
+                    peaks = peaks,
+                    durationMs = durationMs,
+                    posMs = posMs,
+                    dragging = dragging,
+                    dragPosMs = dragPosMs,
+                    loopStartMs = loopStartMs,
+                    loopEndMs = loopEndMs,
+                    onDraggingChange = onDraggingChange,
+                    onDrag = onDrag,
+                    onDragEnd = onDragEnd,
+                )
+            } else {
+                Slider(
+                    value = when {
+                        dragging -> dragPosMs
+                        durationMs > 0 -> posMs.toFloat().coerceIn(0f, durationMs.toFloat())
+                        else -> 0f
+                    },
+                    onValueChange = {
+                        if (!dragging) onDraggingChange(true)
+                        onDrag(it)
+                    },
+                    onValueChangeFinished = onDragEnd,
+                    valueRange = 0f..maxOf(1f, durationMs.toFloat()),
+                )
+            }
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

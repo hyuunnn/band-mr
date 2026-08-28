@@ -1,141 +1,217 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="980" height="450" viewBox="0 0 980 450">
-  <rect x="0" y="0" width="980" height="450" rx="18" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="860" viewBox="0 0 1180 860">
+  <rect x="0" y="0" width="1180" height="860" rx="20" fill="#ffffff"/>
 
   <!-- ======== 폰 1: 라이브러리 ======== -->
-  <g transform="translate(25,15)">
-    <rect x="0" y="0" width="290" height="370" rx="26" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
-    <text x="20" y="38" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#ffffff">밴드 MR</text>
-    <g transform="translate(258,26)">
-      <circle cx="0" cy="0" r="8" fill="none" stroke="#bbbbcc" stroke-width="2"/>
-      <line x1="0" y1="-11" x2="0" y2="-7" stroke="#bbbbcc" stroke-width="2"/>
-      <line x1="0" y1="11" x2="0" y2="7" stroke="#bbbbcc" stroke-width="2"/>
-      <line x1="-11" y1="0" x2="-7" y2="0" stroke="#bbbbcc" stroke-width="2"/>
-      <line x1="11" y1="0" x2="7" y2="0" stroke="#bbbbcc" stroke-width="2"/>
+  <g transform="translate(20,16)">
+    <rect x="0" y="0" width="360" height="740" rx="36" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
+    <text x="24" y="48" font-family="-apple-system,'Segoe UI',sans-serif" font-size="22" font-weight="bold" fill="#ffffff">밴드 MR</text>
+    <g transform="translate(320,36)">
+      <circle cx="0" cy="0" r="10" fill="none" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="0" y1="-14" x2="0" y2="-9" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="0" y1="14" x2="0" y2="9" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="-14" y1="0" x2="-9" y2="0" stroke="#bbbbcc" stroke-width="2"/>
+      <line x1="14" y1="0" x2="9" y2="0" stroke="#bbbbcc" stroke-width="2"/>
     </g>
 
-    <!-- 곡 카드 -->
     <g font-family="-apple-system,'Segoe UI',sans-serif">
-      <rect x="14" y="58" width="262" height="56" rx="12" fill="#181822"/>
-      <circle cx="42" cy="86" r="12" fill="#7C4DFF" opacity="0.85"/>
-      <text x="66" y="82" font-size="13" fill="#ffffff">Wonderwall</text>
-      <text x="66" y="100" font-size="11" fill="#8888a0">3:42 · AI 분리됨</text>
+      <rect x="18" y="76" width="324" height="88" rx="16" fill="#181822"/>
+      <circle cx="58" cy="120" r="18" fill="#7C4DFF"/>
+      <polygon points="53,111 53,129 68,120" fill="#ffffff"/>
+      <text x="88" y="112" font-size="16" fill="#ffffff">Wonderwall</text>
+      <text x="88" y="136" font-size="13" fill="#8888a0">3:42 · AI 분리됨</text>
 
-      <rect x="14" y="124" width="262" height="56" rx="12" fill="#181822"/>
-      <circle cx="42" cy="152" r="12" fill="#7C4DFF" opacity="0.55"/>
-      <text x="66" y="148" font-size="13" fill="#ffffff">Don't Look Back in Anger</text>
-      <text x="66" y="166" font-size="11" fill="#8888a0">4:47</text>
+      <rect x="18" y="176" width="324" height="88" rx="16" fill="#181822"/>
+      <circle cx="58" cy="220" r="18" fill="#7C4DFF" opacity="0.55"/>
+      <polygon points="53,211 53,229 68,220" fill="#ffffff"/>
+      <text x="88" y="212" font-size="16" fill="#ffffff">Don't Look Back in Anger</text>
+      <text x="88" y="236" font-size="13" fill="#8888a0">4:47</text>
 
-      <rect x="14" y="190" width="262" height="56" rx="12" fill="#181822"/>
-      <circle cx="42" cy="218" r="12" fill="#7C4DFF" opacity="0.55"/>
-      <text x="66" y="214" font-size="13" fill="#ffffff">Champagne Supernova</text>
-      <text x="66" y="232" font-size="11" fill="#8888a0">7:27 · AI 분리됨</text>
+      <rect x="18" y="276" width="324" height="88" rx="16" fill="#181822"/>
+      <circle cx="58" cy="320" r="18" fill="#7C4DFF" opacity="0.55"/>
+      <polygon points="53,311 53,329 68,320" fill="#ffffff"/>
+      <text x="88" y="312" font-size="16" fill="#ffffff">Champagne Supernova</text>
+      <text x="88" y="336" font-size="13" fill="#8888a0">7:27 · AI 분리됨</text>
+
+      <rect x="18" y="376" width="324" height="88" rx="16" fill="#181822"/>
+      <circle cx="58" cy="420" r="18" fill="#7C4DFF" opacity="0.55"/>
+      <polygon points="53,411 53,429 68,420" fill="#ffffff"/>
+      <text x="88" y="412" font-size="16" fill="#ffffff">Live Forever</text>
+      <text x="88" y="436" font-size="13" fill="#8888a0">4:36</text>
     </g>
 
-    <!-- FAB -->
-    <rect x="176" y="300" width="100" height="40" rx="20" fill="#7C4DFF"/>
-    <text x="226" y="325" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">＋ 곡 추가</text>
+    <rect x="196" y="660" width="140" height="52" rx="26" fill="#7C4DFF"/>
+    <text x="266" y="693" font-family="-apple-system,'Segoe UI',sans-serif" font-size="16" font-weight="bold" fill="#ffffff" text-anchor="middle">＋ 곡 추가</text>
 
-    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">① 라이브러리 — 곡 추가</text>
+    <text x="180" y="790" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#333346" text-anchor="middle">① 라이브러리 — 곡 추가</text>
   </g>
 
   <!-- ======== 폰 2: 플레이어 ======== -->
-  <g transform="translate(348,15)">
-    <rect x="0" y="0" width="290" height="370" rx="26" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
-    <polyline points="26,32 18,24 26,16" fill="none" stroke="#bbbbcc" stroke-width="2"/>
-    <text x="145" y="29" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#ccccdd" text-anchor="middle">플레이어</text>
-    <text x="145" y="62" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">Wonderwall</text>
+  <g transform="translate(410,16)">
+    <rect x="0" y="0" width="360" height="740" rx="36" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
+    <polyline points="30,40 20,30 30,20" fill="none" stroke="#bbbbcc" stroke-width="2.4"/>
+    <text x="180" y="36" font-family="-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#ccccdd" text-anchor="middle">플레이어</text>
+    <text x="180" y="68" font-family="-apple-system,'Segoe UI',sans-serif" font-size="18" font-weight="bold" fill="#ffffff" text-anchor="middle">Wonderwall</text>
 
-    <!-- 진행바 -->
-    <rect x="24" y="84" width="242" height="5" rx="2.5" fill="#26262f"/>
-    <rect x="24" y="84" width="92" height="5" rx="2.5" fill="#CFBCFF"/>
-    <circle cx="116" cy="86.5" r="6" fill="#CFBCFF"/>
-    <text x="24" y="106" font-family="monospace" font-size="10" fill="#8888a0">1:12</text>
-    <text x="266" y="106" font-family="monospace" font-size="10" fill="#8888a0" text-anchor="end">3:42</text>
+    <!-- 파형 시크 (64dp 비율, A-B 구간 오버레이) -->
+    <g stroke-linecap="round">
+      <rect x="125.1" y="80" width="50.5" height="88" rx="4" fill="#7C4DFF" opacity="0.18"/>
+      <line x1="24.0" y1="102.1" x2="24.0" y2="145.9" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="29.7" y1="99.5" x2="29.7" y2="148.5" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="35.3" y1="96.9" x2="35.3" y2="151.1" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="41.0" y1="94.5" x2="41.0" y2="153.5" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="46.7" y1="92.3" x2="46.7" y2="155.7" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="52.4" y1="90.3" x2="52.4" y2="157.7" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="58.0" y1="88.6" x2="58.0" y2="159.4" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="63.7" y1="87.3" x2="63.7" y2="160.7" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="69.4" y1="86.3" x2="69.4" y2="161.7" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="75.1" y1="85.7" x2="75.1" y2="162.3" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="80.7" y1="79.4" x2="80.7" y2="168.6" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="86.4" y1="79.5" x2="86.4" y2="168.5" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="92.1" y1="79.9" x2="92.1" y2="168.1" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="97.7" y1="80.6" x2="97.7" y2="167.4" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="103.4" y1="81.5" x2="103.4" y2="166.5" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="109.1" y1="82.5" x2="109.1" y2="165.5" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="114.8" y1="82.7" x2="114.8" y2="165.3" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="120.4" y1="80.5" x2="120.4" y2="167.5" stroke="#CFBCFF" stroke-width="3.2"/>
+      <line x1="126.1" y1="78.5" x2="126.1" y2="169.5" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="131.8" y1="76.7" x2="131.8" y2="171.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="137.5" y1="75.1" x2="137.5" y2="172.9" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="143.1" y1="73.8" x2="143.1" y2="174.2" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="148.8" y1="72.9" x2="148.8" y2="175.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="154.5" y1="72.4" x2="154.5" y2="175.6" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="160.1" y1="72.3" x2="160.1" y2="175.7" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="165.8" y1="72.5" x2="165.8" y2="175.5" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="171.5" y1="73.2" x2="171.5" y2="174.8" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="177.2" y1="74.2" x2="177.2" y2="173.8" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="182.8" y1="75.5" x2="182.8" y2="172.5" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="188.5" y1="77.1" x2="188.5" y2="170.9" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="194.2" y1="78.9" x2="194.2" y2="169.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="199.9" y1="80.9" x2="199.9" y2="167.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="205.5" y1="80.9" x2="205.5" y2="167.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="211.2" y1="79.7" x2="211.2" y2="168.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="216.9" y1="78.6" x2="216.9" y2="169.4" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="222.5" y1="77.7" x2="222.5" y2="170.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="228.2" y1="77.1" x2="228.2" y2="170.9" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="233.9" y1="76.8" x2="233.9" y2="171.2" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="239.6" y1="76.9" x2="239.6" y2="171.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="245.2" y1="77.3" x2="245.2" y2="170.7" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="250.9" y1="84.2" x2="250.9" y2="163.8" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="256.6" y1="85.4" x2="256.6" y2="162.6" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="262.3" y1="86.9" x2="262.3" y2="161.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="267.9" y1="88.7" x2="267.9" y2="159.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="273.6" y1="90.9" x2="273.6" y2="157.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="279.3" y1="93.2" x2="279.3" y2="154.8" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="284.9" y1="95.7" x2="284.9" y2="152.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="290.6" y1="98.3" x2="290.6" y2="149.7" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="296.3" y1="98.0" x2="296.3" y2="150.0" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="302.0" y1="97.3" x2="302.0" y2="150.7" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="307.6" y1="96.7" x2="307.6" y2="151.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="313.3" y1="96.0" x2="313.3" y2="152.0" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="319.0" y1="93.9" x2="319.0" y2="154.1" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="324.7" y1="92.2" x2="324.7" y2="155.8" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="330.3" y1="90.8" x2="330.3" y2="157.2" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="336.0" y1="89.7" x2="336.0" y2="158.3" stroke="#55556a" stroke-width="3.2"/>
+      <line x1="125.1" y1="80" x2="125.1" y2="168" stroke="#64FFDA" stroke-width="2.5"/>
+    </g>
+    <text x="24" y="190" font-family="ui-monospace,Menlo,monospace" font-size="13" fill="#8888a0">1:12</text>
+    <text x="336" y="190" font-family="ui-monospace,Menlo,monospace" font-size="13" fill="#8888a0" text-anchor="end">3:42</text>
 
     <!-- 점프 · 재생 -->
-    <text x="40" y="143" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#ccccdd" text-anchor="middle">−10</text>
-    <text x="88" y="143" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#ccccdd" text-anchor="middle">−5</text>
-    <circle cx="145" cy="138" r="24" fill="#7C4DFF"/>
-    <rect x="137" y="128" width="6" height="20" rx="2" fill="#ffffff"/>
-    <rect x="147" y="128" width="6" height="20" rx="2" fill="#ffffff"/>
-    <text x="202" y="143" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#ccccdd" text-anchor="middle">+5</text>
-    <text x="250" y="143" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#ccccdd" text-anchor="middle">+10</text>
+    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" fill="#ccccdd">
+      <text x="40" y="230" text-anchor="middle">−10</text>
+      <text x="96" y="230" text-anchor="middle">−5</text>
+      <circle cx="180" cy="224" r="28" fill="#7C4DFF"/>
+      <rect x="170" y="212" width="7" height="24" rx="2" fill="#ffffff"/>
+      <rect x="183" y="212" width="7" height="24" rx="2" fill="#ffffff"/>
+      <text x="264" y="230" text-anchor="middle">+5</text>
+      <text x="320" y="230" text-anchor="middle">+10</text>
+    </g>
 
     <!-- A-B 반복 -->
-    <rect x="24" y="158" width="100" height="22" rx="8" fill="#181822"/>
-    <text x="74" y="173" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#CFBCFF" text-anchor="middle">A 1:12</text>
-    <rect x="132" y="158" width="100" height="22" rx="8" fill="#181822"/>
-    <text x="182" y="173" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#CFBCFF" text-anchor="middle">B 1:48</text>
-    <text x="258" y="173" font-family="-apple-system,'Segoe UI',sans-serif" font-size="10" fill="#8888a0" text-anchor="middle">해제</text>
+    <rect x="20" y="256" width="132" height="36" rx="10" fill="#181822" stroke="#7C4DFF" stroke-width="1.4"/>
+    <text x="86" y="280" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#CFBCFF" text-anchor="middle">A 1:12</text>
+    <rect x="160" y="256" width="132" height="36" rx="10" fill="#181822" stroke="#7C4DFF" stroke-width="1.4"/>
+    <text x="226" y="280" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#CFBCFF" text-anchor="middle">B 1:48</text>
+    <text x="324" y="280" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" fill="#8888a0" text-anchor="middle">해제</text>
 
     <!-- 제거할 소리 -->
-    <text x="24" y="188" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" font-weight="bold" fill="#ccccdd">제거할 소리</text>
-    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="12">
-      <rect x="24" y="198" width="242" height="30" rx="8" fill="#181822"/>
-      <rect x="32" y="204" width="17" height="17" rx="4" fill="#7C4DFF"/>
-      <path d="M36 212 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="58" y="217" fill="#ffffff">보컬</text>
-      <text x="258" y="217" font-size="10" fill="#8888a0" text-anchor="end">제거됨</text>
+    <text x="20" y="324" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#ccccdd">제거할 소리</text>
+    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="15">
+      <rect x="20" y="338" width="320" height="44" rx="12" fill="#181822"/>
+      <rect x="32" y="349" width="22" height="22" rx="5" fill="#7C4DFF"/>
+      <path d="M37 360 l5 5 l9 -10" stroke="#ffffff" stroke-width="2.4" fill="none"/>
+      <text x="66" y="366" fill="#ffffff">보컬</text>
+      <text x="328" y="366" font-size="12" fill="#8888a0" text-anchor="end">제거됨</text>
 
-      <rect x="24" y="232" width="242" height="30" rx="8" fill="#181822"/>
-      <rect x="32" y="238" width="17" height="17" rx="4" fill="#7C4DFF"/>
-      <path d="M36 246 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="58" y="251" fill="#ffffff">드럼</text>
+      <rect x="20" y="390" width="320" height="44" rx="12" fill="#181822"/>
+      <rect x="32" y="401" width="22" height="22" rx="5" fill="#7C4DFF"/>
+      <path d="M37 412 l5 5 l9 -10" stroke="#ffffff" stroke-width="2.4" fill="none"/>
+      <text x="66" y="418" fill="#ffffff">드럼</text>
 
-      <rect x="24" y="266" width="242" height="30" rx="8" fill="#181822"/>
-      <rect x="32" y="272" width="17" height="17" rx="4" fill="none" stroke="#55556a" stroke-width="2"/>
-      <text x="58" y="285" fill="#aaaaBB">베이스 (연주함)</text>
+      <rect x="20" y="442" width="320" height="44" rx="12" fill="#181822"/>
+      <rect x="32" y="453" width="22" height="22" rx="5" fill="none" stroke="#55556a" stroke-width="2"/>
+      <text x="66" y="470" fill="#aaaabb">베이스 (연주함)</text>
 
-      <rect x="24" y="300" width="242" height="30" rx="8" fill="#181822"/>
-      <rect x="32" y="306" width="17" height="17" rx="4" fill="#7C4DFF"/>
-      <path d="M36 314 l4 4 l7 -8" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="58" y="319" fill="#ffffff">기타</text>
-      <text x="24" y="343" font-size="10" fill="#8888a0">＋ 피아노(키보드) · 그 외 반주 (스크롤)</text>
+      <rect x="20" y="494" width="320" height="44" rx="12" fill="#181822"/>
+      <rect x="32" y="505" width="22" height="22" rx="5" fill="#7C4DFF"/>
+      <path d="M37 516 l5 5 l9 -10" stroke="#ffffff" stroke-width="2.4" fill="none"/>
+      <text x="66" y="522" fill="#ffffff">기타</text>
+
+      <rect x="20" y="546" width="320" height="44" rx="12" fill="#181822"/>
+      <rect x="32" y="557" width="22" height="22" rx="5" fill="none" stroke="#55556a" stroke-width="2"/>
+      <text x="66" y="574" fill="#aaaabb">피아노(키보드)</text>
+    </g>
+    <text x="20" y="612" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" fill="#8888a0">＋ 그 외 반주 (스크롤)</text>
+
+    <!-- 키 · 속도 -->
+    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="13">
+      <text x="20" y="648" fill="#ccccdd">키</text>
+      <rect x="52" y="640" width="220" height="7" rx="3.5" fill="#26262f"/>
+      <circle cx="108" cy="643.5" r="8" fill="#CFBCFF"/>
+      <text x="340" y="648" fill="#CFBCFF" text-anchor="end">−2 반음</text>
+      <text x="20" y="688" fill="#ccccdd">속도</text>
+      <rect x="52" y="680" width="220" height="7" rx="3.5" fill="#26262f"/>
+      <circle cx="162" cy="683.5" r="8" fill="#CFBCFF"/>
+      <text x="340" y="688" fill="#CFBCFF" text-anchor="end">1.00×</text>
     </g>
 
-    <!-- 키 조절 -->
-    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="11">
-      <text x="24" y="360" fill="#ccccdd">키 · 속도</text>
-      <rect x="80" y="352" width="150" height="5" rx="2.5" fill="#26262f"/>
-      <circle cx="115" cy="354.5" r="6" fill="#CFBCFF"/>
-      <text x="244" y="361" fill="#CFBCFF" text-anchor="end">-2 반음</text>
-    </g>
-
-    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 스템 제거 · 점프 · A-B · 키 · 속도</text>
+    <text x="180" y="790" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 파형 · 점프 · A-B · 스템</text>
   </g>
 
   <!-- ======== 폰 3: 설정 ======== -->
-  <g transform="translate(671,15)">
-    <rect x="0" y="0" width="290" height="370" rx="26" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
-    <polyline points="26,32 18,24 26,16" fill="none" stroke="#bbbbcc" stroke-width="2"/>
-    <text x="145" y="29" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#ccccdd" text-anchor="middle">설정</text>
-    <text x="20" y="60" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" font-weight="bold" fill="#ffffff">AI 분리 모델</text>
-    <text x="20" y="76" font-family="-apple-system,'Segoe UI',sans-serif" font-size="10" fill="#8888a0">한 번만 받으면 오프라인에서도 사용</text>
+  <g transform="translate(800,16)">
+    <rect x="0" y="0" width="360" height="740" rx="36" fill="#0e0e16" stroke="#33333f" stroke-width="2"/>
+    <polyline points="30,40 20,30 30,20" fill="none" stroke="#bbbbcc" stroke-width="2.4"/>
+    <text x="180" y="36" font-family="-apple-system,'Segoe UI',sans-serif" font-size="16" fill="#ccccdd" text-anchor="middle">설정</text>
+    <text x="24" y="78" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#ffffff">AI 분리 모델</text>
+    <text x="24" y="100" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" fill="#8888a0">한 번만 받으면 오프라인에서도 사용</text>
 
     <g font-family="-apple-system,'Segoe UI',sans-serif">
-      <rect x="14" y="88" width="262" height="72" rx="12" fill="#181822"/>
-      <circle cx="34" cy="108" r="8" fill="none" stroke="#CFBCFF" stroke-width="2"/>
-      <circle cx="34" cy="108" r="3.5" fill="#CFBCFF"/>
-      <text x="50" y="104" font-size="12" fill="#ffffff">균형형 (권장)</text>
-      <text x="50" y="119" font-size="10" fill="#8888a0">약 178MB · 속도·품질 균형</text>
-      <text x="266" y="112" font-size="11" fill="#64FFDA" text-anchor="end">✓ 다운로드됨</text>
+      <rect x="18" y="122" width="324" height="120" rx="16" fill="#181822"/>
+      <circle cx="44" cy="156" r="10" fill="none" stroke="#CFBCFF" stroke-width="2.2"/>
+      <circle cx="44" cy="156" r="4.5" fill="#CFBCFF"/>
+      <text x="66" y="150" font-size="16" fill="#ffffff">균형형 (권장)</text>
+      <text x="66" y="174" font-size="13" fill="#8888a0">약 178MB · 속도·품질 균형</text>
+      <text x="328" y="156" font-size="13" fill="#64FFDA" text-anchor="end">✓ 다운로드됨</text>
+      <text x="66" y="210" font-size="12" fill="#8888a0">세그먼트 262144 · 대부분의 기기</text>
 
-      <rect x="14" y="168" width="262" height="72" rx="12" fill="#181822"/>
-      <circle cx="34" cy="188" r="8" fill="none" stroke="#55556a" stroke-width="2"/>
-      <text x="50" y="184" font-size="12" fill="#ffffff">경량 우선</text>
-      <text x="50" y="199" font-size="10" fill="#8888a0">약 178MB · 빠르고 저발열</text>
-      <rect x="196" y="180" width="70" height="26" rx="13" fill="#7C4DFF"/>
-      <text x="231" y="197" font-size="11" fill="#ffffff" text-anchor="middle">받기</text>
+      <rect x="18" y="258" width="324" height="120" rx="16" fill="#181822"/>
+      <circle cx="44" cy="292" r="10" fill="none" stroke="#55556a" stroke-width="2.2"/>
+      <text x="66" y="286" font-size="16" fill="#ffffff">경량 우선</text>
+      <text x="66" y="310" font-size="13" fill="#8888a0">약 178MB · 빠르고 저발열</text>
+      <rect x="238" y="278" width="88" height="36" rx="18" fill="#7C4DFF"/>
+      <text x="282" y="301" font-size="14" fill="#ffffff" text-anchor="middle">받기</text>
+      <text x="66" y="346" font-size="12" fill="#8888a0">세그먼트 131072 · 저사양</text>
 
-      <rect x="14" y="248" width="262" height="72" rx="12" fill="#181822"/>
-      <circle cx="34" cy="268" r="8" fill="none" stroke="#55556a" stroke-width="2"/>
-      <text x="50" y="264" font-size="12" fill="#ffffff">품질 우선</text>
-      <text x="50" y="279" font-size="10" fill="#8888a0">약 178MB · RAM 4GB 이상 권장</text>
-      <rect x="24" y="304" width="160" height="5" rx="2.5" fill="#26262f"/>
-      <rect x="24" y="304" width="102" height="5" rx="2.5" fill="#CFBCFF"/>
-      <text x="192" y="310" font-size="10" fill="#8888a0">64%</text>
+      <rect x="18" y="394" width="324" height="120" rx="16" fill="#181822"/>
+      <circle cx="44" cy="428" r="10" fill="none" stroke="#55556a" stroke-width="2.2"/>
+      <text x="66" y="422" font-size="16" fill="#ffffff">품질 우선</text>
+      <text x="66" y="446" font-size="13" fill="#8888a0">약 178MB · RAM 4GB 이상 권장</text>
+      <rect x="32" y="472" width="210" height="8" rx="4" fill="#26262f"/>
+      <rect x="32" y="472" width="134" height="8" rx="4" fill="#CFBCFF"/>
+      <text x="256" y="481" font-size="13" fill="#8888a0">64%</text>
     </g>
 
-    <text x="145" y="400" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#333346" text-anchor="middle">③ 설정 — AI 모델 다운로드 (최초 1회)</text>
+    <text x="180" y="790" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#333346" text-anchor="middle">③ 설정 — AI 모델 다운로드 (최초 1회)</text>
   </g>
 </svg>

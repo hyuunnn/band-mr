@@ -16,7 +16,8 @@
 | 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
 | 속도 조절 | 0.25×~2× (0.05 단위). 키와 독립, 곡마다 저장. 재생만 적용 |
-| 구간 점프 | −10 / −5 / +5 / +10초. 곡 시작·끝을 넘지 않음 |
+| 구간 점프 | −10 / −5 / +5 / +10초. 곡 시작·끝(A-B가 켜져 있으면 그 구간)을 넘지 않음 |
+| 파형 시크 | MixCache 개요 파형에서 탭·드래그로 위치 이동. 드래그 중에도 재생이 따라감. 캐시 준비 중엔 슬라이더 |
 | A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 제거·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
@@ -112,6 +113,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
 │   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
 │   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
+│   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 피크
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -129,8 +131,9 @@ app/src/main/java/com/bandmr/app/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
 ├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 제거·키만, 배속·A-B 제외)
-├── data/                      # Room(Song), DataStore(설정)
-└── ui/                        # Compose 화면들
+├── data/                      # Room(Song v3: mute/키/배속/A-B), DataStore(설정)
+└── ui/                        # Compose (라이브러리/플레이어/설정)
+    └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
 
 tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검증 포함)
 ```
@@ -138,7 +141,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/STFT/리샘플러/청크 수학/유튜브 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/STFT/리샘플러/청크 수학/유튜브 단위 테스트
 ```
 
 ## 알려진 한계
@@ -154,4 +157,4 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 
 ---
 
-Assisted by GLM-5.3-Flash (Ox Alpha)
+Assisted by GLM-5.3-Flash (Ox Alpha), Grok 4.6
