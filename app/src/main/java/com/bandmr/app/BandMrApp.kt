@@ -1,6 +1,7 @@
 package com.bandmr.app
 
 import android.app.Application
+import android.util.Log
 import androidx.core.net.toUri
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PlayerController
@@ -14,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.File
+
+private const val TAG = "BandMrApp"
 
 class BandMrApp : Application() {
 
@@ -34,7 +37,7 @@ class BandMrApp : Application() {
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
                         runCatching {
                             MixCache.prepare(this@BandMrApp, song.id, song.uri.toUri())
-                        }
+                        }.onFailure { Log.w(TAG, "곡 ${song.id} 캐시 준비 실패", it) }
                     }
                 }
             }

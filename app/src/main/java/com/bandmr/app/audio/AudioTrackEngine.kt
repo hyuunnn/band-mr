@@ -93,8 +93,7 @@ abstract class AudioTrackEngine(
         if (totalFrames == 0L) return
         val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
         if (framePos >= limit) {
-            val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
-            if (restart != null) seekToFrame(restart) else framePos = 0
+            seekToFrame(PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame) ?: 0)
         }
         synchronized(stateLock) {
             isPlaying = true

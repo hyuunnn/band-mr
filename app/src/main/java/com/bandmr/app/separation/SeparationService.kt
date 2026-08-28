@@ -86,7 +86,7 @@ class SeparationService : Service() {
             )
             check(stems.isNotEmpty()) { "분리 결과가 없습니다" }
 
-            dao.update(song.copy(separatedTier = tier.id, stemsDir = outDir.absolutePath))
+            dao.updateSeparation(songId, tier.id, outDir.absolutePath)
             setState(SepState.Done(songId))
         } catch (e: CancellationException) {
             cleanupFiles(songId)

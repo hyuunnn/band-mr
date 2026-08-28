@@ -121,15 +121,12 @@ fun PlayerScreen(songId: Long) {
         ctrl.setVocalStrength(vocalStrength)
     }
 
-    LaunchedEffect(songId, preparingSongId, prepareFailedSongId) {
+    LaunchedEffect(songId, prepareFailedSongId) {
         val file = MixCache.cacheFile(Locator.context, songId)
-        // 앱 시작 프리캐치처럼 preparingSongId 경로 밖에서 캐시가 만들어지면
-        // 재진입 없이도 파형이 뜨도록 잠시 기다려 본다 (MixCache는 .part 완성 후 rename하므로
-        // 파일이 존재하면 곡이 온전한 상태다)
-        var waitedMs = 0L
-        while (!file.exists() && prepareFailedSongId != songId && waitedMs < CACHE_WAIT_TIMEOUT_MS) {
-            delay(500)
-            waitedMs += 500
+        if (!file.exists()) {
+            if (prepareFailedSongId == songId) return@LaunchedEffect
+            // 프리캐시·재생 준비 모두 MixCache.prepare → rename 뒤에만 깨어난다
+            MixCache.awaitReady(Locator.context, songId)
         }
         if (!file.exists()) return@LaunchedEffect
         waveformPeaks = withContext(Dispatchers.IO) {
@@ -160,9 +157,10 @@ fun PlayerScreen(songId: Long) {
 
     val s = song ?: return
     val separated = s.isSeparated
-    val running = sepState is SepState.Running && (sepState as SepState.Running).songId == songId
-    val otherRunning = sepState is SepState.Running && (sepState as SepState.Running).songId != songId
-    val sepProgress = (sepState as? SepState.Running)
+    val runningSep = sepState as? SepState.Running
+    val running = runningSep?.songId == songId
+    val otherRunning = runningSep != null && runningSep.songId != songId
+    val sepProgress = runningSep
     val loadedDurationMs by ctrl.durationMs.collectAsState()
 
     fun persistStemLevels(packed: Long = stemGainsPacked) {
@@ -475,9 +473,6 @@ private fun TransportCard(
 
 /** 시크 리셋(DSP/시프터)이 너무 잦지 않게 드래그 중 시크 간격 */
 private const val SCRUB_SEEK_INTERVAL_MS = 100L
-
-/** 캐시가 아직 없을 때 백그라운드 준비(프리캐치 등)를 기다리는 파형 로드 상한 */
-private const val CACHE_WAIT_TIMEOUT_MS = 60_000L
 
 internal fun formatTime(ms: Long): String {
     val totalSec = ms / 1000

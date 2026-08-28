@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bandmr.app.audio.DspChain
+import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
 import com.bandmr.app.audio.PitchShifter
 import com.bandmr.app.audio.WavReader
 import com.bandmr.app.audio.WavWriter
@@ -60,7 +61,7 @@ class Exporter(private val context: Context) {
             val f = File(dir, "${stem.fileName}.wav")
             if (f.exists()) runCatching {
                 val r = WavReader(f)
-                if (r.sampleRate == AudioDecode.TARGET_SR) {
+                if (r.sampleRate == PIPELINE_SAMPLE_RATE) {
                     readers[stem] = r
                     total = minOf(total, r.totalFrames)
                 } else {
@@ -75,7 +76,7 @@ class Exporter(private val context: Context) {
 
         val tmp = File(context.cacheDir, "export_mix.wav")
         tmp.delete()
-        val writer = WavWriter.create(tmp, AudioDecode.TARGET_SR)
+        val writer = WavWriter.create(tmp, PIPELINE_SAMPLE_RATE)
         try {
             val shifter = PitchShifter().also { it.semitones = semitones }
             val gains = Stem.gainArrayFromPacked(stemGainsPacked)

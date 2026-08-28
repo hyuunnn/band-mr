@@ -16,7 +16,7 @@ class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
     private val readers = arrayOfNulls<WavReader>(Stem.entries.size)
 
     // 불일치 스템은 load에서 제외되므로 항상 파이프라인 레이트
-    override var sampleRate = PIPELINE_SAMPLE_RATE
+    override val sampleRate = PIPELINE_SAMPLE_RATE
 
     override var totalFrames = 0L
 
@@ -43,11 +43,11 @@ class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
                         readers[stem.ordinal] = r
                         total = maxOf(total, r.totalFrames)
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    Log.w(TAG, "스템 열기 실패: ${file.name}", e)
                 }
             }
         }
-        sampleRate = PIPELINE_SAMPLE_RATE
         totalFrames = total
         framePos = 0
     }

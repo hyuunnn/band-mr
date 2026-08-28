@@ -8,7 +8,6 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
@@ -30,9 +29,6 @@ interface SongDao {
     @Insert
     suspend fun insert(song: Song): Long
 
-    @Update
-    suspend fun update(song: Song)
-
     @Delete
     suspend fun delete(song: Song)
 
@@ -49,6 +45,9 @@ interface SongDao {
 
     @Query("UPDATE songs SET loopStartMs = :startMs, loopEndMs = :endMs WHERE id = :id")
     suspend fun updateLoop(id: Long, startMs: Long?, endMs: Long?)
+
+    @Query("UPDATE songs SET separatedTier = :tier, stemsDir = :dir WHERE id = :id")
+    suspend fun updateSeparation(id: Long, tier: String, dir: String)
 }
 
 @Database(entities = [Song::class], version = 4, exportSchema = false)
