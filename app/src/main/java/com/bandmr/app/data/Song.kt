@@ -36,9 +36,4 @@ data class Song(
     /** AI 분리 결과가 존재하여 스템 믹싱이 가능한 상태 */
     val isSeparated: Boolean
         get() = separatedTier != null && stemsDir != null
-
-    fun withStemLevels(packed: Long) = copy(
-        muteMask = Stem.muteMaskFromPacked(packed),
-        stemGainsPacked = packed,
-    )
 }

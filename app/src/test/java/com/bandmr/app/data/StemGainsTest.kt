@@ -67,10 +67,13 @@ class StemGainsTest {
     }
 
     @Test
-    fun `곡 저장은 패킹에서 뮤트 마스크를 파생한다`() {
-        val packed = Stem.withPercent(Stem.DEFAULT_PACKED, Stem.BASS, 0)
-        val song = Song(title = "t", uri = "file://x", durationMs = 1).withStemLevels(packed)
-        assertEquals(packed, song.stemGainsPacked)
-        assertEquals(Stem.BASS.bit, song.muteMask)
+    fun `저장 경로는 패킹에서 뮤트 마스크를 파생한다`() {
+        // SongDao.updateStemLevels(id, packed, mask) 호출부가 지켜야 할 규약:
+        // mask는 별도 상태가 아니라 반드시 Stem.muteMaskFromPacked(packed)로 파생한다
+        val bassMuted = Stem.withPercent(Stem.DEFAULT_PACKED, Stem.BASS, 0)
+        assertEquals(Stem.BASS.bit, Stem.muteMaskFromPacked(bassMuted))
+
+        val vocalMuted = Stem.withPercent(bassMuted, Stem.VOCAL, 0)
+        assertEquals(Stem.BASS.bit or Stem.VOCAL.bit, Stem.muteMaskFromPacked(vocalMuted))
     }
 }

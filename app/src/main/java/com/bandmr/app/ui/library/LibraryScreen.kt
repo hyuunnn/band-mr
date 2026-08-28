@@ -2,6 +2,7 @@ package com.bandmr.app.ui.library
 
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+private const val TAG = "Library"
+
 @Composable
 fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     val songs by Locator.songDao.observeAll().collectAsState(initial = emptyList())
@@ -80,10 +83,12 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     val newId = Locator.songDao.insert(
                         Song(title = title, uri = uri.toString(), durationMs = durationMs)
                     )
-                    // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환
+                    // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환.
+                    // 실패는 재생 시점 prepareFailedSongId로 노출되지만, 원인 추적을 위해 로그를 남긴다
                     withContext(Dispatchers.IO) {
                         if (!MixCache.cacheFile(Locator.context, newId).exists()) {
                             runCatching { MixCache.prepare(Locator.context, newId, uri) }
+                                .onFailure { Log.w(TAG, "곡 $newId 캐시 준비 실패", it) }
                         }
                     }
                 }

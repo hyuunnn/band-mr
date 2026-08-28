@@ -8,6 +8,7 @@ import android.media.MediaFormat
 import android.net.Uri
 import com.bandmr.app.audio.Biquad
 import com.bandmr.app.audio.DspChain
+import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -17,7 +18,7 @@ import java.nio.ByteOrder
 /** 임의 포맷 오디오 파일 → 44.1kHz 스테레오 PCM16 raw 파일 디코더 */
 object AudioDecode {
 
-    const val TARGET_SR = 44_100
+    const val TARGET_SR = PIPELINE_SAMPLE_RATE
 
     /**
      * @return 디코딩된 총 프레임 수 (44.1k 기준)
@@ -62,6 +63,7 @@ object AudioDecode {
             var sawOutputEos = false
             var outFrames = 0L
             val info = MediaCodec.BufferInfo()
+            val mix = StereoMixBuf()
 
             while (!sawOutputEos) {
                 if (!sawInputEos) {
@@ -93,7 +95,7 @@ object AudioDecode {
                         for (i in shorts.indices) shorts[i] = ob.short
                         codec.releaseOutputBuffer(outIdx, false)
 
-                        outFrames += emitStereo44k(shorts, inCh, resampler, out, leBuf)
+                        outFrames += emitStereo44k(shorts, inCh, resampler, out, leBuf, mix)
                         if (durationUs > 0 && info.presentationTimeUs > 0) {
                             onProgress((info.presentationTimeUs.toFloat() / durationUs).coerceIn(0f, 1f))
                         }
@@ -115,8 +117,24 @@ object AudioDecode {
         }
     }
 
+    /** 디코딩 세션 동안 재사용하는 스테레오 변환 버퍼. 세션당 1개여야 한다(스레드 간 공유 금지) */
+    private class StereoMixBuf {
+        var l = FloatArray(0)
+            private set
+        var r = FloatArray(0)
+            private set
+
+        fun ensure(frames: Int) {
+            if (l.size < frames) {
+                l = FloatArray(frames)
+                r = FloatArray(frames)
+            }
+        }
+    }
+
     /**
      * 디코딩된 interleaved shorts(ch채널)를 리샘플+스테레오 변환해 raw에 기록.
+     * L/R 버퍼는 [StereoMixBuf]를 재사용한다(출력 버퍼마다 재할당하지 않음).
      * @return 기록된 출력 프레임 수
      */
     private fun emitStereo44k(
@@ -125,11 +143,13 @@ object AudioDecode {
         resampler: LinearResampler,
         out: BufferedOutputStream,
         scratch: ByteArray,
+        mix: StereoMixBuf,
     ): Long {
         val framesIn = data.size / channels.coerceAtLeast(1)
         if (framesIn == 0) return 0
-        val l = FloatArray(framesIn)
-        val r = FloatArray(framesIn)
+        mix.ensure(framesIn)
+        val l = mix.l
+        val r = mix.r
         when (channels) {
             1 -> for (i in 0 until framesIn) {
                 val v = data[i] / 32768f

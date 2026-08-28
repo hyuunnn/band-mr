@@ -35,6 +35,20 @@ interface SongDao {
 
     @Delete
     suspend fun delete(song: Song)
+
+    // 컬럼별 UPDATE — get→update(copy) 방식 대비. 여러 설정을 겹쳐 저장할 때
+    // 먼저 쓴 필드가 날아가는 lost-update를 원천 차단한다
+    @Query("UPDATE songs SET stemGainsPacked = :packed, muteMask = :mask WHERE id = :id")
+    suspend fun updateStemLevels(id: Long, packed: Long, mask: Int)
+
+    @Query("UPDATE songs SET semitones = :semitones WHERE id = :id")
+    suspend fun updateSemitones(id: Long, semitones: Int)
+
+    @Query("UPDATE songs SET speed = :speed WHERE id = :id")
+    suspend fun updateSpeed(id: Long, speed: Float)
+
+    @Query("UPDATE songs SET loopStartMs = :startMs, loopEndMs = :endMs WHERE id = :id")
+    suspend fun updateLoop(id: Long, startMs: Long?, endMs: Long?)
 }
 
 @Database(entities = [Song::class], version = 4, exportSchema = false)

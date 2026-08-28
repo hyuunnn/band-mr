@@ -17,7 +17,7 @@
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
 | 속도 조절 | 0.25×~2× (0.05 단위). 키와 독립, 곡마다 저장. 재생만 적용 |
 | 구간 점프 | −10 / −5 / +5 / +10초. 곡 시작·끝(A-B가 켜져 있으면 그 구간)을 넘지 않음 |
-| 파형 시크 | MixCache 개요 파형에서 탭·드래그로 위치 이동. 드래그 중에도 재생이 따라감. 캐시 준비 중엔 슬라이더 |
+| 파형 시크 | MixCache 개요 파형에서 탭·드래그로 위치 이동. 드래그 중에도 재생이 따라감. 캐시 준비 중엔 슬라이더(완료되면 자동 전환) |
 | A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
 | 내보내기 | ① 스템 볼륨·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
@@ -105,8 +105,11 @@ app/src/main/java/com/bandmr/app/
 ├── MainActivity.kt            # 네비게이션 (라이브러리/플레이어/설정)
 ├── BandMrApp.kt               # Application + 수동 DI(Locator)
 ├── audio/
+│   ├── AudioTrackEngine.kt    # 두 재생 엔진 공통 골격 (스레드 루프·A-B·시크·배속·AudioTrack)
 │   ├── DspChain.kt            # STFT 스펙트럼 단계 + 바이쿼드 체인 (실시간·오프라인 공용)
 │   ├── SpectralStage.kt       # 드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
+│   ├── Fft.kt                 # radix-2 FFT (사전 계산 트위들 테이블)
+│   ├── Biquad.kt              # RBJ cookbook 바이쿼드 (스펙트럼 단계·리샘플러 사용)
 │   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache)
 │   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)

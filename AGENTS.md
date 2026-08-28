@@ -54,7 +54,7 @@ tools/       모델 변환 스크립트 (아래 참조)
 - 오디오 처리 좌우로 interleaved stereo PCM16이 기본. 모노는 DspChain/SpectralStage에서 chCount=1 분기
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)은 LE int로 읽음 (`WavIo.kt` 상수 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
-- 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(SourceWavPlayer.seekToFrame, muteMask setter). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
+- 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(AudioTrackEngine.seekToFrame이 `resetProcessors()` 훅을 호출하고 SourceWavPlayer가 chain을 재생성, muteMask setter는 rebuildChain). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
 - **스템 볼륨의 기준은 `stemGainsPacked`.** UI·저장·내보내기는 퍼센트만 바꾸고, `muteMask`는 `Stem.muteMaskFromPacked`(0%만 ON)로 파생한다. AI ON 믹서는 `gainArrayFromPacked`(0~1), AI OFF는 체크(0/100) + 보컬 제거 강도
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
@@ -63,6 +63,7 @@ tools/       모델 변환 스크립트 (아래 참조)
 - **내보내기는 배속·A-B를 넣지 않는다.** 연습용 배속/구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 - **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다.
+- **오디오 파이프라인은 44.1kHz(`PIPELINE_SAMPLE_RATE`) 고정 가정.** MixCache WAV·Demucs 스템 모두 이 레이트로 생성되며, 불일치 스템은 재생·내보내기에서 제외된다. PlayerController의 ms↔프레임 수학도 이 값에 묶인다
 - **OrtSession은 곡마다 닫지 않는다.** `OrtModelCache`가 같은 모델 경로면 재사용한다. 경량/균형/품질을 바꾸면 그때만 닫고 다시 연다
 
 ## AI 모델 (GitHub Releases 호스팅)

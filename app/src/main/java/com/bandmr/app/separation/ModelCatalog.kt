@@ -1,5 +1,7 @@
 package com.bandmr.app.separation
 
+import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
+
 /**
  * 다운로드 가능한 온디바이스 분리 모델 등급.
  *
@@ -50,7 +52,7 @@ enum class Tier(
 
 /** 모델 입출력 규격 */
 data class ModelConfig(
-    val sampleRate: Int = 44_100,
+    val sampleRate: Int = PIPELINE_SAMPLE_RATE,
     /** htdemucs_6s 스템 출력 순서 (export 로그의 model.sources와 일치해야 함) */
     val stemOrder: List<String> = listOf("drums", "bass", "other", "vocals", "guitar", "piano"),
 )

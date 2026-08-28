@@ -271,7 +271,7 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
             val hi = (center + 2.5f * sigma).toInt().coerceAtMost(n / 2)
             for (j in lo..hi) {
                 val d = j - center
-                val g = NOTCH_GAIN * kotlin.math.exp(-(d * d) / (2f * sigma * sigma)).toFloat()
+                val g = NOTCH_GAIN * kotlin.math.exp(-(d * d) / (2f * sigma * sigma))
                 val keep = 1f - g
                 re[j] *= keep; im[j] *= keep
                 if (j < n / 2) {

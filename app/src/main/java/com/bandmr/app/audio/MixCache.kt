@@ -9,6 +9,13 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
+ * 오디오 파이프라인 전체(캐시·분리·재생·내보내기)가 공유하는 샘플레이트.
+ * MixCache WAV와 Demucs 스템 WAV는 모두 이 레이트로 생성되며, 불일치 입력은
+ * 재생([StemMixPlayer])·내보내기([Exporter])에서 제외된다 — 프레임 수학 불일치 방지.
+ */
+const val PIPELINE_SAMPLE_RATE = 44_100
+
+/**
  * 원본 곡의 디코딩 캐시. 압축 원본(content://)을 그 자리에서 스트리밍하지 않고,
  * 일부 기기(MediaCodec 비동기 경로가 불안정한 Android 16 펌웨어 등)에서도 재생이 보장되도록
  * 가져온 시점/첫 재생 시 44.1kHz 스테레오 PCM16 WAV로 변환해 앱 내부 저장소에 둔다.

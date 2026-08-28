@@ -1,7 +1,10 @@
 package com.bandmr.app.audio
 
+import android.util.Log
 import com.bandmr.app.data.Stem
 import java.io.File
+
+private const val TAG = "StemMixPlayer"
 
 /**
  * AI 분리 완료 후 스템 WAV 6개를 동기 재생하며 스템별 게인(제거)과 피치를 적용하는 커스텀 믹서.
@@ -12,8 +15,8 @@ class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
 
     private val readers = arrayOfNulls<WavReader>(Stem.entries.size)
 
-    // 스템 WAV는 DemucsSeparator가 전부 44.1k로 쓴다. load에서 실측값으로 덮어쓴다
-    override var sampleRate = 44100
+    // 불일치 스템은 load에서 제외되므로 항상 파이프라인 레이트
+    override var sampleRate = PIPELINE_SAMPLE_RATE
 
     override var totalFrames = 0L
 
@@ -27,20 +30,24 @@ class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
     fun load(files: Map<Stem, File>) {
         stopEngine()
         readers.forEachIndexed { i, r -> r?.close(); readers[i] = null }
-        var sr = 44100
         var total = 0L
         files.forEach { (stem, file) ->
             if (file.exists()) {
                 try {
                     val r = WavReader(file)
-                    readers[stem.ordinal] = r
-                    sr = r.sampleRate
-                    total = maxOf(total, r.totalFrames)
+                    if (r.sampleRate != PIPELINE_SAMPLE_RATE) {
+                        // 프레임 수학이 어긋나는 스템은 조용히 섞지 말고 제외한다
+                        Log.w(TAG, "샘플레이트 불일치 스템 제외: ${file.name} (${r.sampleRate}Hz)")
+                        runCatching { r.close() }
+                    } else {
+                        readers[stem.ordinal] = r
+                        total = maxOf(total, r.totalFrames)
+                    }
                 } catch (_: Exception) {
                 }
             }
         }
-        sampleRate = sr
+        sampleRate = PIPELINE_SAMPLE_RATE
         totalFrames = total
         framePos = 0
     }

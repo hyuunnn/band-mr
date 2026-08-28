@@ -121,8 +121,16 @@ fun PlayerScreen(songId: Long) {
         ctrl.setVocalStrength(vocalStrength)
     }
 
-    LaunchedEffect(songId, preparingSongId) {
+    LaunchedEffect(songId, preparingSongId, prepareFailedSongId) {
         val file = MixCache.cacheFile(Locator.context, songId)
+        // 앱 시작 프리캐치처럼 preparingSongId 경로 밖에서 캐시가 만들어지면
+        // 재진입 없이도 파형이 뜨도록 잠시 기다려 본다 (MixCache는 .part 완성 후 rename하므로
+        // 파일이 존재하면 곡이 온전한 상태다)
+        var waitedMs = 0L
+        while (!file.exists() && prepareFailedSongId != songId && waitedMs < CACHE_WAIT_TIMEOUT_MS) {
+            delay(500)
+            waitedMs += 500
+        }
         if (!file.exists()) return@LaunchedEffect
         waveformPeaks = withContext(Dispatchers.IO) {
             runCatching { WaveformPeaks.fromWav(file) }.getOrNull()
@@ -153,14 +161,13 @@ fun PlayerScreen(songId: Long) {
     val s = song ?: return
     val separated = s.isSeparated
     val running = sepState is SepState.Running && (sepState as SepState.Running).songId == songId
+    val otherRunning = sepState is SepState.Running && (sepState as SepState.Running).songId != songId
     val sepProgress = (sepState as? SepState.Running)
     val loadedDurationMs by ctrl.durationMs.collectAsState()
 
     fun persistStemLevels(packed: Long = stemGainsPacked) {
         scope.launch {
-            Locator.songDao.get(songId)?.let {
-                Locator.songDao.update(it.withStemLevels(packed))
-            }
+            Locator.songDao.updateStemLevels(songId, packed, Stem.muteMaskFromPacked(packed))
         }
     }
 
@@ -239,9 +246,7 @@ fun PlayerScreen(songId: Long) {
                 ctrl.setLoop(start, end)
                 posMs = ctrl.positionMs()
                 scope.launch {
-                    Locator.songDao.get(songId)?.let {
-                        Locator.songDao.update(it.copy(loopStartMs = start, loopEndMs = end))
-                    }
+                    Locator.songDao.updateLoop(songId, start, end)
                 }
             },
             onClearLoop = {
@@ -249,9 +254,7 @@ fun PlayerScreen(songId: Long) {
                 loopEndMs = null
                 ctrl.setLoop(null, null)
                 scope.launch {
-                    Locator.songDao.get(songId)?.let {
-                        Locator.songDao.update(it.copy(loopStartMs = null, loopEndMs = null))
-                    }
+                    Locator.songDao.updateLoop(songId, null, null)
                 }
             },
         )
@@ -260,6 +263,7 @@ fun PlayerScreen(songId: Long) {
             aiOn = aiOn,
             separated = separated,
             running = running,
+            otherRunning = otherRunning,
             stage = sepProgress?.stage,
             progress = sepProgress?.progress,
             error = (sepState as? SepState.Error)?.takeIf { it.songId == songId }?.message,
@@ -306,9 +310,7 @@ fun PlayerScreen(songId: Long) {
                     semitones = v
                     ctrl.setSemitones(v)
                     scope.launch {
-                        Locator.songDao.get(songId)?.let {
-                            Locator.songDao.update(it.copy(semitones = v))
-                        }
+                        Locator.songDao.updateSemitones(songId, v)
                     }
                 }
             },
@@ -323,9 +325,7 @@ fun PlayerScreen(songId: Long) {
                     speed = snapped
                     ctrl.setSpeed(snapped)
                     scope.launch {
-                        Locator.songDao.get(songId)?.let {
-                            Locator.songDao.update(it.copy(speed = snapped))
-                        }
+                        Locator.songDao.updateSpeed(songId, snapped)
                     }
                 }
             },
@@ -476,6 +476,9 @@ private fun TransportCard(
 /** 시크 리셋(DSP/시프터)이 너무 잦지 않게 드래그 중 시크 간격 */
 private const val SCRUB_SEEK_INTERVAL_MS = 100L
 
+/** 캐시가 아직 없을 때 백그라운드 준비(프리캐치 등)를 기다리는 파형 로드 상한 */
+private const val CACHE_WAIT_TIMEOUT_MS = 60_000L
+
 internal fun formatTime(ms: Long): String {
     val totalSec = ms / 1000
     return "%d:%02d".format(totalSec / 60, totalSec % 60)
@@ -486,6 +489,7 @@ private fun ModeCard(
     aiOn: Boolean,
     separated: Boolean,
     running: Boolean,
+    otherRunning: Boolean,
     stage: String?,
     progress: Float?,
     error: String?,
@@ -516,7 +520,11 @@ private fun ModeCard(
                     Text(stage ?: "준비 중…", style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(onClick = onCancelSeparation) { Text("취소") }
                 } else {
-                    Button(onClick = onStartSeparation) { Text("이 곡 분리하기") }
+                    // 분리 서비스는 1곡씩만 처리하므로 다른 곡 진행 중인 요청은 무시된다 —
+                    // 조용히 무시되지 않도록 버튼을 막고 이유를 보여준다
+                    Button(onClick = onStartSeparation, enabled = !otherRunning) {
+                        Text(if (otherRunning) "다른 곡 분리 중…" else "이 곡 분리하기")
+                    }
                     error?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }

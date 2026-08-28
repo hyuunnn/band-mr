@@ -2,6 +2,7 @@ package com.bandmr.app.export
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bandmr.app.audio.DspChain
@@ -15,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
+
+private const val TAG = "Exporter"
 
 /** 가공 믹스 및 스템 개별 파일 내보내기 */
 class Exporter(private val context: Context) {
@@ -52,15 +55,19 @@ class Exporter(private val context: Context) {
     ) = withContext(Dispatchers.IO) {
         val dir = File(song.stemsDir!!)
         val readers = HashMap<Stem, WavReader>()
-        var sr = AudioDecode.TARGET_SR
         var total = Long.MAX_VALUE
         Stem.entries.forEach { stem ->
             val f = File(dir, "${stem.fileName}.wav")
             if (f.exists()) runCatching {
                 val r = WavReader(f)
-                readers[stem] = r
-                sr = r.sampleRate
-                total = minOf(total, r.totalFrames)
+                if (r.sampleRate == AudioDecode.TARGET_SR) {
+                    readers[stem] = r
+                    total = minOf(total, r.totalFrames)
+                } else {
+                    // 파이프라인 레이트 불일치 스템은 프레임 수학이 어긋나므로 제외한다
+                    Log.w(TAG, "샘플레이트 불일치 스템 제외: ${f.name} (${r.sampleRate}Hz)")
+                    runCatching { r.close() }
+                }
             }
         }
         if (readers.isEmpty()) error("분리된 스템이 없습니다")
@@ -68,7 +75,7 @@ class Exporter(private val context: Context) {
 
         val tmp = File(context.cacheDir, "export_mix.wav")
         tmp.delete()
-        val writer = WavWriter.create(tmp, sr)
+        val writer = WavWriter.create(tmp, AudioDecode.TARGET_SR)
         try {
             val shifter = PitchShifter().also { it.semitones = semitones }
             val gains = Stem.gainArrayFromPacked(stemGainsPacked)

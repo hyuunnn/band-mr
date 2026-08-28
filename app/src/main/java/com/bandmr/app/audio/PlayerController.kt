@@ -423,5 +423,6 @@ class PlayerController(private val context: Context) {
     private fun framesToMs(frames: Long): Long =
         if (frames <= 0) 0 else frames * 1000 / sampleRateCompat()
 
-    private fun sampleRateCompat(): Long = 44_100L
+    // MixCache·스템 WAV가 전부 PIPELINE_SAMPLE_RATE(44.1kHz)로 고정되어 프레임 수학이 이 값에 묶인다
+    private fun sampleRateCompat(): Long = PIPELINE_SAMPLE_RATE.toLong()
 }
