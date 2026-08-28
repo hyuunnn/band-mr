@@ -134,48 +134,59 @@
     <text x="226" y="280" font-family="-apple-system,'Segoe UI',sans-serif" font-size="14" fill="#CFBCFF" text-anchor="middle">B 1:48</text>
     <text x="324" y="280" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" fill="#8888a0" text-anchor="middle">해제</text>
 
-    <!-- 제거할 소리 -->
-    <text x="20" y="324" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#ccccdd">제거할 소리</text>
-    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="15">
-      <rect x="20" y="338" width="320" height="44" rx="12" fill="#181822"/>
-      <rect x="32" y="349" width="22" height="22" rx="5" fill="#7C4DFF"/>
-      <path d="M37 360 l5 5 l9 -10" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="66" y="366" fill="#ffffff">보컬</text>
-      <text x="328" y="366" font-size="12" fill="#8888a0" text-anchor="end">제거됨</text>
+    <!-- 악기별 볼륨 (AI 분리 후 슬라이더) -->
+    <text x="20" y="324" font-family="-apple-system,'Segoe UI',sans-serif" font-size="15" font-weight="bold" fill="#ccccdd">악기별 볼륨</text>
+    <text x="340" y="324" font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" fill="#CFBCFF" text-anchor="end">초기화</text>
+    <text x="20" y="342" font-family="-apple-system,'Segoe UI',sans-serif" font-size="11" fill="#8888a0">0%면 제거, 100%면 원음량</text>
+    <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="13" fill="#ffffff">
+      <text x="20" y="366">보컬</text>
+      <text x="340" y="366" fill="#8888a0" text-anchor="end">0%</text>
+      <rect x="20" y="374" width="320" height="6" rx="3" fill="#26262f"/>
+      <circle cx="20" cy="377" r="7" fill="#CFBCFF"/>
 
-      <rect x="20" y="390" width="320" height="44" rx="12" fill="#181822"/>
-      <rect x="32" y="401" width="22" height="22" rx="5" fill="#7C4DFF"/>
-      <path d="M37 412 l5 5 l9 -10" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="66" y="418" fill="#ffffff">드럼</text>
+      <text x="20" y="404">드럼</text>
+      <text x="340" y="404" fill="#8888a0" text-anchor="end">40%</text>
+      <rect x="20" y="412" width="320" height="6" rx="3" fill="#26262f"/>
+      <rect x="20" y="412" width="128" height="6" rx="3" fill="#7C4DFF" opacity="0.45"/>
+      <circle cx="148" cy="415" r="7" fill="#CFBCFF"/>
 
-      <rect x="20" y="442" width="320" height="44" rx="12" fill="#181822"/>
-      <rect x="32" y="453" width="22" height="22" rx="5" fill="none" stroke="#55556a" stroke-width="2"/>
-      <text x="66" y="470" fill="#aaaabb">베이스 (연주함)</text>
+      <text x="20" y="442">베이스</text>
+      <text x="340" y="442" fill="#8888a0" text-anchor="end">100%</text>
+      <rect x="20" y="450" width="320" height="6" rx="3" fill="#26262f"/>
+      <rect x="20" y="450" width="320" height="6" rx="3" fill="#7C4DFF" opacity="0.45"/>
+      <circle cx="340" cy="453" r="7" fill="#CFBCFF"/>
 
-      <rect x="20" y="494" width="320" height="44" rx="12" fill="#181822"/>
-      <rect x="32" y="505" width="22" height="22" rx="5" fill="#7C4DFF"/>
-      <path d="M37 516 l5 5 l9 -10" stroke="#ffffff" stroke-width="2.4" fill="none"/>
-      <text x="66" y="522" fill="#ffffff">기타</text>
+      <text x="20" y="480">기타</text>
+      <text x="340" y="480" fill="#8888a0" text-anchor="end">0%</text>
+      <rect x="20" y="488" width="320" height="6" rx="3" fill="#26262f"/>
+      <circle cx="20" cy="491" r="7" fill="#CFBCFF"/>
 
-      <rect x="20" y="546" width="320" height="44" rx="12" fill="#181822"/>
-      <rect x="32" y="557" width="22" height="22" rx="5" fill="none" stroke="#55556a" stroke-width="2"/>
-      <text x="66" y="574" fill="#aaaabb">피아노(키보드)</text>
+      <text x="20" y="518">피아노/키보드</text>
+      <text x="340" y="518" fill="#8888a0" text-anchor="end">100%</text>
+      <rect x="20" y="526" width="320" height="6" rx="3" fill="#26262f"/>
+      <rect x="20" y="526" width="320" height="6" rx="3" fill="#7C4DFF" opacity="0.45"/>
+      <circle cx="340" cy="529" r="7" fill="#CFBCFF"/>
+
+      <text x="20" y="556">그 외 반주</text>
+      <text x="340" y="556" fill="#8888a0" text-anchor="end">100%</text>
+      <rect x="20" y="564" width="320" height="6" rx="3" fill="#26262f"/>
+      <rect x="20" y="564" width="320" height="6" rx="3" fill="#7C4DFF" opacity="0.45"/>
+      <circle cx="340" cy="567" r="7" fill="#CFBCFF"/>
     </g>
-    <text x="20" y="612" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" fill="#8888a0">＋ 그 외 반주 (스크롤)</text>
 
     <!-- 키 · 속도 -->
     <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="13">
-      <text x="20" y="648" fill="#ccccdd">키</text>
+      <text x="20" y="608" fill="#ccccdd">키</text>
+      <rect x="52" y="600" width="220" height="7" rx="3.5" fill="#26262f"/>
+      <circle cx="108" cy="603.5" r="8" fill="#CFBCFF"/>
+      <text x="340" y="608" fill="#CFBCFF" text-anchor="end">−2 반음</text>
+      <text x="20" y="648" fill="#ccccdd">속도</text>
       <rect x="52" y="640" width="220" height="7" rx="3.5" fill="#26262f"/>
-      <circle cx="108" cy="643.5" r="8" fill="#CFBCFF"/>
-      <text x="340" y="648" fill="#CFBCFF" text-anchor="end">−2 반음</text>
-      <text x="20" y="688" fill="#ccccdd">속도</text>
-      <rect x="52" y="680" width="220" height="7" rx="3.5" fill="#26262f"/>
-      <circle cx="162" cy="683.5" r="8" fill="#CFBCFF"/>
-      <text x="340" y="688" fill="#CFBCFF" text-anchor="end">1.00×</text>
+      <circle cx="162" cy="643.5" r="8" fill="#CFBCFF"/>
+      <text x="340" y="648" fill="#CFBCFF" text-anchor="end">1.00×</text>
     </g>
 
-    <text x="180" y="790" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 파형 · 점프 · A-B · 스템</text>
+    <text x="180" y="790" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#333346" text-anchor="middle">② 플레이어 — 파형 · 점프 · A-B · 볼륨</text>
   </g>
 
   <!-- ======== 폰 3: 설정 ======== -->

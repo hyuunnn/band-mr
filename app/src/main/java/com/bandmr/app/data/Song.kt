@@ -10,8 +10,16 @@ data class Song(
     val uri: String,
     val durationMs: Long,
     val addedAt: Long = System.currentTimeMillis(),
-    /** 체크된(제거할) 스템 비트마스크 */
+    /**
+     * 체크된(제거할) 스템 비트마스크.
+     * [stemGainsPacked]에서 파생해 저장한다 (0%만 비트 ON). AI OFF DSP가 읽는다.
+     */
     val muteMask: Int = 0,
+    /**
+     * 스템별 유지 퍼센트(0..100) 패킹. 하위 바이트부터 Stem.entries 순서.
+     * AI ON 믹서·AI OFF 체크의 단일 기준값. 기본은 전부 100.
+     */
+    val stemGainsPacked: Long = Stem.DEFAULT_PACKED,
     /** -12 ~ +12 반음 */
     val semitones: Int = 0,
     /** 재생 속도. 0.25 ~ 2.0 (0.05 단위), 기본 1.0 (원곡) */
@@ -28,4 +36,9 @@ data class Song(
     /** AI 분리 결과가 존재하여 스템 믹싱이 가능한 상태 */
     val isSeparated: Boolean
         get() = separatedTier != null && stemsDir != null
+
+    fun withStemLevels(packed: Long) = copy(
+        muteMask = Stem.muteMaskFromPacked(packed),
+        stemGainsPacked = packed,
+    )
 }

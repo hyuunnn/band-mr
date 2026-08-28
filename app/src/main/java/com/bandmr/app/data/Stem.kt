@@ -20,10 +20,59 @@ enum class Stem(
     val bit: Int get() = 1 shl ordinal
 
     companion object {
+        /** 스템을 원음량으로 유지하는 퍼센트 */
+        const val GAIN_FULL = 100
+
+        /**
+         * 스템별 유지 퍼센트(0..100)를 바이트 단위로 담은 Long.
+         * 하위 바이트부터 [Stem.entries] 순서. 기본은 전부 100.
+         */
+        const val DEFAULT_PACKED = 0x646464646464L
+
         fun fromFileName(name: String): Stem? = entries.firstOrNull { it.fileName == name }
 
-        /** 제거 마스크에 대응하는 스템별 게인 (제거=0, 유지=1) */
-        fun gainArray(muteMask: Int): FloatArray =
-            FloatArray(entries.size) { i -> if (muteMask and entries[i].bit != 0) 0f else 1f }
+        fun packPercents(percents: IntArray): Long {
+            var packed = 0L
+            for (i in entries.indices) {
+                val p = percents.getOrElse(i) { GAIN_FULL }.coerceIn(0, GAIN_FULL).toLong()
+                packed = packed or (p shl (i * 8))
+            }
+            return packed
+        }
+
+        fun unpackPercents(packed: Long): IntArray =
+            IntArray(entries.size) { i ->
+                ((packed ushr (i * 8)) and 0xFF).toInt().coerceIn(0, GAIN_FULL)
+            }
+
+        fun percentOf(packed: Long, stem: Stem): Int =
+            ((packed ushr (stem.ordinal * 8)) and 0xFF).toInt().coerceIn(0, GAIN_FULL)
+
+        fun withPercent(packed: Long, stem: Stem, percent: Int): Long {
+            val p = percent.coerceIn(0, GAIN_FULL).toLong()
+            val shift = stem.ordinal * 8
+            return (packed and (0xFFL shl shift).inv()) or (p shl shift)
+        }
+
+        fun packedFromMuteMask(muteMask: Int): Long {
+            val percents = IntArray(entries.size) { i ->
+                if (muteMask and entries[i].bit != 0) 0 else GAIN_FULL
+            }
+            return packPercents(percents)
+        }
+
+        /** 0%인 스템만 제거 비트로 켠다 (AI OFF 체크박스와 동기화) */
+        fun muteMaskFromPacked(packed: Long): Int {
+            var mask = 0
+            entries.forEach { stem ->
+                if (percentOf(packed, stem) == 0) mask = mask or stem.bit
+            }
+            return mask
+        }
+
+        fun gainArrayFromPacked(packed: Long): FloatArray {
+            val percents = unpackPercents(packed)
+            return FloatArray(entries.size) { i -> percents[i] / GAIN_FULL.toFloat() }
+        }
     }
 }

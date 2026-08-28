@@ -75,7 +75,7 @@ fun PlayerScreen(songId: Long) {
     val aiOn by Locator.settings.aiEnabled.collectAsState(initial = false)
     val sepState by SepBus.state.collectAsState()
 
-    var muteMask by remember { mutableIntStateOf(0) }
+    var stemGainsPacked by remember { mutableLongStateOf(Stem.DEFAULT_PACKED) }
     var semitones by remember { mutableIntStateOf(0) }
     var speed by remember { mutableFloatStateOf(PlaybackSpeed.DEFAULT) }
     var vocalStrength by remember { mutableFloatStateOf(1f) }
@@ -106,13 +106,13 @@ fun PlayerScreen(songId: Long) {
 
     LaunchedEffect(song?.id, song?.separatedTier, aiOn) {
         val s = song ?: return@LaunchedEffect
-        muteMask = s.muteMask
+        stemGainsPacked = s.stemGainsPacked
         semitones = s.semitones
         speed = PlaybackSpeed.snap(s.speed)
         loopStartMs = s.loopStartMs
         loopEndMs = s.loopEndMs
         ctrl.setLoop(s.loopStartMs, s.loopEndMs, apply = false)
-        ctrl.ensureLoaded(s, aiOn, s.muteMask, s.semitones, speed)
+        ctrl.ensureLoaded(s, aiOn, s.stemGainsPacked, s.semitones, speed)
     }
 
     // 저장된 보컬 제거 강도 로드 후 컨트롤러에 반영
@@ -155,6 +155,20 @@ fun PlayerScreen(songId: Long) {
     val running = sepState is SepState.Running && (sepState as SepState.Running).songId == songId
     val sepProgress = (sepState as? SepState.Running)
     val loadedDurationMs by ctrl.durationMs.collectAsState()
+
+    fun persistStemLevels(packed: Long = stemGainsPacked) {
+        scope.launch {
+            Locator.songDao.get(songId)?.let {
+                Locator.songDao.update(it.withStemLevels(packed))
+            }
+        }
+    }
+
+    fun applyStemLevels(packed: Long, persist: Boolean = true) {
+        stemGainsPacked = packed
+        ctrl.setStemLevels(packed)
+        if (persist) persistStemLevels(packed)
+    }
 
     Column(
         Modifier
@@ -262,7 +276,7 @@ fun PlayerScreen(songId: Long) {
 
         StemCard(
             separated = separated && aiOn,
-            muteMask = muteMask,
+            stemGainsPacked = stemGainsPacked,
             vocalStrength = vocalStrength,
             onVocalStrengthChange = { v ->
                 vocalStrength = v
@@ -272,15 +286,17 @@ fun PlayerScreen(songId: Long) {
                 scope.launch { Locator.settings.setVocalStrength(vocalStrength) }
             },
             onToggle = { stem, checked ->
-                val newMask = if (checked) muteMask or stem.bit else muteMask and stem.bit.inv()
-                muteMask = newMask
-                ctrl.setMuteMask(newMask)
-                scope.launch {
-                    Locator.songDao.get(songId)?.let {
-                        Locator.songDao.update(it.copy(muteMask = newMask))
-                    }
+                applyStemLevels(
+                    Stem.withPercent(stemGainsPacked, stem, if (checked) 0 else Stem.GAIN_FULL),
+                )
+            },
+            onLevel = { stem, percent ->
+                if (percent != Stem.percentOf(stemGainsPacked, stem)) {
+                    applyStemLevels(Stem.withPercent(stemGainsPacked, stem, percent), persist = false)
                 }
             },
+            onLevelDone = { persistStemLevels() },
+            onResetLevels = { applyStemLevels(Stem.DEFAULT_PACKED) },
         )
 
         PitchCard(
@@ -319,7 +335,7 @@ fun PlayerScreen(songId: Long) {
             song = s,
             aiOn = aiOn,
             separated = separated,
-            muteMask = muteMask,
+            stemGainsPacked = stemGainsPacked,
             semitones = semitones,
             vocalStrength = vocalStrength,
             exporting = exporting,
@@ -507,7 +523,7 @@ private fun ModeCard(
                 }
             }
             if (aiOn && separated) {
-                Text("✓ 분리 완료 — 체크한 스템이 정확히 제거됩니다", style = MaterialTheme.typography.bodySmall)
+                Text("✓ 분리 완료 — 스템별 볼륨으로 정확히 조절됩니다", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -516,65 +532,94 @@ private fun ModeCard(
 @Composable
 private fun StemCard(
     separated: Boolean,
-    muteMask: Int,
+    stemGainsPacked: Long,
     vocalStrength: Float,
     onVocalStrengthChange: (Float) -> Unit,
     onVocalStrengthDone: () -> Unit,
     onToggle: (Stem, Boolean) -> Unit,
+    onLevel: (Stem, Int) -> Unit,
+    onLevelDone: () -> Unit,
+    onResetLevels: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("제거할 소리", style = MaterialTheme.typography.titleMedium)
-            Text(
-                if (separated) "AI 분리 결과에서 정확히 제거됩니다"
-                else "체크하면 해당 소리가 제거됩니다 (실시간 근사 처리)",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Stem.entries.forEach { stem ->
-                // AI 분리 전용 스템(피아노 등)은 AI OFF에서 비활성화
-                val enabled = separated || !stem.aiOnly
+            if (separated) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = muteMask and stem.bit != 0,
-                        onCheckedChange = { onToggle(stem, it) },
-                        enabled = enabled,
-                    )
-                    Column {
-                        Text(
-                            stem.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (enabled) MaterialTheme.colorScheme.onSurface
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text("악기별 볼륨", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onResetLevels) { Text("초기화") }
+                }
+                Text(
+                    "0%면 제거, 100%면 원음량입니다",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Stem.entries.forEach { stem ->
+                    val percent = Stem.percentOf(stemGainsPacked, stem)
+                    Column(Modifier.padding(top = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stem.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text("$percent%", style = MaterialTheme.typography.labelMedium)
+                        }
+                        Slider(
+                            value = percent.toFloat(),
+                            onValueChange = { onLevel(stem, it.toInt()) },
+                            onValueChangeFinished = onLevelDone,
+                            valueRange = 0f..Stem.GAIN_FULL.toFloat(),
                         )
-                        if (!separated) {
+                    }
+                }
+            } else {
+                val muteMask = Stem.muteMaskFromPacked(stemGainsPacked)
+                Text("제거할 소리", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "체크하면 해당 소리가 제거됩니다 (실시간 근사 처리)",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Stem.entries.forEach { stem ->
+                    val enabled = !stem.aiOnly
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = muteMask and stem.bit != 0,
+                            onCheckedChange = { onToggle(stem, it) },
+                            enabled = enabled,
+                        )
+                        Column {
+                            Text(
+                                stem.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (enabled) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             Text(stem.dspHint, style = MaterialTheme.typography.labelSmall)
                         }
                     }
-                }
-                // AI OFF에서 보컬 뮤트 중일 때만 강도 조절 노출 (재생 중 실시간 반영)
-                if (stem == Stem.VOCAL && !separated && muteMask and stem.bit != 0) {
-                    Column(Modifier.padding(start = 48.dp, end = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "제거 강도",
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.weight(1f),
+                    if (stem == Stem.VOCAL && muteMask and stem.bit != 0) {
+                        Column(Modifier.padding(start = 48.dp, end = 8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "제거 강도",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "${(vocalStrength * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
+                            Slider(
+                                value = vocalStrength,
+                                onValueChange = onVocalStrengthChange,
+                                onValueChangeFinished = onVocalStrengthDone,
+                                valueRange = 0f..1f,
                             )
                             Text(
-                                "${(vocalStrength * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelMedium,
+                                "낮음 = 반주 손상 적음 · 높음 = 보컬 최대 제거",
+                                style = MaterialTheme.typography.labelSmall,
                             )
                         }
-                        Slider(
-                            value = vocalStrength,
-                            onValueChange = onVocalStrengthChange,
-                            onValueChangeFinished = onVocalStrengthDone,
-                            valueRange = 0f..1f,
-                        )
-                        Text(
-                            "낮음 = 반주 손상 적음 · 높음 = 보컬 최대 제거",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
                     }
                 }
             }
@@ -663,7 +708,7 @@ private fun ExportCard(
     song: com.bandmr.app.data.Song,
     aiOn: Boolean,
     separated: Boolean,
-    muteMask: Int,
+    stemGainsPacked: Long,
     semitones: Int,
     vocalStrength: Float,
     exporting: Boolean,
@@ -682,7 +727,7 @@ private fun ExportCard(
             setExportMsg(null)
             scope.launch {
                 runCatching {
-                    exporter.exportMix(song, muteMask, semitones, aiOn, uri, vocalStrength)
+                    exporter.exportMix(song, stemGainsPacked, semitones, aiOn, uri, vocalStrength)
                 }.onSuccess { setExportMsg("저장 완료") }
                     .onFailure { setExportMsg("실패: ${it.message}") }
                 setExporting(false)

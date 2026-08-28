@@ -19,10 +19,10 @@ import java.io.RandomAccessFile
 /** 가공 믹스 및 스템 개별 파일 내보내기 */
 class Exporter(private val context: Context) {
 
-    /** 현재 설정(제거 마스크 + 반음)으로 재생 중인 오디오를 WAV로 저장. 배속은 연습용이라 넣지 않는다 */
+    /** 현재 설정(스템 유지 퍼센트 + 반음)으로 재생 중인 오디오를 WAV로 저장. 배속은 연습용이라 넣지 않는다 */
     suspend fun exportMix(
         song: Song,
-        muteMask: Int,
+        stemGainsPacked: Long,
         semitones: Int,
         aiOn: Boolean,
         dest: Uri,
@@ -30,15 +30,22 @@ class Exporter(private val context: Context) {
         onProgress: (Float) -> Unit = {},
     ): Unit = withContext(Dispatchers.IO) {
         if (aiOn && song.isSeparated) {
-            exportMixFromStems(song, muteMask, semitones, dest, onProgress)
+            exportMixFromStems(song, stemGainsPacked, semitones, dest, onProgress)
         } else {
-            exportMixFromOriginal(song, muteMask, semitones, vocalStrength, dest, onProgress)
+            exportMixFromOriginal(
+                song,
+                Stem.muteMaskFromPacked(stemGainsPacked),
+                semitones,
+                vocalStrength,
+                dest,
+                onProgress,
+            )
         }
     }
 
     private suspend fun exportMixFromStems(
         song: Song,
-        muteMask: Int,
+        stemGainsPacked: Long,
         semitones: Int,
         dest: Uri,
         onProgress: (Float) -> Unit,
@@ -64,7 +71,7 @@ class Exporter(private val context: Context) {
         val writer = WavWriter.create(tmp, sr)
         try {
             val shifter = PitchShifter().also { it.semitones = semitones }
-            val gains = Stem.gainArray(muteMask)
+            val gains = Stem.gainArrayFromPacked(stemGainsPacked)
             val stemShort = ShortArray(CHUNK * 2)
             val mixed = FloatArray(CHUNK * 2)
             val outShort = ShortArray(CHUNK * 2)

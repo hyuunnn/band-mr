@@ -1,6 +1,6 @@
 # AGENTS.md — AI 에이전트용 프로젝트 가이드
 
-밴드 연습용 MR 제거 앱 (Android, Kotlin + Compose). 곡에서 보컬/드럼/베이스/기타/피아노/그외를 제거한 반주로 합주 연습.
+밴드 연습용 MR 제거 앱 (Android, Kotlin + Compose). 곡에서 보컬/드럼/베이스/기타/피아노/그외를 줄이거나 제거한 반주로 합주 연습.
 
 ## 빌드 / 테스트
 
@@ -9,7 +9,7 @@
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (77개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (84개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -35,11 +35,12 @@ separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
              OrtModelCache: 모델 파일당 OrtSession 1개를 프로세스 동안 재사용(등급 변경 시에만 재오픈)
 playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
-export/      믹스/스템 WAV 내보내기. 믹스는 제거 마스크+키만 반영하고 배속·A-B는 넣지 않음
+export/      믹스/스템 WAV 내보내기. 믹스는 스템 게인+키만 반영하고 배속·A-B는 넣지 않음
 youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스트림 추출·다운로드(filesDir/sources)
              → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
              임포트·모델 다운로드는 appScope(FGS 아님). 화면을 열어 둔 채 받아야 함(앱을 내리면 끊길 수 있음)
-data/        Room(Song v3: mute/키/배속/loopStartMs/EndMs), DataStore(설정)
+data/        Room(Song v4: stemGainsPacked·muteMask/키/배속/loopStartMs/EndMs), DataStore(설정)
+             stemGainsPacked가 기준(악기별 0~100%). muteMask는 0%만 비트 ON으로 파생 저장. AI OFF DSP가 읽음
 ui/          Compose (라이브러리/플레이어/설정). 파형 시크는 WaveformBar
 tools/       모델 변환 스크립트 (아래 참조)
 ```
@@ -53,6 +54,7 @@ tools/       모델 변환 스크립트 (아래 참조)
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)은 LE int로 읽음 (`WavIo.kt` 상수 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
 - 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(SourceWavPlayer.seekToFrame, muteMask setter). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
+- **스템 볼륨의 기준은 `stemGainsPacked`.** UI·저장·내보내기는 퍼센트만 바꾸고, `muteMask`는 `Stem.muteMaskFromPacked`(0%만 ON)로 파생한다. AI ON 믹서는 `gainArrayFromPacked`(0~1), AI OFF는 체크(0/100) + 보컬 제거 강도
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
 - **A-B 랩은 오디오 스레드에서만 한다.** UI 폴링으로 B→A 하면 백그라운드에서 끊긴다. 시크/점프는 `PlaybackLoop.clampSeek`로 구간 안에 가둔다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용할 것(이전 곡 엔진에 먼저 걸면 안 됨)

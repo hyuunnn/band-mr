@@ -114,14 +114,14 @@ class PlayerController(private val context: Context) {
 
     // ---------- 로딩 ----------
 
-    fun ensureLoaded(song: Song, aiOn: Boolean, muteMask: Int, semitones: Int, speed: Float) {
-        lastMask = muteMask
+    fun ensureLoaded(song: Song, aiOn: Boolean, stemGainsPacked: Long, semitones: Int, speed: Float) {
+        setStemLevels(stemGainsPacked)
         lastSemitones = semitones
         lastSpeed = PlaybackSpeed.snap(speed)
         val newAiMode = aiOn && song.isSeparated
         val modeChanged = newAiMode != aiMode || currentSong?.id != song.id
         if (!modeChanged && engineExists()) {
-            applyParams(muteMask, semitones, lastSpeed)
+            applyParams(semitones, lastSpeed)
             applyLoopToEngines()
             snapIntoLoopIfNeeded()
             return
@@ -136,16 +136,16 @@ class PlayerController(private val context: Context) {
         registerNoisyReceiver()
 
         if (aiMode) {
-            loadMixer(song, muteMask, semitones, lastSpeed, wasPlaying, pos)
+            loadMixer(song, lastGains, semitones, lastSpeed, wasPlaying, pos)
         } else {
-            loadSource(song, muteMask, semitones, lastSpeed, wasPlaying, pos)
+            loadSource(song, lastMask, semitones, lastSpeed, wasPlaying, pos)
         }
         applyLoopToEngines()
         snapIntoLoopIfNeeded()
         wasAutoEnded = false
     }
 
-    private fun loadMixer(song: Song, mask: Int, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
+    private fun loadMixer(song: Song, gains: FloatArray, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
         val dir = File(song.stemsDir!!)
         val files = buildMap {
             Stem.entries.forEach { stem ->
@@ -157,7 +157,7 @@ class PlayerController(private val context: Context) {
             it.load(files)
             it.semitones = semi
             it.speed = speed
-            it.gains = Stem.gainArray(mask)
+            it.gains = gains
             durationMs.value = framesToMs(it.durationFrames)
             it.seekToFrame(msToFrames(pos))
             if (wasPlaying && !wasAutoEnded) it.play()
@@ -255,6 +255,7 @@ class PlayerController(private val context: Context) {
     }
 
     private var lastMask = 0
+    private var lastGains = Stem.gainArrayFromPacked(Stem.DEFAULT_PACKED)
     private var lastSemitones = 0
     private var lastSpeed = PlaybackSpeed.DEFAULT
     private var vocalStrength = 1f
@@ -267,8 +268,7 @@ class PlayerController(private val context: Context) {
     private fun activeIsPlaying(): Boolean =
         if (aiMode) mixer?.isPlaying == true else source?.isPlaying == true
 
-    private fun applyParams(muteMask: Int, semitones: Int, speed: Float) {
-        setMuteMask(muteMask)
+    private fun applyParams(semitones: Int, speed: Float) {
         setSemitones(semitones)
         setSpeed(speed)
     }
@@ -355,9 +355,12 @@ class PlayerController(private val context: Context) {
         source?.loopEndFrame = endFrame
     }
 
-    fun setMuteMask(mask: Int) {
-        mixer?.gains = Stem.gainArray(mask)
-        source?.muteMask = mask
+    /** 스템 유지 퍼센트. 믹서 게인과 AI OFF 뮤트 마스크를 같이 갱신한다. */
+    fun setStemLevels(packed: Long) {
+        lastMask = Stem.muteMaskFromPacked(packed)
+        lastGains = Stem.gainArrayFromPacked(packed)
+        mixer?.gains = lastGains
+        source?.muteMask = lastMask
     }
 
     fun setSemitones(n: Int) {

@@ -1,6 +1,6 @@
 # 밴드 MR (Band MR)
 
-밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타 / 피아노(키보드) / 그 외**를 체크해서 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
+밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타 / 피아노(키보드) / 그 외**를 악기별로 줄이거나 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
 
 > 스템 분리에는 [Demucs](https://github.com/facebookresearch/demucs) (MIT, Meta Platforms)의
 > htdemucs_6s 가중치를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
@@ -11,7 +11,7 @@
 
 | 기능 | 설명 |
 |---|---|
-| 스템별 제거 | 보컬·드럼·베이스·기타·피아노(키보드)·그 외를 체크하여 재생에서 제거 (피아노·그 외는 AI 분리 전용) |
+| 스템별 볼륨 | AI ON(분리 후): 보컬·드럼·베이스·기타·피아노·그 외를 0~100%로 조절 (0%=제거). AI OFF: 체크 제거(피아노·그 외는 AI 전용) |
 | AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
 | 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
@@ -20,7 +20,7 @@
 | 파형 시크 | MixCache 개요 파형에서 탭·드래그로 위치 이동. 드래그 중에도 재생이 따라감. 캐시 준비 중엔 슬라이더 |
 | A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
 | 백그라운드 재생 | 화면을 벗어나거나 앱을 내려도 재생 유지, 알림에서 제어 |
-| 내보내기 | ① 제거·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
+| 내보내기 | ① 스템 볼륨·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
 | 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
@@ -56,7 +56,7 @@ AI ON (사전 분리 후 캐시, 고품질)
 ![시작하는 5단계](docs/images/usage-flow.svg)
 
 - **AI OFF**: 즉시 반응하고 배터리를 거의 쓰지 않지만, 신호처리 특성상 완전히 분리되진 않습니다(특히 기타).
-- **AI ON**: 곡당 한 번만 처리하면 캐시로 재사용되며, 체크한 스템이 정확히 제거됩니다.
+- **AI ON**: 곡당 한 번만 처리하면 캐시로 재사용되며, 스템별 볼륨(0~100%)으로 정확히 조절됩니다.
   - 경량: 몇십 초 ~ 1분 내외 / 품질: 수분 소요, 발열 있음
 
 ## 빌드
@@ -130,8 +130,8 @@ app/src/main/java/com/bandmr/app/
 ├── youtube/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
-├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 제거·키만, 배속·A-B 제외)
-├── data/                      # Room(Song v3: mute/키/배속/A-B), DataStore(설정)
+├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 스템 볼륨·키만, 배속·A-B 제외)
+├── data/                      # Room(Song v4: stemGains/mute/키/배속/A-B), DataStore(설정)
 └── ui/                        # Compose (라이브러리/플레이어/설정)
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
 
@@ -141,7 +141,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/STFT/리샘플러/청크 수학/유튜브 단위 테스트
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/STFT/리샘플러/청크/스템 게인/유튜브 단위 테스트
 ```
 
 ## 알려진 한계

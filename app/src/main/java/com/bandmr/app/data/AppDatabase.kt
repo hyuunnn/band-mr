@@ -37,7 +37,7 @@ interface SongDao {
     suspend fun delete(song: Song)
 }
 
-@Database(entities = [Song::class], version = 3, exportSchema = false)
+@Database(entities = [Song::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
 
@@ -55,9 +55,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE songs ADD COLUMN stemGainsPacked INTEGER NOT NULL DEFAULT ${Stem.DEFAULT_PACKED}",
+                )
+                db.query("SELECT id, muteMask FROM songs").use { c ->
+                    val idIdx = c.getColumnIndex("id")
+                    val maskIdx = c.getColumnIndex("muteMask")
+                    while (c.moveToNext()) {
+                        val id = c.getLong(idIdx)
+                        val packed = Stem.packedFromMuteMask(c.getInt(maskIdx))
+                        db.execSQL("UPDATE songs SET stemGainsPacked = $packed WHERE id = $id")
+                    }
+                }
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "bandmr.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }
