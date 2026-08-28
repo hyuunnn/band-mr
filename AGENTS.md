@@ -5,8 +5,8 @@
 ## 빌드 / 테스트
 
 ```bash
-# Temurin 17은 삭제됨 → homebrew openjdk@17 사용 (시스템 기본 java는 없거나 Gradle이 거부)
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+# JDK 17: temurin-17(/Library/Java) 사용. homebrew openjdk@17 경로는 현재 존재하지 않음(2026-08 확인)
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # → /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
 ./gradlew :app:testDebugUnitTest      # 단위 테스트 (84개)
@@ -25,7 +25,8 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.prope
 ## 아키텍처 요약
 
 ```
-audio/       AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
+audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·시크·배속 공통 베이스)
+             AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
              배속은 PlaybackSpeed → AudioTrack PlaybackParams (키와 독립, 곡마다 Song.speed 저장)
              점프는 PlaybackSkip(±5/±10초) → PlayerController.skipBy (0~duration 클램프)
              A-B는 PlaybackLoop(최소 0.5초) → 엔진이 B에서 A로 seek. Song.loopStartMs/EndMs 저장, 내보내기 제외

@@ -73,12 +73,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.navigation:navigation-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
 
     val room = "2.8.4"
     implementation("androidx.room:room-runtime:$room")
-    implementation("androidx.room:room-ktx:$room")
     ksp("androidx.room:room-compiler:$room")
 
     implementation("androidx.datastore:datastore-preferences:1.2.1")
