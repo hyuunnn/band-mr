@@ -5,14 +5,15 @@
 ## 빌드 / 테스트
 
 ```bash
-# homebrew openjdk@17는 삭제됨 → Temurin 17 사용 (시스템 기본 java 26은 Gradle이 거부)
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
+# Temurin 17은 삭제됨 → homebrew openjdk@17 사용 (시스템 기본 java는 없거나 Gradle이 거부)
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (59개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (63개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- Android SDK: `/opt/homebrew/share/android-commandlinetools` (local.properties의 `sdk.dir` 참조, 커밋 금지). adb/sdkmanager는 `/opt/homebrew/bin`에 있음
+- Android SDK: `/opt/homebrew/share/android-commandlinetools` (`ANDROID_HOME` 또는 local.properties의 `sdk.dir`로 지정, local.properties는 커밋 금지). adb/sdkmanager는 `/opt/homebrew/bin`에 있음
 - compileSdk 37 / targetSdk 36, minSdk 31, Gradle 9.5.0, AGP 9.3.2(빌트인 Kotlin — kotlin.android 플러그인 없음), Kotlin 2.4.10, KSP 2.3.11(Kotlin과 독립 버전), ORT Android 1.29.0 (media3/ExoPlayer는 제거됨 — 아래 아키텍처 참조)
 - 실기기(SM-S931N, Android 16)가 adb로 연결되면 실기기 검증 가능. 그 외 런타임 검증은 빌드+JVM 단위테스트
 
