@@ -19,7 +19,7 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
         set(value) {
             if (field != value) {
                 field = value
-                resetState()
+                reset()
             }
         }
 
@@ -55,8 +55,13 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
         }
     }
 
-    private fun resetState() {
-        rebuild()
+    /**
+     * 필터·FIFO 상태를 전부 비운다. 리셋 후 출력은 새로 만든 체인과 바이트 단위로 같다
+     * (DspChainResetTest가 보증) — 시크마다 체인을 재할당하지 않기 위한 계약이다.
+     * 계수는 sampleRate에만 의존해 변하지 않으므로 다시 계산하지 않고 상태만 지운다.
+     * 오디오 스레드에서만 호출할 것(SpectralStage는 스레드 안전하지 않음).
+     */
+    fun reset() {
         for (i in 0..1) {
             hpL[i].reset(); hpR[i].reset(); dipL[i].reset(); dipR[i].reset()
         }

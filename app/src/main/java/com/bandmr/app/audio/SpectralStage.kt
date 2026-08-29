@@ -114,10 +114,17 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         return toRead
     }
 
+    /**
+     * 새로 만든 인스턴스와 동일한 상태로 되돌린다(시크 시 제자리 리셋용).
+     * magHist를 반드시 비워야 한다 — histPos/histFill은 인스턴스 단위인데 증가는
+     * 채널마다 일어나서(스테레오는 프레임당 2), 워밍업 중 medianOverHist가 해당 채널이
+     * 아직 쓰지 않은 슬롯까지 읽는다. 잔여값이 남으면 새 인스턴스(0f)와 출력이 달라진다.
+     */
     fun reset() {
         pendingLen = 0
         histFill = 0
         histPos = 0
+        magHist.forEach { ch -> ch.forEach { it.fill(0f) } }
         olaTail.forEach { it.fill(0f) }
         fifoHead = 0; fifoSize = 0
         lpState = 0f

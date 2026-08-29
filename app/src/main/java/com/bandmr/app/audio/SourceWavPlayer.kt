@@ -39,6 +39,9 @@ class SourceWavPlayer(
             chain.vocalStrength = value
         }
 
+    // muteMask 변경 때만 객체를 교체한다(공개 전에 마스크를 걸어 경쟁 없음, 탭 1회당 1번).
+    // 오디오 스레드가 락 없이 읽으므로 가시성 보장 필요.
+    @Volatile
     private var chain = newChain()
 
     // ---------- AudioTrackEngine 훅 ----------
@@ -59,8 +62,9 @@ class SourceWavPlayer(
         return got
     }
 
+    /** 시크마다 호출된다(스크럽 시 초당 10회) — 재할당 없이 제자리 리셋 */
     override fun resetProcessors() {
-        chain = newChain()
+        chain.reset()
     }
 
     override fun closeSources() {
@@ -69,7 +73,7 @@ class SourceWavPlayer(
 
     /** 트랙 종료 처리: DSP 파이프라인 잔여분(약 1블록)을 밀어낸 뒤 끝난다 */
     override fun finish() {
-        val c = synchronized(stateLock) { chain }
+        val c = chain // @Volatile — 락 불필요
         if (c.muteMask != 0) {
             c.drain { arr, n ->
                 track?.write(arr, 0, n, AudioTrack.WRITE_BLOCKING)

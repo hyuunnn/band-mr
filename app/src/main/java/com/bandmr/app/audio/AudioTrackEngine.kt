@@ -77,7 +77,13 @@ abstract class AudioTrackEngine(
     @Volatile
     var loopEndFrame: Long = PlaybackLoop.DISABLED_FRAME
 
-    private var shifter = newShifter(0)
+    // 시크가 세우고 오디오 스레드가 소비하는 리셋 요청.
+    // DSP 프로세서(특히 SpectralStage FIFO)는 스레드 안전하지 않아 UI 스레드에서 직접
+    // reset()하면 오디오 스레드의 인덱스 계산이 깨진다(fifoSize 음수 → AIOOBE).
+    @Volatile
+    private var processorsDirty = false
+
+    private val shifter = PitchShifter()
 
     /** 엔진이 재생할 전체 프레임 수 (시크 클램프·A-B 상한·곡 끝 판정) */
     protected abstract val totalFrames: Long
@@ -115,8 +121,9 @@ abstract class AudioTrackEngine(
         val f = frame.coerceIn(0, maxOf(0, totalFrames))
         synchronized(stateLock) {
             framePos = f
-            shifter = newShifter(semitones)
-            resetProcessors()
+            // 프로세서 리셋은 오디오 스레드가 렌더 직전에 제자리로 수행한다(스레드 안전성).
+            // 여기서 객체를 새로 만들면 스크럽 중 초당 10회 × 180KB가 재할당된다.
+            processorsDirty = true
             track?.pause()
             track?.flush()
             if (isPlaying && totalFrames > 0) {
@@ -141,8 +148,9 @@ abstract class AudioTrackEngine(
     protected abstract fun renderChunk(posFrames: Long, request: Int): Int
 
     /**
-     * 시크 직후 프로세서 상태를 리셋한다. stateLock 안에서 호출된다.
+     * 시크 직후 프로세서 상태를 제자리 리셋한다. 오디오 스레드에서, stateLock 안에서 호출된다.
      * 스펙트럼 FIFO 잔여분이 시크 직후 잡음으로 붙는 것을 막는 훅이다.
+     * 새 객체를 만들지 말 것 — 스크럽 시크가 초당 10회 들어온다.
      */
     protected open fun resetProcessors() {}
 
@@ -158,8 +166,18 @@ abstract class AudioTrackEngine(
 
     // ---------- 내부 ----------
 
-    private fun newShifter(semi: Int): PitchShifter =
-        PitchShifter().also { it.semitones = semi }
+    /**
+     * 시크 요청이 있었으면 프로세서를 제자리 리셋한다. 반드시 오디오 스레드에서,
+     * framePos를 읽기 전에(그리고 곡 끝 판정보다도 먼저) stateLock 아래에서 호출할 것.
+     * 순서가 뒤바뀌면 "pos 읽음 → 시크 끼어듦 → 리셋" 이 되어 방금 비운 체인에
+     * 시크 이전 오디오가 들어간다 — 리셋이 막으려던 잡음을 리셋이 만든다.
+     */
+    private fun consumeResetRequest() {
+        if (!processorsDirty) return
+        processorsDirty = false
+        shifter.reset()
+        resetProcessors()
+    }
 
     /** interleaved shorts [frames]프레임 → 피치 적용해 [outShort]에 기록 */
     protected fun pitchShortToOut(src: ShortArray, frames: Int) {
@@ -216,8 +234,14 @@ abstract class AudioTrackEngine(
             if (!running) break
             if (!play || track == null) continue
 
-            val pos = framePos
-            val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
+            val pos: Long
+            val limit: Long
+            // 리셋 소비는 framePos·limit 읽기와 원자적이어야 한다(위 consumeResetRequest 주석 참조)
+            synchronized(stateLock) {
+                consumeResetRequest()
+                pos = framePos
+                limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
+            }
             if (pos >= limit) {
                 wrapOrFinish()
                 continue
