@@ -50,6 +50,19 @@ class PlayerController(private val context: Context) {
     /** 원본 WAV 캐시 준비에 실패한 곡 id (재생 버튼으로 재시도 가능) */
     val prepareFailedSongId = MutableStateFlow<Long?>(null)
 
+    /**
+     * [release]가 호출될 때마다 증가한다. 알림을 지워 엔진을 놓아준 뒤에도
+     * 플레이어 화면이 남아 있으면 로드 조건(곡 id·모드)이 그대로여서 다시 준비되지 않는다.
+     * 화면이 이 값을 보고 엔진을 재준비한다 — 없으면 재생 버튼이 영구 무반응이 된다.
+     */
+    val releaseEpoch = MutableStateFlow(0)
+
+    /**
+     * 시크할 때마다 증가한다(파형 스크럽·점프 버튼 모두 [seekTo]를 지나감).
+     * [com.bandmr.app.playback.PlaybackService]가 이 신호로 알림 진행바를 갱신한다.
+     */
+    val seekEpoch = MutableStateFlow(0)
+
     private var wasAutoEnded = false
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -258,6 +271,9 @@ class PlayerController(private val context: Context) {
     private var lastGains = Stem.gainArrayFromPacked(Stem.DEFAULT_PACKED)
     private var lastSemitones = 0
     private var lastSpeed = PlaybackSpeed.DEFAULT
+
+    /** 현재 배속 (알림 미디어 카드의 진행바 추정에 쓰임) */
+    val currentSpeed: Float get() = lastSpeed
     private var vocalStrength = 1f
     private var lastLoopStartMs: Long? = null
     private var lastLoopEndMs: Long? = null
@@ -311,6 +327,8 @@ class PlayerController(private val context: Context) {
             source != null -> source?.seekToFrame(msToFrames(target))
             else -> pendingResume(currentSong?.id ?: return, pendingResumePlay, target)
         }
+        // 알림 미디어 카드가 진행바를 바로 따라오게 한다(앱 → 알림 방향 반영)
+        seekEpoch.value += 1
     }
 
     /** 현재 위치에서 [deltaMs]만큼 이동. 범위는 [seekTo]가 자른다. */
@@ -409,6 +427,8 @@ class PlayerController(private val context: Context) {
         lastLoopStartMs = null
         lastLoopEndMs = null
         pendingResumeSongId?.let { clearPendingResume(it) }
+        // 화면이 열려 있으면 이 신호로 엔진을 다시 준비한다
+        releaseEpoch.value += 1
     }
 
     // ---------- 유틸 ----------

@@ -103,8 +103,10 @@ fun PlayerScreen(songId: Long) {
 
     val preparingSongId by ctrl.preparingSongId.collectAsState()
     val prepareFailedSongId by ctrl.prepareFailedSongId.collectAsState()
+    // 알림 '종료'로 엔진이 해제되면 값이 바뀌어 아래 로드 이펙트가 다시 돈다
+    val releaseEpoch by ctrl.releaseEpoch.collectAsState()
 
-    LaunchedEffect(song?.id, song?.separatedTier, aiOn) {
+    LaunchedEffect(song?.id, song?.separatedTier, aiOn, releaseEpoch) {
         val s = song ?: return@LaunchedEffect
         stemGainsPacked = s.stemGainsPacked
         semitones = s.semitones
