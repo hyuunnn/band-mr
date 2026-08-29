@@ -97,8 +97,16 @@ class WavReader(private val file: File) : Closeable {
                 done += n
             }
         }
-        val bbuf = ByteBuffer.wrap(scratch).order(ByteOrder.LITTLE_ENDIAN)
-        for (i in 0 until toRead * channels) out[i] = bbuf.short
+        // 오디오 스레드에서 매 청크 호출되므로 ByteBuffer를 새로 만들지 않고 직접 변환한다
+        // (AI ON은 스템 6개 × 초당 20여 회 → 그만큼의 임시 객체가 생긴다)
+        var si = 0
+        val samples = toRead * channels
+        while (si < samples) {
+            val lo = scratch[si * 2].toInt() and 0xFF
+            val hi = scratch[si * 2 + 1].toInt()
+            out[si] = ((hi shl 8) or lo).toShort()
+            si++
+        }
         return toRead
     }
 

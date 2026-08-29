@@ -63,6 +63,7 @@ object AudioDecode {
             var outFrames = 0L
             val info = MediaCodec.BufferInfo()
             val mix = StereoMixBuf()
+            var decodeBuf = ShortArray(0)
 
             while (!sawOutputEos) {
                 if (!sawInputEos) {
@@ -90,11 +91,13 @@ object AudioDecode {
                     else -> {
                         val ob = codec.getOutputBuffer(outIdx)!!
                         ob.order(ByteOrder.LITTLE_ENDIAN)
-                        val shorts = ShortArray(ob.remaining() / 2)
-                        for (i in shorts.indices) shorts[i] = ob.short
+                        // 출력 버퍼마다 배열을 새로 만들지 않고 재사용한다(곡당 수천 회 호출)
+                        val count = ob.remaining() / 2
+                        if (decodeBuf.size < count) decodeBuf = ShortArray(count)
+                        for (i in 0 until count) decodeBuf[i] = ob.short
                         codec.releaseOutputBuffer(outIdx, false)
 
-                        outFrames += emitStereo44k(shorts, inCh, resampler, out, mix)
+                        outFrames += emitStereo44k(decodeBuf, count, inCh, resampler, out, mix)
                         if (durationUs > 0 && info.presentationTimeUs > 0) {
                             onProgress((info.presentationTimeUs.toFloat() / durationUs).coerceIn(0f, 1f))
                         }
@@ -152,18 +155,19 @@ object AudioDecode {
     }
 
     /**
-     * 디코딩된 interleaved shorts(ch채널)를 리샘플+스테레오 변환해 [out]으로 내보낸다.
+     * 디코딩된 interleaved shorts([count]개, ch채널)를 리샘플+스테레오 변환해 [out]으로 내보낸다.
      * L/R 버퍼는 [StereoMixBuf]를 재사용한다(출력 버퍼마다 재할당하지 않음).
      * @return 기록된 출력 프레임 수
      */
     private fun emitStereo44k(
         data: ShortArray,
+        count: Int,
         channels: Int,
         resampler: LinearResampler,
         out: ShortSink,
         mix: StereoMixBuf,
     ): Long {
-        val framesIn = data.size / channels.coerceAtLeast(1)
+        val framesIn = count / channels.coerceAtLeast(1)
         if (framesIn == 0) return 0
         mix.ensure(framesIn)
         val l = mix.l
