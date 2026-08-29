@@ -53,6 +53,7 @@ class BandMrApp : Application() {
             val id = f.name.substringBefore('.').toLongOrNull()
             // 1패스 전환 전 버전이 남긴 중간 raw(곡당 수십 MB). 지금은 아무도 쓰지 않으므로
             // 유효한 곡의 것도 지운다 — 그냥 두면 id가 살아있어 영구히 남는다.
+            // 일회성 마이그레이션: 1패스 이전 버전에서 올라오는 경로가 사라지면 지워도 된다.
             // .wav.part / .peaks.tmp는 지금도 쓰이는 임시 파일이라 건드리지 않는다(쓰기 중일 수 있음)
             if (f.name.endsWith(".raw")) {
                 f.delete()
