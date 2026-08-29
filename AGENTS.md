@@ -33,7 +33,7 @@ audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·
              파형은 WaveformPeaks(MixCache WAV 막대 RMS, 곡 내 최댓값 정규화 — 리미터 음원도 윤곽 보이게) → WaveformBar. 캐시 없으면 슬라이더, MixCache.prepare rename 뒤 awaitReady로 자동 전환
              MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 1패스 디코딩해 filesDir/mixcache에 보관(중간 raw 없음). 완료는 CacheReadyGate 신호(폴링 아님)
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
-             AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
+             AudioDecode는 MixCache 전용(MediaCodec→44.1k 스트림). 분리·내보내기는 MixCache WAV를 읽는다
              ONNX 세션은 separate() 호출마다 열고 닫는다(캐시하면 ORT 아레나가 수 GB를 계속 물고 있음)
 playback/    PlaybackService(백그라운드 재생 FGS + MediaSession 알림)
              알림은 OS 미디어 카드로 그려진다 — 카드 버튼은 알림 액션이 아니라 PlaybackState의

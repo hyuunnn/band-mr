@@ -112,13 +112,13 @@ app/src/main/java/com/bandmr/app/
 │   ├── SpectralStage.kt       # 드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
 │   ├── Fft.kt                 # radix-2 FFT (사전 계산 트위들 테이블)
 │   ├── Biquad.kt              # RBJ cookbook 바이쿼드 (스펙트럼 단계·리샘플러 사용)
-│   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 (filesDir/mixcache). 완료는 awaitReady 신호
+│   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 1패스 생성(filesDir/mixcache). 완료는 awaitReady 신호
 │   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
 │   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
 │   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
 │   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
 │   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
-│   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 (막대 RMS, 곡 내 최댓값 정규화)
+│   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 (막대 RMS 정규화, <songId>.peaks로 캐시)
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -135,7 +135,7 @@ app/src/main/java/com/bandmr/app/
 ├── youtube/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
-├── export/Exporter.kt         # 믹스/스템 내보내기 (믹스는 스템 볼륨·키만, 배속·A-B 제외)
+├── export/Exporter.kt         # 믹스/스템 내보내기 (MixCache WAV 재사용, 배속·A-B 제외)
 ├── data/                      # Room(Song v4: stemGains/mute/키/배속/A-B), DataStore(설정). 저장은 컬럼별 UPDATE
 └── ui/                        # Compose (라이브러리/플레이어/설정)
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
