@@ -9,7 +9,7 @@
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # → /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (98개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (106개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -31,7 +31,7 @@ audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·
              점프는 PlaybackSkip(±5/±10초) → PlayerController.skipBy (0~duration 클램프)
              A-B는 PlaybackLoop(최소 0.5초) → 엔진이 B에서 A로 seek. Song.loopStartMs/EndMs 저장, 내보내기 제외
              파형은 WaveformPeaks(MixCache WAV 막대 RMS, 곡 내 최댓값 정규화 — 리미터 음원도 윤곽 보이게) → WaveformBar. 캐시 없으면 슬라이더, MixCache.prepare rename 뒤 awaitReady로 자동 전환
-             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 디코딩해 filesDir/mixcache에 보관. 완료는 CacheReadyGate 신호(폴링 아님)
+             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 1패스 디코딩해 filesDir/mixcache에 보관(중간 raw 없음). 완료는 CacheReadyGate 신호(폴링 아님)
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
              ONNX 세션은 separate() 호출마다 열고 닫는다(캐시하면 ORT 아레나가 수 GB를 계속 물고 있음)
@@ -66,6 +66,8 @@ tools/       모델 변환 스크립트 (아래 참조)
 - **내보내기는 배속·A-B를 넣지 않는다.** 연습용 배속/구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 - **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다. 내보내기(AI OFF 믹스)도 같은 캐시 WAV를 읽는다 — 별도 raw 디코딩을 다시 만들지 말 것
+- **MixCache 준비는 1패스다.** `AudioDecode.decodeTo44kStereo`가 청크 싱크로 흘려보내고 `WavWriter`가 `.part`에 바로 쓴다(헤더 크기는 close 때 패치). 중간 raw 파일을 만들면 디스크 쓰기와 피크 사용량이 2배가 된다(4분 곡 80MB vs 40MB). rename은 반드시 close 뒤 — 그 전에 공개하면 헤더 크기가 0인 WAV가 재생에 쓰인다. 1패스 출력이 옛 2패스와 바이트 동일함은 `MixCacheWavTest`가 고정한다
+- **파형 막대는 `mixcache/<songId>.peaks`에 캐시한다.** 결과가 480 float(1.9KB)인데 계산은 WAV 전체 스캔이라 플레이어 재진입마다 훑을 이유가 없다. `WaveformPeaks.fromWavCached`가 막대 수·원본 크기를 함께 저장해 불일치·손상 시 다시 계산한다. 파일명이 `<songId>.peaks`라 `MixCache.delete`와 `cleanUpOrphans`의 `substringBefore('.')` 규칙에 그대로 걸린다
 - **분리 결과는 `stems/<songId>.part`에 쓰고 성공했을 때만 `stems/<songId>`로 rename한다.** 정식 디렉터리를 먼저 지우면 취소·실패 시 DB의 분리 완료 표시(stemsDir)만 남아 스템 없는 곡이 된다
 - **분리 취소 판정은 코루틴 자신의 Job으로 한다(`currentCoroutineContext()[Job]`).** 서비스 필드를 읽으면 대입 전 null을 취소로 오판하고, 취소 직후 새 작업이 필드를 덮어써 이전 작업이 영원히 안 죽는다. 새 분리는 이전 Job을 `join`한 뒤 시작(ONNX 세션 수 GB가 겹치면 OOM). 서비스 종료는 `stopSelf(lastStartId)` + 현재 Job일 때만
 - **오디오 파이프라인은 44.1kHz(`PIPELINE_SAMPLE_RATE`) 고정 가정.** MixCache WAV·Demucs 스템 모두 이 레이트로 생성되며, 불일치 스템은 재생·내보내기에서 제외된다. PlayerController의 ms↔프레임 수학도 이 값에 묶인다

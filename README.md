@@ -125,7 +125,7 @@ app/src/main/java/com/bandmr/app/
 ├── separation/
 │   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 핀)
 │   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
-│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw (MixCache·내보내기용)
+│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz 스테레오 PCM16 스트림 (MixCache용, 1패스)
 │   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
 │   │                          # ONNX 세션은 분리 1회마다 열고 닫음(메모리 반환)
 │   ├── SeparationService.kt   # Foreground Service + 진행 알림
@@ -144,7 +144,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/DSP리셋/리샘플러/청크/스템 게인/유튜브 단위 테스트 (98개)
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/DSP리셋/리샘플러/청크/스템 게인/유튜브 단위 테스트 (106개)
 ```
 
 ## 알려진 한계
