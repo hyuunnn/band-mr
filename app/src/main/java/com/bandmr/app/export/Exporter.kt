@@ -6,17 +6,16 @@ import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bandmr.app.audio.DspChain
+import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
 import com.bandmr.app.audio.PitchShifter
 import com.bandmr.app.audio.WavReader
 import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
-import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.RandomAccessFile
 
 private const val TAG = "Exporter"
 
@@ -117,55 +116,38 @@ class Exporter(private val context: Context) {
         dest: Uri,
         onProgress: (Float) -> Unit,
     ) = withContext(Dispatchers.IO) {
-        val raw = File(context.cacheDir, "export_mix.raw")
-        raw.delete()
-        try {
-            val totalFrames = AudioDecode.decodeToRaw44k(
-                context, song.uri.toUri(), raw,
-            ) { p -> onProgress(p * 0.4f) }
+        // 재생(SourceWavPlayer)과 같은 소스를 쓴다 — 캐시가 있으면 원본을 다시 디코딩하지 않는다
+        val source = MixCache.prepare(context, song.id, song.uri.toUri()) { p -> onProgress(p * 0.4f) }
 
-            val chain = DspChain(AudioDecode.TARGET_SR, 2).also {
-                it.muteMask = muteMask
-                it.vocalStrength = vocalStrength
-            }
-            val shifter = PitchShifter().also { it.semitones = semitones }
-            val tmp = File(context.cacheDir, "export_mix.wav")
-            tmp.delete()
-            WavWriter.create(tmp, AudioDecode.TARGET_SR).use { writer ->
-                RandomAccessFile(raw, "r").use { raf ->
-                    renderDspChunks(raf, totalFrames, chain, shifter, writer, onProgress)
-                }
-                chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
-            }
-            copyTmpToDest(tmp, dest)
-        } finally {
-            raw.delete()
+        val chain = DspChain(PIPELINE_SAMPLE_RATE, 2).also {
+            it.muteMask = muteMask
+            it.vocalStrength = vocalStrength
         }
+        val shifter = PitchShifter().also { it.semitones = semitones }
+        val tmp = File(context.cacheDir, "export_mix.wav")
+        tmp.delete()
+        WavWriter.create(tmp, PIPELINE_SAMPLE_RATE).use { writer ->
+            WavReader(source).use { reader ->
+                renderDspChunks(reader, chain, shifter, writer, onProgress)
+            }
+            chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
+        }
+        copyTmpToDest(tmp, dest)
     }
 
     private fun renderDspChunks(
-        raf: RandomAccessFile,
-        totalFrames: Long,
+        reader: WavReader,
         chain: DspChain,
         shifter: PitchShifter,
         writer: WavWriter,
         onProgress: (Float) -> Unit,
     ) {
+        val totalFrames = reader.totalFrames
         val buf = ShortArray(CHUNK * 2)
-        val bytes = ByteArray(CHUNK * 4)
         var pos = 0L
         while (pos < totalFrames) {
-            val frames = minOf(CHUNK.toLong(), totalFrames - pos).toInt()
-            val byteLen = frames * 4
-            raf.seek(pos * 4L)
-            var done = 0
-            while (done < byteLen) {
-                val n = raf.read(bytes, done, byteLen - done)
-                if (n < 0) break
-                done += n
-            }
-            val bb = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-            for (i in 0 until frames * 2) buf[i] = bb.short
+            val frames = reader.read(pos, buf, CHUNK)
+            if (frames == 0) break
             // 재생 경로(SourceWavPlayer)와 동일한 순서: 피치시프트 → 제거 체인
             for (i in 0 until frames) {
                 shifter.process(buf[i * 2] / 32768f, buf[i * 2 + 1] / 32768f)

@@ -19,9 +19,9 @@ enum class Tier(
     val url: String,
     /**
      * 모델 파일 SHA-256 해시(64자 hex). 다운로드 후 무결성 검증에 사용.
-     * null이면 크기 기반의 느슨한 검증만 수행.
+     * 모델을 다시 업로드하면 반드시 갱신할 것.
      */
-    val sha256: String? = null,
+    val sha256: String,
 ) {
     LIGHT(
         "light", "경량 우선",

@@ -65,8 +65,7 @@ class ModelManager(private val context: Context) {
                     if (code == 416) {
                         // 부분 파일이 이미 전체 크기 — 해시가 맞으면 그대로 승격, 아니면 폐기
                         // (그냥 던지면 완전한 tmp가 계속 남아 영원히 416으로 실패한다)
-                        val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (tier.sha256 != null && actual.equals(tier.sha256, ignoreCase = true)) {
+                        if (hex(digest.digest()).equals(tier.sha256, ignoreCase = true)) {
                             promoteTmp(tmp, tier)
                             return@withContext
                         }
@@ -114,16 +113,9 @@ class ModelManager(private val context: Context) {
                             }
                         }
                     }
-                    // 무결성 검증: 해시 우선, 없으면 최소 크기
-                    tier.sha256?.let { expected ->
-                        val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (!actual.equals(expected, ignoreCase = true)) {
-                            throw IntegrityException("모델 파일 무결성 오류 (해시 불일치)")
-                        }
-                    } ?: run {
-                        if (tmp.length() < MIN_VALID_BYTES) {
-                            throw IntegrityException("비정상 모델 파일")
-                        }
+                    // 무결성 검증: SHA-256 불일치면 부분 파일까지 폐기
+                    if (!hex(digest.digest()).equals(tier.sha256, ignoreCase = true)) {
+                        throw IntegrityException("모델 파일 무결성 오류 (해시 불일치)")
                     }
                 } finally {
                     conn.disconnect()
@@ -166,6 +158,7 @@ class ModelManager(private val context: Context) {
     companion object {
         private const val MODEL_FILE = "model-6s.onnx"
         private const val DEFAULT_BUF = 128 * 1024
-        private const val MIN_VALID_BYTES = 1_000_000L
+
+        private fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
     }
 }

@@ -57,7 +57,12 @@ object MixCache {
      *
      * @return 캐시된 WAV 파일 (총 프레임 수는 [WavReader]로 확인)
      */
-    fun prepare(context: Context, songId: Long, sourceUri: Uri): File {
+    fun prepare(
+        context: Context,
+        songId: Long,
+        sourceUri: Uri,
+        onProgress: (Float) -> Unit = {},
+    ): File {
         val lock = locks.computeIfAbsent(songId) { Any() }
         synchronized(lock) {
             val final = cacheFile(context, songId)
@@ -66,7 +71,7 @@ object MixCache {
             val raw = File(dir, "$songId.raw")
             val part = File(dir, "${final.name}.part")
             try {
-                AudioDecode.decodeToRaw44k(context, sourceUri, raw)
+                AudioDecode.decodeToRaw44k(context, sourceUri, raw, onProgress)
                 RawToWav.convert(raw, part, AudioDecode.TARGET_SR)
                 if (final.exists()) final.delete()
                 check(part.renameTo(final)) { "캐시 파일 이동 실패: $part" }
@@ -91,6 +96,8 @@ object MixCache {
 internal class CacheReadyGate {
     private val ready = MutableSharedFlow<Long>(extraBufferCapacity = 16)
 
+    /** 테스트에서 구독 시점 경쟁을 확인하는 용도 */
+    @androidx.annotation.VisibleForTesting
     val subscriberCount get() = ready.subscriptionCount
 
     fun signal(songId: Long) {
