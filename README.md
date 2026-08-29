@@ -144,7 +144,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/리샘플러/청크/스템 게인/유튜브 단위 테스트 (92개)
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/DSP리셋/리샘플러/청크/스템 게인/유튜브 단위 테스트 (98개)
 ```
 
 ## 알려진 한계

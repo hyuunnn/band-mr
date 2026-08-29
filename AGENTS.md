@@ -9,7 +9,7 @@
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # → /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (92개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (98개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -55,7 +55,8 @@ tools/       모델 변환 스크립트 (아래 참조)
 - 오디오 처리 좌우로 interleaved stereo PCM16이 기본. 모노는 DspChain/SpectralStage에서 chCount=1 분기
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)은 LE int로 읽음 (`WavIo.kt` 상수 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
-- 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것(AudioTrackEngine.seekToFrame이 `resetProcessors()` 훅을 호출하고 SourceWavPlayer가 chain을 재생성, muteMask setter는 rebuildChain). SpectralStage FIFO 잔여분이 시크 직후 잡음으로 붙는다
+- 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것. **시크는 재할당이 아니라 제자리 리셋이다** — `seekToFrame`이 `processorsDirty` 플래그만 세우고, 오디오 스레드가 렌더 직전에 `shifter.reset()` + `resetProcessors()`(→ `DspChain.reset()`)로 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드에서 reset하면 FIFO 인덱스가 음수가 되어 죽고(파형 스크럽은 초당 10회 시크), 플래그 소비가 `framePos`·곡끝 판정보다 뒤에 오면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask 변경만 예외로 객체 교체(공개 전에 마스크를 걸어 경쟁 없음, `chain`은 `@Volatile`)
+- **`SpectralStage.reset()`은 magHist까지 비워야 한다.** histPos/histFill은 인스턴스 단위인데 증가는 채널마다 일어나서, 워밍업 중 해당 채널이 안 쓴 슬롯을 읽는다 — 잔여값이 남으면 새 인스턴스와 출력이 달라진다. `DspChainResetTest`("리셋 출력 == 새 체인 출력, 바이트 동일")가 이 계약을 지킨다
 - **스템 볼륨의 기준은 `stemGainsPacked`.** UI·저장·내보내기는 퍼센트만 바꾸고, `muteMask`는 `Stem.muteMaskFromPacked`(0%만 ON)로 파생한다. AI ON 믹서는 `gainArrayFromPacked`(0~1), AI OFF는 체크(0/100) + 보컬 제거 강도
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
