@@ -130,7 +130,9 @@ fun PlayerScreen(songId: Long) {
         }
         if (!file.exists()) return@LaunchedEffect
         waveformPeaks = withContext(Dispatchers.IO) {
-            runCatching { WaveformPeaks.fromWav(file) }.getOrNull()
+            runCatching {
+                WaveformPeaks.fromWavCached(file, MixCache.peaksFile(Locator.context, songId))
+            }.getOrNull()
         }
     }
 

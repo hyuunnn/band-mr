@@ -1,5 +1,7 @@
 package com.bandmr.app.audio
 
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.io.File
 import kotlin.math.sqrt
 
@@ -22,6 +24,57 @@ object WaveformPeaks {
             return peaks
         }
     }
+
+    /**
+     * [fromWav]와 같은 결과를 주지만 [cache]에 막대 값을 저장해 재계산을 건너뛴다.
+     * 파형 1회 계산은 WAV 전체 스캔(4분 곡 = 40MB)인데 결과는 480 float(1.9KB)뿐이라,
+     * 플레이어를 다시 열 때마다 훑을 이유가 없다.
+     *
+     * 캐시는 막대 수와 원본 WAV 크기가 함께 저장돼, 둘 중 하나라도 달라지면 무시하고
+     * 다시 계산한다. 손상된 캐시도 조용히 무시한다(파형은 표시 전용이라 실패해도 재생 무관).
+     */
+    fun fromWavCached(file: File, cache: File, bars: Int = DEFAULT_BARS): FloatArray {
+        if (bars <= 0 || !file.exists()) return FloatArray(0)
+        val sourceBytes = file.length()
+        readCache(cache, bars, sourceBytes)?.let { return it }
+        val peaks = fromWav(file, bars)
+        if (peaks.isNotEmpty()) writeCache(cache, bars, sourceBytes, peaks)
+        return peaks
+    }
+
+    // ---------- 캐시 I/O ----------
+
+    /** @return 유효한 캐시 값, 없거나 규격이 다르거나 손상됐으면 null */
+    private fun readCache(cache: File, bars: Int, sourceBytes: Long): FloatArray? = runCatching {
+        if (!cache.isFile || cache.length() != cacheSize(bars)) return null
+        DataInputStream(cache.inputStream().buffered()).use { input ->
+            if (input.readInt() != CACHE_MAGIC) return null
+            if (input.readInt() != CACHE_VERSION) return null
+            if (input.readInt() != bars) return null
+            if (input.readLong() != sourceBytes) return null
+            FloatArray(bars) { input.readFloat() }
+        }
+    }.getOrNull()
+
+    private fun writeCache(cache: File, bars: Int, sourceBytes: Long, peaks: FloatArray) {
+        runCatching {
+            cache.parentFile?.mkdirs()
+            // 부분 파일이 유효한 캐시로 보이지 않도록 tmp에 쓰고 rename
+            val tmp = File(cache.parentFile, "${cache.name}.tmp")
+            DataOutputStream(tmp.outputStream().buffered()).use { out ->
+                out.writeInt(CACHE_MAGIC)
+                out.writeInt(CACHE_VERSION)
+                out.writeInt(bars)
+                out.writeLong(sourceBytes)
+                for (p in peaks) out.writeFloat(p)
+            }
+            if (cache.exists()) cache.delete()
+            if (!tmp.renameTo(cache)) tmp.delete()
+        }
+    }
+
+    /** magic + version + bars + sourceBytes + float×bars */
+    private fun cacheSize(bars: Int): Long = (4 + 4 + 4 + 8 + bars * 4).toLong()
 
     internal fun fromReader(reader: WavReader, bars: Int): FloatArray {
         val total = reader.totalFrames
@@ -98,4 +151,8 @@ object WaveformPeaks {
         }
         return peaks
     }
+
+    /** 'BMPK' */
+    private const val CACHE_MAGIC = 0x424D504B
+    private const val CACHE_VERSION = 1
 }
