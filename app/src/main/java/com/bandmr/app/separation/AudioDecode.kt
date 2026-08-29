@@ -6,6 +6,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import com.bandmr.app.audio.Biquad
 import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
@@ -123,7 +124,8 @@ object AudioDecode {
      * 샘플 단위 출력을 모아 청크로 내보낸다. 프레임마다 람다를 부르면 Short 박싱 비용이 크므로
      * 버퍼가 찰 때만 호출한다. 단일 스레드 전용.
      */
-    private class ShortSink(private val sink: (ShortArray, Int) -> Unit) {
+    @VisibleForTesting
+    internal class ShortSink(private val sink: (ShortArray, Int) -> Unit) {
         private val buf = ShortArray(SINK_BUF)
         private var n = 0
 
@@ -140,7 +142,8 @@ object AudioDecode {
     }
 
     /** 디코딩 세션 동안 재사용하는 스테레오 변환 버퍼. 세션당 1개여야 한다(스레드 간 공유 금지) */
-    private class StereoMixBuf {
+    @VisibleForTesting
+    internal class StereoMixBuf {
         var l = FloatArray(0)
             private set
         var r = FloatArray(0)
@@ -157,9 +160,12 @@ object AudioDecode {
     /**
      * 디코딩된 interleaved shorts([count]개, ch채널)를 리샘플+스테레오 변환해 [out]으로 내보낸다.
      * L/R 버퍼는 [StereoMixBuf]를 재사용한다(출력 버퍼마다 재할당하지 않음).
+     * [data]는 호출 사이에 재사용되므로 [count] 밖의 잔여 데이터를 절대 읽지 말 것
+     * (`AudioDecodeSinkTest`가 이 계약을 고정한다).
      * @return 기록된 출력 프레임 수
      */
-    private fun emitStereo44k(
+    @VisibleForTesting
+    internal fun emitStereo44k(
         data: ShortArray,
         count: Int,
         channels: Int,
@@ -308,6 +314,7 @@ object AudioDecode {
     }
 
     /** 싱크 호출 단위(short). 16k short = 32KB */
-    private const val SINK_BUF = 16 * 1024
+    @VisibleForTesting
+    internal const val SINK_BUF = 16 * 1024
 }
 
