@@ -112,7 +112,9 @@ class SeparationService : Service() {
                     modelFile, ModelConfig(), wav, partDir,
                     segmentSamples = tier.segmentSamples,
                     onProgress = { p, stage ->
-                        setState(SepState.Running(songId, stage, p))
+                        // 취소된 뒤에는 상태를 되살리지 않는다. isCancelled는 세그먼트 경계에서만
+                        // 보므로, 취소 시점의 세그먼트가 끝나면 진행률이 한 번 더 올라온다
+                        if (self?.isActive == true) setState(SepState.Running(songId, stage, p))
                     },
                     isCancelled = { self?.isActive != true },
                 )

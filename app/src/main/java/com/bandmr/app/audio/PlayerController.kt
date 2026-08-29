@@ -291,26 +291,36 @@ class PlayerController(private val context: Context) {
 
     // ---------- 컨트롤 ----------
 
-    fun playPause() {
-        val willPlay = !activeIsPlaying()
-        if (willPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
+    /** 화면의 재생 버튼용 토글. 현재 상태를 읽는 지점이 여기 한 곳이어야 한다 */
+    fun playPause() = setPlaying(!activeIsPlaying())
+
+    /**
+     * 재생 상태를 [shouldPlay]로 맞춘다(절대 명령).
+     *
+     * 알림 미디어 카드·잠금화면·블루투스에서 오는 play/pause는 토글이 아니라 "재생해라 / 멈춰라"다.
+     * 호출부가 상태를 읽어 토글로 바꾸면, 읽는 순간과 실행 사이에 자동 일시정지(오디오 포커스
+     * 상실·이어폰 분리)가 끼면 명령이 정반대로 뒤집힌다 — 그래서 절대 명령을 그대로 받는다.
+     * 이미 그 상태여도 안전하다(엔진의 play/pause와 포커스 요청·반납이 모두 멱등).
+     */
+    fun setPlaying(shouldPlay: Boolean) {
+        if (shouldPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
         when {
             aiMode -> {
-                val m = mixer ?: run { if (willPlay) abandonFocus(); return }
-                if (m.isPlaying) m.pause() else m.play()
+                val m = mixer ?: run { if (shouldPlay) abandonFocus(); return }
+                if (shouldPlay) m.play() else m.pause()
                 isPlaying.value = m.isPlaying
                 // 이어폰 분리(pauseAll)와 동일하게 일시정지 시 포커스 반납
                 if (!m.isPlaying) abandonFocus()
             }
             source != null -> source?.let {
-                if (it.isPlaying) it.pause() else it.play()
+                if (shouldPlay) it.play() else it.pause()
                 isPlaying.value = it.isPlaying
                 if (!it.isPlaying) abandonFocus()
             }
             else -> {
                 // 캐시 준비 중/실패: 재생 의도를 저장해 두면 준비 완료 직후 자동 재생된다.
                 // 실패 후라면 beginPrepare가 재시도 진입점이 된다 (준비 중이면 no-op)
-                if (willPlay) {
+                if (shouldPlay) {
                     val song = currentSong ?: run { abandonFocus(); return }
                     val keepPos = if (pendingResumeSongId == song.id) pendingResumePosMs else 0L
                     pendingResume(song.id, true, keepPos)

@@ -74,8 +74,8 @@ class PlaybackService : Service() {
         createChannel()
         session = MediaSession(this, "BandMR").apply {
             setCallback(object : MediaSession.Callback() {
-                override fun onPlay() = setPlaying(true)
-                override fun onPause() = setPlaying(false)
+                override fun onPlay() = Locator.playerController.setPlaying(true)
+                override fun onPause() = Locator.playerController.setPlaying(false)
                 override fun onSeekTo(pos: Long) = Locator.playerController.seekTo(pos)
                 override fun onStop() = stopPlaybackAndSelf()
                 override fun onCustomAction(action: String, extras: android.os.Bundle?) {
@@ -161,12 +161,6 @@ class PlaybackService : Service() {
             else -> return
         }
         Locator.playerController.skipBy(delta) // seekEpoch로 진행바가 갱신된다
-    }
-
-    private fun setPlaying(shouldPlay: Boolean) {
-        if (Locator.playerController.isPlaying.value != shouldPlay) {
-            Locator.playerController.playPause()
-        }
     }
 
     /** 재생 정지 + 알림 제거 + 서비스 종료 (알림 지우기·앱 치우기·미디어 정지가 공유) */

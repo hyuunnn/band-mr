@@ -59,7 +59,9 @@ tools/       모델 변환 스크립트 (아래 참조)
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)은 LE int로 읽음 (`WavIo.kt` 상수 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
 - **재생 종료 경로는 `PlayerController.release()` 하나다.** 알림 지우기(deleteIntent)·최근 앱에서 앱 치우기(`onTaskRemoved`)·곡 삭제가 모두 이걸 지난다. 홈으로 나가는 것은 종료가 아니다(포그라운드 서비스는 태스크가 사라져도 살아남으므로 명시적으로 끊어줘야 한다)
-- **`release()`는 `releaseEpoch`를 올려 화면이 엔진을 다시 준비하게 한다.** 알림으로 종료해도 플레이어 화면의 로드 조건(곡 id·모드)은 그대로여서, 이 신호가 없으면 재생 버튼이 영구 무반응이 된다. 반대로 종료 절차 중에는 `PlaybackService.stopping` 가드로 알림 재등록을 막는다(안 그러면 방금 지운 알림이 되살아난다)
+- **`release()`는 `releaseEpoch`를 올려 화면이 엔진을 다시 준비하게 한다.** 알림으로 종료해도 플레이어 화면의 로드 조건(곡 id·모드)은 그대로여서, 이 신호가 없으면 재생 버튼이 영구 무반응이 된다(`release()`가 `currentSong`을 비워 `setPlaying`이 곧바로 빠져나간다). 반대로 종료 절차 중에는 `PlaybackService.stopping` 가드로 알림 재등록을 막는다(안 그러면 방금 지운 알림이 되살아난다)
+  - 트레이드오프: 화면이 열려 있으면 종료 직후 엔진이 곧바로 다시 만들어진다 — 즉 "종료"가 실제로 끝내는 것은 재생·알림·서비스이고, 엔진 해제는 화면이 보이는 동안 무효다. 파일 핸들 1개와 약 180KB만 다시 잡히고(스레드·AudioTrack은 `play()` 때 생긴다) 그 대가로 파형 시크·위치 표시가 계속 살아 있으므로 의도한 선택이다. `nowPlayingTitle`이 되살아나는 것도 여기서 나온다
+- **알림·잠금화면·블루투스의 재생/일시정지는 `PlayerController.setPlaying(Boolean)`(절대 명령)으로 받는다.** 상태를 읽어 `playPause()`로 토글하면 읽는 순간과 실행 사이에 자동 일시정지(포커스 상실·이어폰 분리)가 끼면 명령이 뒤집힌다. 현재 상태를 읽는 지점은 화면 버튼용 `playPause()` 한 곳뿐이어야 한다
 - 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것. **시크는 재할당이 아니라 제자리 리셋이다** — `seekToFrame`이 `processorsDirty` 플래그만 세우고, 오디오 스레드가 렌더 직전에 `shifter.reset()` + `resetProcessors()`(→ `DspChain.reset()`)로 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드에서 reset하면 FIFO 인덱스가 음수가 되어 죽고(파형 스크럽은 초당 10회 시크), 플래그 소비가 `framePos`·곡끝 판정보다 뒤에 오면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask 변경만 예외로 객체 교체(공개 전에 마스크를 걸어 경쟁 없음, `chain`은 `@Volatile`)
 - **`SpectralStage.reset()`은 magHist까지 비워야 한다.** histPos/histFill은 인스턴스 단위인데 증가는 채널마다 일어나서, 워밍업 중 해당 채널이 안 쓴 슬롯을 읽는다 — 잔여값이 남으면 새 인스턴스와 출력이 달라진다. `DspChainResetTest`("리셋 출력 == 새 체인 출력, 바이트 동일")가 이 계약을 지킨다
 - **스템 볼륨의 기준은 `stemGainsPacked`.** UI·저장·내보내기는 퍼센트만 바꾸고, `muteMask`는 `Stem.muteMaskFromPacked`(0%만 ON)로 파생한다. AI ON 믹서는 `gainArrayFromPacked`(0~1), AI OFF는 체크(0/100) + 보컬 제거 강도
