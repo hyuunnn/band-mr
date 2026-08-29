@@ -116,7 +116,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
 │   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
 │   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
-│   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 피크
+│   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 (막대 RMS, 곡 내 최댓값 정규화)
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -144,7 +144,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/리샘플러/청크/스템 게인/유튜브 단위 테스트 (88개)
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/리샘플러/청크/스템 게인/유튜브 단위 테스트 (92개)
 ```
 
 ## 알려진 한계

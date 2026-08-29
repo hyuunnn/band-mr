@@ -60,7 +60,7 @@ tools/       모델 변환 스크립트 (아래 참조)
 - PitchShifter는 0반음일 때 패스스루다(지연 제거). 비율 분기 로직 건드릴 때 주의
 - 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
 - **A-B 랩은 오디오 스레드에서만 한다.** UI 폴링으로 B→A 하면 백그라운드에서 끊긴다. 시크/점프는 `PlaybackLoop.clampSeek`로 구간 안에 가둔다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용할 것(이전 곡 엔진에 먼저 걸면 안 됨)
-- **파형 피크는 songId 기준 remember.** `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 아직 없으면 `MixCache.awaitReady`로 rename 완료 신호만 기다린다(파일 폴링 금지)
+- **파형 데이터는 songId 기준 remember.** `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 아직 없으면 `MixCache.awaitReady`로 rename 완료 신호만 기다린다(파일 폴링 금지)
 - **Song 저장은 컬럼별 UPDATE만 쓴다.** 볼륨·키·배속·A-B·분리 완료(`updateSeparation`)를 `get→copy→update`로 쓰면 먼저 쓴 필드가 날아간다
 - **내보내기는 배속·A-B를 넣지 않는다.** 연습용 배속/구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
