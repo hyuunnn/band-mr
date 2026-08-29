@@ -17,9 +17,14 @@ import java.nio.FloatBuffer
  * htdemucs_6s는 모델 내부에서 크기 스펙트로그램을 자체 정규화하므로
  * 파형은 raw [-1,1] 값을 그대로 넣는다(원본 apply_model 경로와 동일).
  * 첫 구간은 램프인, 마지막 구간은 램프아웃을 생략한다(곡 시작/끝 페이드 방지).
- * ONNX 세션은 [OrtModelCache]가 모델 파일 단위로 재사용한다.
+ *
+ * ONNX 세션은 [separate] 호출마다 열고 닫는다(캐시 금지). ORT 아레나가 수 GB 네이티브 힙을
+ * 잡고 OS에 반환하지 않아서, 세션을 살려두면 분리 후에도 메모리가 그대로 유지된다.
+ * 세션 오픈은 1초 남짓이고 분리는 곡당 수 분이므로 재사용 이득이 없다.
  */
-class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnvironment()) {
+class DemucsSeparator {
+
+    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
 
     fun separate(
         modelFile: File,
@@ -29,10 +34,13 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
         segmentSamples: Int,
         onProgress: (Float, String) -> Unit = { _, _ -> },
         isCancelled: () -> Boolean = { false },
-    ): Map<Stem, File> {
-        val session = OrtModelCache.sessionFor(modelFile, env)
-        return runSeparation(session, config, inputWav, outDir, segmentSamples, onProgress, isCancelled)
-    }
+    ): Map<Stem, File> =
+        OrtSession.SessionOptions().use { opts ->
+            opts.setIntraOpNumThreads(INTRA_OP_THREADS)
+            env.createSession(modelFile.absolutePath, opts).use { session ->
+                runSeparation(session, config, inputWav, outDir, segmentSamples, onProgress, isCancelled)
+            }
+        }
 
     private fun runSeparation(
         session: OrtSession,
@@ -158,6 +166,7 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
 
     internal companion object {
         internal const val FADE_DIVISOR = 4
+        private const val INTRA_OP_THREADS = 4
 
         /**
          * interleaved stereo s16 → 모델 입력 planar float [L(seg) | R(seg)].
@@ -194,37 +203,5 @@ class DemucsSeparator(private val env: OrtEnvironment = OrtEnvironment.getEnviro
             }
             return w.coerceIn(0f, 1f)
         }
-    }
-}
-
-/**
- * 모델 파일당 ONNX 세션 1개를 프로세스 동안 유지한다.
- * 등급을 바꾸면 이전 세션을 닫고 새 파일을 연다.
- */
-internal object OrtModelCache {
-    private val lock = Any()
-    private var cachedPath: String? = null
-    private var session: OrtSession? = null
-    private var opts: OrtSession.SessionOptions? = null
-
-    fun sessionFor(modelFile: File, env: OrtEnvironment): OrtSession = synchronized(lock) {
-        val path = modelFile.absolutePath
-        session?.let { if (cachedPath == path) return it }
-        closeLocked()
-        val o = OrtSession.SessionOptions().apply { setIntraOpNumThreads(4) }
-        session = env.createSession(path, o)
-        opts = o
-        cachedPath = path
-        session!!
-    }
-
-    fun close() = synchronized(lock) { closeLocked() }
-
-    private fun closeLocked() {
-        runCatching { session?.close() }
-        runCatching { opts?.close() }
-        session = null
-        opts = null
-        cachedPath = null
     }
 }

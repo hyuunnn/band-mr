@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 sealed interface SepState {
     data object Idle : SepState
     data class Running(val songId: Long, val stage: String, val progress: Float) : SepState
-    data class Done(val songId: Long) : SepState
+    data object Done : SepState
     data class Error(val songId: Long, val message: String) : SepState
 }
 
