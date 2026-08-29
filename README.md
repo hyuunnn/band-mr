@@ -47,7 +47,7 @@ AI OFF (WAV 캐시, 절전)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(6스템, 세션 재사용)
+  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(6스템, 고정 세그먼트)
              ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치/배속
 ```
 
@@ -127,7 +127,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
 │   ├── AudioDecode.kt         # MediaCodec → 44.1kHz raw (MixCache·내보내기용)
 │   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
-│   │                          # OrtModelCache가 모델 파일당 세션 1개 재사용
+│   │                          # ONNX 세션은 분리 1회마다 열고 닫음(메모리 반환)
 │   ├── SeparationService.kt   # Foreground Service + 진행 알림
 │   └── SepBus.kt              # 서비스↔UI 상태 버스
 ├── youtube/
