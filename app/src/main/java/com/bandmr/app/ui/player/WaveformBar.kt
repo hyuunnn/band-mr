@@ -48,7 +48,7 @@ fun WaveformBar(
     Canvas(
         modifier
             .fillMaxWidth()
-            .height(88.dp)
+            .height(176.dp)
             .semantics { contentDescription = "파형 시크바" }
             .pointerInput(duration) {
                 awaitEachGesture {
@@ -78,7 +78,7 @@ fun WaveformBar(
         }
         val barW = w / peaks.size
         val stroke = (barW * 0.72f).coerceIn(1f, 3f)
-        val playX = (playMs / duration) * w
+        val playX = ((playMs / duration) * w).coerceIn(0f, w)
         peaks.forEachIndexed { i, p ->
             val x = (i + 0.5f) * barW
             val amp = (p.coerceIn(0f, 1f) * mid * 0.92f).coerceAtLeast(1f)
@@ -90,11 +90,10 @@ fun WaveformBar(
                 cap = StrokeCap.Round,
             )
         }
-        val headX = ((playMs / duration) * w).coerceIn(0f, w)
         drawLine(
             color = playhead,
-            start = Offset(headX, 4f),
-            end = Offset(headX, h - 4f),
+            start = Offset(playX, 4f),
+            end = Offset(playX, h - 4f),
             strokeWidth = 3f,
             cap = StrokeCap.Round,
         )
