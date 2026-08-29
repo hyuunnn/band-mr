@@ -55,14 +55,15 @@ class Exporter(private val context: Context) {
     ) = withContext(Dispatchers.IO) {
         val dir = File(song.stemsDir!!)
         val readers = HashMap<Stem, WavReader>()
-        var total = Long.MAX_VALUE
+        // 길이 기준은 재생(StemMixPlayer)과 동일하게 가장 긴 스템 — 짧은 스템은 뒷부분이 무음으로 섞인다
+        var total = 0L
         Stem.entries.forEach { stem ->
             val f = File(dir, "${stem.fileName}.wav")
             if (f.exists()) runCatching {
                 val r = WavReader(f)
                 if (r.sampleRate == PIPELINE_SAMPLE_RATE) {
                     readers[stem] = r
-                    total = minOf(total, r.totalFrames)
+                    total = maxOf(total, r.totalFrames)
                 } else {
                     // 파이프라인 레이트 불일치 스템은 프레임 수학이 어긋나므로 제외한다
                     Log.w(TAG, "샘플레이트 불일치 스템 제외: ${f.name} (${r.sampleRate}Hz)")
@@ -71,7 +72,6 @@ class Exporter(private val context: Context) {
             }
         }
         if (readers.isEmpty()) error("분리된 스템이 없습니다")
-        if (total == Long.MAX_VALUE) total = 0
 
         val tmp = File(context.cacheDir, "export_mix.wav")
         tmp.delete()
