@@ -35,7 +35,10 @@ audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache·내보내기용(MediaCodec→44.1k). 분리 전용 raw는 만들지 않음
              ONNX 세션은 separate() 호출마다 열고 닫는다(캐시하면 ORT 아레나가 수 GB를 계속 물고 있음)
-playback/    PlaybackService(백그라운드 재생 + 알림 컨트롤)
+playback/    PlaybackService(백그라운드 재생 FGS + MediaSession 알림)
+             알림은 OS 미디어 카드로 그려진다 — 카드 버튼은 알림 액션이 아니라 PlaybackState의
+             커스텀 액션에서 나오고, 슬롯 순서가 [custom0, prev, 재생, next, custom1]이라 등록 순서를 역산해야 한다
+             앱에서 시크하면 PlayerController.seekEpoch로 진행바를 갱신(안 하면 옛 위치에 남음)
 export/      믹스/스템 WAV 내보내기. 믹스는 스템 게인+키만 반영하고 배속·A-B는 넣지 않음
 youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스트림 추출·다운로드(filesDir/sources)
              → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
@@ -55,6 +58,8 @@ tools/       모델 변환 스크립트 (아래 참조)
 - 오디오 처리 좌우로 interleaved stereo PCM16이 기본. 모노는 DspChain/SpectralStage에서 chCount=1 분기
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)은 LE int로 읽음 (`WavIo.kt` 상수 참조)
 - PlayerController가 오디오 포커스·이어폰 분리(BECOMING_NOISY)를 관리
+- **재생 종료 경로는 `PlayerController.release()` 하나다.** 알림 지우기(deleteIntent)·최근 앱에서 앱 치우기(`onTaskRemoved`)·곡 삭제가 모두 이걸 지난다. 홈으로 나가는 것은 종료가 아니다(포그라운드 서비스는 태스크가 사라져도 살아남으므로 명시적으로 끊어줘야 한다)
+- **`release()`는 `releaseEpoch`를 올려 화면이 엔진을 다시 준비하게 한다.** 알림으로 종료해도 플레이어 화면의 로드 조건(곡 id·모드)은 그대로여서, 이 신호가 없으면 재생 버튼이 영구 무반응이 된다. 반대로 종료 절차 중에는 `PlaybackService.stopping` 가드로 알림 재등록을 막는다(안 그러면 방금 지운 알림이 되살아난다)
 - 시크/마스크 변경 시에는 DspChain 상태를 반드시 리셋할 것. **시크는 재할당이 아니라 제자리 리셋이다** — `seekToFrame`이 `processorsDirty` 플래그만 세우고, 오디오 스레드가 렌더 직전에 `shifter.reset()` + `resetProcessors()`(→ `DspChain.reset()`)로 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드에서 reset하면 FIFO 인덱스가 음수가 되어 죽고(파형 스크럽은 초당 10회 시크), 플래그 소비가 `framePos`·곡끝 판정보다 뒤에 오면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask 변경만 예외로 객체 교체(공개 전에 마스크를 걸어 경쟁 없음, `chain`은 `@Volatile`)
 - **`SpectralStage.reset()`은 magHist까지 비워야 한다.** histPos/histFill은 인스턴스 단위인데 증가는 채널마다 일어나서, 워밍업 중 해당 채널이 안 쓴 슬롯을 읽는다 — 잔여값이 남으면 새 인스턴스와 출력이 달라진다. `DspChainResetTest`("리셋 출력 == 새 체인 출력, 바이트 동일")가 이 계약을 지킨다
 - **스템 볼륨의 기준은 `stemGainsPacked`.** UI·저장·내보내기는 퍼센트만 바꾸고, `muteMask`는 `Stem.muteMaskFromPacked`(0%만 ON)로 파생한다. AI ON 믹서는 `gainArrayFromPacked`(0~1), AI OFF는 체크(0/100) + 보컬 제거 강도

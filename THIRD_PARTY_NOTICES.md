@@ -47,6 +47,13 @@ Apache License 2.0 — Copyright The Android Open Source Project.
 
 Apache License 2.0 — Copyright JetBrains s.r.o. 및 기여자들.
 
+## Material Design Icons (알림 컨트롤 아이콘)
+
+`res/drawable/ic_replay_5·ic_replay_10·ic_forward_5·ic_forward_10·ic_play·ic_pause`는
+[google/material-design-icons](https://github.com/google/material-design-icons)의
+경로 데이터를 Android 벡터 드로어블로 변환한 것입니다.
+Apache License 2.0 — Copyright Google LLC.
+
 ## NewPipeExtractor (유튜브 링크 가져오기)
 
 앱의 `youtube/` 패키지는 [TeamNewPipe/NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)
