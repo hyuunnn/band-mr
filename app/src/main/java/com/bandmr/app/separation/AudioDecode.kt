@@ -9,30 +9,29 @@ import android.net.Uri
 import com.bandmr.app.audio.Biquad
 import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** 임의 포맷 오디오 파일 → 44.1kHz 스테레오 PCM16 raw 파일 디코더 */
+/** 임의 포맷 오디오 파일 → 44.1kHz 스테레오 PCM16 스트림 디코더 */
 object AudioDecode {
 
-    const val TARGET_SR = PIPELINE_SAMPLE_RATE
-
     /**
+     * [uri]를 디코딩·리샘플해 44.1kHz 스테레오 interleaved PCM16을 [sink]로 흘려보낸다.
+     * 중간 raw 파일을 만들지 않는다 — 호출부가 [com.bandmr.app.audio.WavWriter] 등에
+     * 바로 연결하면 디스크 쓰기와 피크 사용량이 절반이 된다.
+     *
+     * [sink]는 (버퍼, 유효 short 개수)를 받으며 버퍼는 호출 사이에 재사용된다(복사해서 쓸 것).
      * @return 디코딩된 총 프레임 수 (44.1k 기준)
      */
-    fun decodeToRaw44k(
+    fun decodeTo44kStereo(
         context: Context,
         uri: Uri,
-        outFile: File,
         onProgress: (Float) -> Unit = {},
+        sink: (ShortArray, Int) -> Unit,
     ): Long {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
-        val out = BufferedOutputStream(FileOutputStream(outFile), 256 * 1024)
-        val leBuf = ByteArray(2) // LE short 기록용 (단일 스레드)
+        val out = ShortSink(sink)
         try {
             extractor.setDataSource(context, uri, null)
             var trackIndex = -1
@@ -57,7 +56,7 @@ object AudioDecode {
 
             var inSr = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             var inCh = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-            val resampler = LinearResampler(inSr, TARGET_SR)
+            val resampler = LinearResampler(inSr, PIPELINE_SAMPLE_RATE)
 
             var sawInputEos = false
             var sawOutputEos = false
@@ -85,7 +84,7 @@ object AudioDecode {
                         val of = codec.outputFormat
                         inSr = of.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                         inCh = of.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                        resampler.reset(inSr, TARGET_SR)
+                        resampler.reset(inSr, PIPELINE_SAMPLE_RATE)
                     }
                     MediaCodec.INFO_TRY_AGAIN_LATER -> {}
                     else -> {
@@ -95,7 +94,7 @@ object AudioDecode {
                         for (i in shorts.indices) shorts[i] = ob.short
                         codec.releaseOutputBuffer(outIdx, false)
 
-                        outFrames += emitStereo44k(shorts, inCh, resampler, out, leBuf, mix)
+                        outFrames += emitStereo44k(shorts, inCh, resampler, out, mix)
                         if (durationUs > 0 && info.presentationTimeUs > 0) {
                             onProgress((info.presentationTimeUs.toFloat() / durationUs).coerceIn(0f, 1f))
                         }
@@ -105,15 +104,35 @@ object AudioDecode {
             }
             // 리샘플 지연분 플러시 (마지막 샘플 손실 방지)
             outFrames += resampler.flush { lo, ro ->
-                writeShortLe(out, leBuf, DspChain.clampShort(lo))
-                writeShortLe(out, leBuf, DspChain.clampShort(ro))
+                out.add(DspChain.clampShort(lo))
+                out.add(DspChain.clampShort(ro))
             }
+            out.flush()
             return outFrames
         } finally {
             runCatching { codec?.stop() }
             runCatching { codec?.release() }
             runCatching { extractor.release() }
-            runCatching { out.close() }
+        }
+    }
+
+    /**
+     * 샘플 단위 출력을 모아 청크로 내보낸다. 프레임마다 람다를 부르면 Short 박싱 비용이 크므로
+     * 버퍼가 찰 때만 호출한다. 단일 스레드 전용.
+     */
+    private class ShortSink(private val sink: (ShortArray, Int) -> Unit) {
+        private val buf = ShortArray(SINK_BUF)
+        private var n = 0
+
+        fun add(v: Short) {
+            buf[n++] = v
+            if (n == buf.size) flush()
+        }
+
+        fun flush() {
+            if (n == 0) return
+            sink(buf, n)
+            n = 0
         }
     }
 
@@ -133,7 +152,7 @@ object AudioDecode {
     }
 
     /**
-     * 디코딩된 interleaved shorts(ch채널)를 리샘플+스테레오 변환해 raw에 기록.
+     * 디코딩된 interleaved shorts(ch채널)를 리샘플+스테레오 변환해 [out]으로 내보낸다.
      * L/R 버퍼는 [StereoMixBuf]를 재사용한다(출력 버퍼마다 재할당하지 않음).
      * @return 기록된 출력 프레임 수
      */
@@ -141,8 +160,7 @@ object AudioDecode {
         data: ShortArray,
         channels: Int,
         resampler: LinearResampler,
-        out: BufferedOutputStream,
-        scratch: ByteArray,
+        out: ShortSink,
         mix: StereoMixBuf,
     ): Long {
         val framesIn = data.size / channels.coerceAtLeast(1)
@@ -171,15 +189,9 @@ object AudioDecode {
             }
         }
         return resampler.process(l, r, framesIn) { lo, ro ->
-            writeShortLe(out, scratch, DspChain.clampShort(lo))
-            writeShortLe(out, scratch, DspChain.clampShort(ro))
+            out.add(DspChain.clampShort(lo))
+            out.add(DspChain.clampShort(ro))
         }
-    }
-
-    private fun writeShortLe(out: BufferedOutputStream, scratch: ByteArray, v: Short) {
-        scratch[0] = (v.toInt() and 0xFF).toByte()
-        scratch[1] = ((v.toInt() shr 8) and 0xFF).toByte()
-        out.write(scratch, 0, 2)
     }
 
     /**
@@ -290,5 +302,8 @@ object AudioDecode {
             private const val AA_CUTOFF_RATIO = 0.45f
         }
     }
+
+    /** 싱크 호출 단위(short). 16k short = 32KB */
+    private const val SINK_BUF = 16 * 1024
 }
 

@@ -10,9 +10,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileInputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 /**
  * 오디오 파이프라인 전체(캐시·분리·재생·내보내기)가 공유하는 샘플레이트.
@@ -33,8 +30,16 @@ object MixCache {
     fun cacheFile(context: Context, songId: Long): File =
         File(File(context.filesDir, DIR), "$songId.wav")
 
+    /**
+     * 파형 막대 캐시 파일. `<songId>.peaks`라서 [delete]·cleanUpOrphans의
+     * `substringBefore('.')` 규칙이 같은 songId로 인식한다.
+     */
+    fun peaksFile(context: Context, songId: Long): File =
+        File(File(context.filesDir, DIR), "$songId.peaks")
+
     fun delete(context: Context, songId: Long) {
         cacheFile(context, songId).delete()
+        peaksFile(context, songId).delete()
     }
 
     // 같은 곡을 앱 시작 프리캐시와 재생 시점 준비가 동시에 만들지 않도록 곡 단위 직렬화
@@ -55,6 +60,10 @@ object MixCache {
      * 완료까지 수 초가 걸릴 수 있으므로 반드시 IO 디스패처에서 호출할 것.
      * 이미 캐시가 있으면(또는 다른 스레드가 방금 만들었으면) 즉시 반환한다.
      *
+     * 디코딩 결과를 `.part`에 WAV로 곧바로 쓴다(중간 raw 파일 없음 — 쓰기량·피크 절반).
+     * 헤더 크기 필드는 [WavWriter]가 close 시 패치하므로 총 길이를 미리 알 필요가 없다.
+     * rename은 반드시 close 뒤에 일어나야 한다(헤더 패치 완료 후 공개).
+     *
      * @return 캐시된 WAV 파일 (총 프레임 수는 [WavReader]로 확인)
      */
     fun prepare(
@@ -68,11 +77,13 @@ object MixCache {
             val final = cacheFile(context, songId)
             if (final.exists()) return final
             val dir = File(context.filesDir, DIR).apply { mkdirs() }
-            val raw = File(dir, "$songId.raw")
             val part = File(dir, "${final.name}.part")
             try {
-                AudioDecode.decodeToRaw44k(context, sourceUri, raw, onProgress)
-                RawToWav.convert(raw, part, AudioDecode.TARGET_SR)
+                WavWriter.create(part, PIPELINE_SAMPLE_RATE).use { writer ->
+                    AudioDecode.decodeTo44kStereo(context, sourceUri, onProgress) { buf, n ->
+                        writer.writeShorts(buf, n)
+                    }
+                }
                 if (final.exists()) final.delete()
                 check(part.renameTo(final)) { "캐시 파일 이동 실패: $part" }
                 // rename 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
@@ -80,7 +91,6 @@ object MixCache {
                 ready.signal(songId)
                 return final
             } finally {
-                raw.delete()
                 // 성공 시 part는 이미 final로 rename됨. 실패 시 남은 부분 파일을
                 // final로 승격하면 손상 캐시가 재생에 쓰이므로 반드시 삭제만 한다.
                 part.delete()
@@ -116,43 +126,5 @@ internal class CacheReadyGate {
             subscribed.await()
             if (isReady()) job.cancel() else job.join()
         }
-    }
-}
-
-/** raw PCM16 interleaved(stereo LE) 파일에 RIFF/WAVE 헤더를 붙여 WAV로 만든다. 순수 JVM. */
-internal object RawToWav {
-
-    /** @return 기록된 프레임 수 */
-    fun convert(raw: File, target: File, sampleRate: Int, channels: Int = 2): Long {
-        val dataBytes = raw.length()
-        require(dataBytes % (channels * 2) == 0L) { "raw 크기가 프레임 정렬을 벗어남: $dataBytes" }
-        val frames = dataBytes / (channels * 2)
-        FileInputStream(raw).use { ins ->
-            target.outputStream().use { out ->
-                out.write(header(sampleRate, channels, dataBytes))
-                ins.copyTo(out, 64 * 1024)
-            }
-        }
-        return frames
-    }
-
-    /** WavWriter와 동일한 44바이트 표준 헤더 (크기 필드를 실제 값으로 미리 확정) */
-    internal fun header(sampleRate: Int, channels: Int, dataBytes: Long): ByteArray {
-        val h = ByteArray(44)
-        val b = ByteBuffer.wrap(h).order(ByteOrder.LITTLE_ENDIAN)
-        b.putInt(WavReader.MAGIC_RIFF)                          // 'RIFF'
-        b.putInt((36 + dataBytes).toInt())                      // 전체 크기 - 8
-        b.putInt(WavReader.MAGIC_WAVE)                          // 'WAVE'
-        b.putInt(WavReader.CHUNK_FMT)                           // 'fmt '
-        b.putInt(16)                                            // fmt 청크 크기
-        b.putShort(1)                                           // PCM
-        b.putShort(channels.toShort())
-        b.putInt(sampleRate)
-        b.putInt(sampleRate * channels * 2)                     // byte rate
-        b.putShort((channels * 2).toShort())                    // block align
-        b.putShort(16)                                          // bits per sample
-        b.putInt(WavReader.CHUNK_DATA)                          // 'data'
-        b.putInt(dataBytes.toInt())
-        return h
     }
 }

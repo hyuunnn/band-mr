@@ -1,7 +1,8 @@
 package com.bandmr.app.separation
 
-import com.bandmr.app.audio.RawToWav
+import com.bandmr.app.audio.RawWavReference
 import com.bandmr.app.audio.WavReader
+import com.bandmr.app.audio.WavWriter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -106,11 +107,9 @@ class DemucsChunkMathTest {
         val shorts = ShortArray(frames * 2) { i -> ((i * 31) - 400).toShort() }
         val raw = tmp.newFile("in.raw")
         val wav = tmp.newFile("in.wav")
-        val rawBytes = java.nio.ByteBuffer.allocate(shorts.size * 2)
-            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        for (s in shorts) rawBytes.putShort(s)
-        raw.writeBytes(rawBytes.array())
-        RawToWav.convert(raw, wav, 44100)
+        RawWavReference.writeRaw(raw, shorts)
+        // MixCache와 동일하게 WavWriter로 쓴다
+        WavWriter.create(wav, 44100).use { it.writeShorts(shorts, shorts.size) }
 
         val fromWav = FloatArray(2 * seg)
         WavReader(wav).use { r ->

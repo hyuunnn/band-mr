@@ -130,6 +130,9 @@ class WavWriter private constructor(
     private var framesWritten: Long = 0
     private val path: String = filePath
 
+    // writeShorts 호출마다 재할당하지 않도록 재사용 (MixCache 준비는 수천 회 호출)
+    private var scratch: ByteArray = ByteArray(0)
+
     init {
         // WAV 숫자 필드는 모두 little-endian. DataOutputStream은 big-endian이므로
         // 헤더는 직접 LE 바이트 배열로 작성한다.
@@ -154,9 +157,18 @@ class WavWriter private constructor(
     /** interleaved shorts 중 [n]개(short 단위) 기록 */
     @Synchronized
     fun writeShorts(data: ShortArray, n: Int) {
-        val bb = ByteBuffer.allocate(n * 2).order(ByteOrder.LITTLE_ENDIAN)
-        for (i in 0 until n) bb.putShort(data[i])
-        raw.write(bb.array())
+        if (n <= 0) return
+        val byteLen = n * 2
+        if (scratch.size < byteLen) scratch = ByteArray(byteLen)
+        // WAV는 little-endian
+        var i = 0
+        while (i < n) {
+            val v = data[i].toInt()
+            scratch[i * 2] = (v and 0xFF).toByte()
+            scratch[i * 2 + 1] = ((v shr 8) and 0xFF).toByte()
+            i++
+        }
+        raw.write(scratch, 0, byteLen)
         framesWritten += n / channels
     }
 
