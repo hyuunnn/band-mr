@@ -120,8 +120,10 @@ app/src/main/java/com/bandmr/app/
 │   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
 │   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 (막대 RMS 정규화, <songId>.peaks로 캐시)
 │   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
+│   ├── StemWavSet.kt          # 스템 WAV 묶음 열기 (누락 스킵·44.1k 불일치 제외·최장 길이) — 재생·내보내기 공용
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
+├── io/FilePromote.kt          # .part/.tmp → 정식 경로 승격 (rename 실패 시 copy, 실패 시 목적지 정리)
 ├── playback/
 │   └── PlaybackService.kt     # 백그라운드 재생 FGS + MediaSession 알림(점프 5버튼·진행바)
 ├── separation/
@@ -146,7 +148,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 ## 테스트
 
 ```bash
-./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/DSP리셋/리샘플러/청크/스템 게인/유튜브 단위 테스트 (106개)
+./gradlew :app:testDebugUnitTest   # FFT/WAV/Biquad/피치시프트/배속/점프/루프/파형/캐시준비신호/STFT/DSP리셋/리샘플러/청크/스템 게인/유튜브/파일 승격 단위 테스트 (119개)
 ```
 
 ## 알려진 한계
