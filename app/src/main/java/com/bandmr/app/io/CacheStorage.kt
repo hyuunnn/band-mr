@@ -1,6 +1,7 @@
 package com.bandmr.app.io
 
 import java.io.File
+import java.util.Locale
 
 /**
  * 캐시 저장공간 집계·정리. 순수 파일 연산이라 [File] 루트만 받는다(Context 의존 없음 → JVM 테스트 가능).
@@ -86,6 +87,6 @@ object CacheStorage {
         }
         // 로케일 무관 — 소수점 문자가 바뀌면 표시가 깨진다
         return if (unit == 0) "${bytes}B"
-        else String.format(java.util.Locale.US, "%.1f%s", value, units[unit])
+        else String.format(Locale.US, "%.1f%s", value, units[unit])
     }
 }

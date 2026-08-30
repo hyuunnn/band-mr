@@ -185,14 +185,7 @@ private fun StorageSection() {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     enabled = !busy && (usage?.mixCache ?: 0L) > 0L,
-                    onClick = {
-                        runCleanup {
-                            // 재생 중인 엔진이 이 WAV를 열고 있다. 지우고 계속 재생하면 화면에는
-                            // 캐시가 없는데 소리는 나는 상태가 되므로 종료 경로(release)를 지난다.
-                            Locator.playerController.release()
-                            withContext(Dispatchers.IO) { CacheStorage.clearFiles(MixCache.dir(Locator.context)) }
-                        }
-                    },
+                    onClick = { runCleanup { clearMixCache() } },
                 ) { Text("원본 캐시 비우기") }
 
                 OutlinedButton(
@@ -210,42 +203,59 @@ private fun StorageSection() {
     }
 
     if (confirmStems) {
-        AlertDialog(
-            onDismissRequest = { confirmStems = false },
-            title = { Text("분리 결과 삭제") },
-            text = {
-                Text(
-                    "모든 곡의 AI 분리 스템을 삭제합니다. " +
-                        "다시 쓰려면 곡마다 분리를 처음부터 해야 하며, 곡당 수 분이 걸립니다. 계속할까요?",
-                )
+        ConfirmStemDeleteDialog(
+            onDismiss = { confirmStems = false },
+            onConfirm = {
+                confirmStems = false
+                runCleanup { deleteAllStems() }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmStems = false
-                    runCleanup {
-                        // 진행 중인 분리를 먼저 취소한다. 취소는 세그먼트 경계에서만 판정되므로
-                        // 그 사이 완료된 분리가 승격될 수 있다 → .part 디렉터리까지 함께 지워
-                        // "DB는 미분리인데 스템만 남은" 고아를 만들지 않는다(승격이 실패로 끝난다)
-                        if (SepBus.state.value is SepState.Running) {
-                            SeparationService.cancel(Locator.context)
-                        }
-                        Locator.playerController.release()
-                        val freed = withContext(Dispatchers.IO) {
-                            CacheStorage.clearSubdirectories(
-                                StemFiles.dir(Locator.context),
-                                includeInFlight = true,
-                            )
-                        }
-                        // 파일이 사라졌으므로 DB의 분리 표시도 함께 내린다(한 문장 UPDATE).
-                        // 안 내리면 AI ON이 스템 없는 곡을 열려다 실패한다
-                        Locator.songDao.clearAllSeparation()
-                        freed
-                    }
-                }) { Text("삭제") }
-            },
-            dismissButton = { TextButton(onClick = { confirmStems = false }) { Text("취소") } },
         )
     }
+}
+
+/** 분리 결과 삭제 확인. 곡당 수 분이 드는 작업을 되돌리므로 되묻는다 */
+@Composable
+private fun ConfirmStemDeleteDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("분리 결과 삭제") },
+        text = {
+            Text(
+                "모든 곡의 AI 분리 스템을 삭제합니다. " +
+                    "다시 쓰려면 곡마다 분리를 처음부터 해야 하며, 곡당 수 분이 걸립니다. 계속할까요?",
+            )
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("삭제") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
+}
+
+/** 원본 캐시 WAV·파형을 버린다. @return 회수한 바이트 */
+private suspend fun clearMixCache(): Long {
+    // 재생 중인 엔진이 이 WAV를 열고 있다. 지우고 계속 재생하면 화면에는 캐시가 없는데
+    // 소리는 나는 상태가 되므로 종료 경로(release)를 지난다.
+    Locator.playerController.release()
+    return withContext(Dispatchers.IO) {
+        CacheStorage.clearFiles(MixCache.dir(Locator.context))
+    }
+}
+
+/** 모든 곡의 스템을 버리고 DB의 분리 표시도 내린다. @return 회수한 바이트 */
+private suspend fun deleteAllStems(): Long {
+    // 진행 중인 분리를 먼저 취소한다. 취소는 세그먼트 경계에서만 판정되므로 그 사이 완료된
+    // 분리가 승격될 수 있다 → .part 디렉터리까지 함께 지워 "DB는 미분리인데 스템만 남은"
+    // 고아를 만들지 않는다(승격이 실패로 끝난다)
+    if (SepBus.state.value is SepState.Running) {
+        SeparationService.cancel(Locator.context)
+    }
+    Locator.playerController.release()
+    val freed = withContext(Dispatchers.IO) {
+        CacheStorage.clearSubdirectories(StemFiles.dir(Locator.context), includeInFlight = true)
+    }
+    // 파일이 사라졌으므로 DB의 분리 표시도 함께 내린다(한 문장 UPDATE).
+    // 안 내리면 AI ON이 스템 없는 곡을 열려다 실패한다
+    Locator.songDao.clearAllSeparation()
+    return freed
 }
 
 /**
