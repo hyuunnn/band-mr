@@ -148,7 +148,8 @@ class PlayerController(private val context: Context) {
         lastSemitones = semitones
         lastSpeed = PlaybackSpeed.snap(speed)
         val newAiMode = aiOn && song.isSeparated
-        val modeChanged = newAiMode != aiMode || currentSong?.id != song.id
+        val songChanged = currentSong?.id != song.id
+        val modeChanged = newAiMode != aiMode || songChanged
         if (!modeChanged && active != null) {
             applyParams(semitones, lastSpeed)
             applyLoopToEngines()
@@ -156,7 +157,7 @@ class PlayerController(private val context: Context) {
             return
         }
         val wasPlaying = activeIsPlaying()
-        val pos = positionMs()
+        val pos = startPositionMs(songChanged, positionMs())
 
         releaseEngines()
         aiMode = newAiMode
@@ -485,4 +486,20 @@ class PlayerController(private val context: Context) {
 
     private fun framesToMs(frames: Long): Long =
         if (frames <= 0) 0 else frames * 1000 / PIPELINE_SAMPLE_RATE
+
+    companion object {
+        /**
+         * 엔진을 새로 만들 때 넘길 시작 위치.
+         *
+         * 위치 유지는 **같은 곡의 모드 전환**(AI ON↔OFF)에만 해당한다. 곡이 바뀌면 0에서 시작해야
+         * 한다 — 이전 곡의 위치를 그대로 넘기면 `seekToFrame`의 클램프 때문에 **새 곡보다 긴
+         * 위치는 끝으로 접힌다**. 실기기 재현: 3분35초 곡을 0:59에서 두고 12초 곡을 열면
+         * "0:12 / 0:12"(곡 끝)로 열렸다. 긴 곡을 열면 엉뚱한 중간에서 열린다.
+         *
+         * 곡별 재생 위치는 저장하지 않으므로([com.bandmr.app.data.Song]에 위치 컬럼이 없다)
+         * 새 곡의 올바른 시작점은 0뿐이다.
+         */
+        internal fun startPositionMs(songChanged: Boolean, currentPosMs: Long): Long =
+            if (songChanged) 0L else currentPosMs
+    }
 }
