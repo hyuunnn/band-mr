@@ -115,7 +115,8 @@ abstract class AudioTrackEngine(
     fun play() {
         if (totalFrames == 0L) return
         val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
-        if (framePos >= limit) {
+        // ms 양자화 때문에 "끝"이 끝보다 수십 프레임 앞일 수 있다 — PlaybackLoop.isAtLimit KDoc 참조
+        if (PlaybackLoop.isAtLimit(framePos, limit, sampleRate)) {
             seekToFrame(PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame) ?: 0)
         }
         synchronized(stateLock) {
