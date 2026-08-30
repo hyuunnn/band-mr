@@ -75,6 +75,12 @@ class PitchShifter {
     private fun read(buf: FloatArray, delay: Float): Float {
         var pos = write - delay
         while (pos < 0f) pos += window
+        // delay가 write보다 극히 조금 클 때(예: write=889, delay=889.000061) pos는 -6.1e-5 수준의
+        // 음수가 되는데, 1800 근처 float 간격이 1.22e-4라 위에서 window를 더한 결과가 **정확히**
+        // window로 반올림된다 → toInt()가 배열 밖을 가리켜 오디오 스레드가 AIOOBE로 죽는다.
+        // 모든 비-0 반음에서 발생하고 +6반음은 44.1k에서 5.3초면 닿는다(PitchShiftTest가 고정).
+        // window는 0 인덱스와 같은 위치이므로 되돌리는 것이 곧 올바른 값이다.
+        while (pos >= window) pos -= window
         val i = pos.toInt()
         val fr = pos - i
         val j = if (i + 1 >= window) 0 else i + 1

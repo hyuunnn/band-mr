@@ -110,6 +110,39 @@ class PitchShiftTest {
         }
     }
 
+    /**
+     * 긴 연속 재생에서 읽기 인덱스가 버퍼 밖으로 나가 오디오 스레드가 죽던 회귀 테스트.
+     *
+     * `delay`가 현재 `write`보다 극히 조금 클 때(예: write=889, delay=889.000061)
+     * `write - delay`는 -6.1e-5 수준의 음수가 되고, 1800 근처 float 간격이 1.22e-4라
+     * `pos += window`가 **정확히 1800f로 반올림**된다 → `toInt()`가 배열 밖(=1800)을 가리킨다.
+     * 실기기에서 `ArrayIndexOutOfBoundsException: length=1800; index=1800`으로 앱이 종료됐다.
+     *
+     * 아래 프레임 수는 각 반음이 처음 그 경계를 밟는 지점(무한 스윕으로 실측)이다.
+     * 모든 비-0 반음에서 발생하며 가장 빠른 +6반음은 44.1k에서 5.3초, +1반음은 12초 만에 닿는다.
+     */
+    @Test
+    fun `긴 재생에서도 읽기 인덱스가 버퍼를 벗어나지 않는다`() {
+        // semi to 처음 경계를 밟는 프레임 번호
+        val firstBoundaryHit = listOf(
+            6 to 232_281,
+            1 to 530_089,
+            11 to 979_748,
+            -10 to 2_124_852,
+        )
+        for ((semi, hit) in firstBoundaryHit) {
+            val sh = PitchShifter().also { it.semitones = semi }
+            val frames = hit + 1_000 // 경계를 확실히 지나도록 여유
+            for (n in 0 until frames) {
+                val v = sin(2.0 * PI * 220.0 * n / 44100.0).toFloat() * 0.5f
+                sh.process(v, -v)
+                if (sh.outL.isNaN() || sh.outR.isNaN()) {
+                    throw AssertionError("semi=$semi n=$n NaN")
+                }
+            }
+        }
+    }
+
     @Test
     fun `renderTo는 옛 인라인 루프와 바이트 동일 - PCM16 입력 및 제자리 처리`() {
         for (semi in intArrayOf(-12, 0, 5)) {
