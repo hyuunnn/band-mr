@@ -57,6 +57,40 @@ class CacheStorageTest {
         assertTrue(File(root, "sub/keep.wav").exists())
     }
 
+    /**
+     * 화면 표시·버튼 활성 기준은 **지울 수 있는 양**이어야 한다.
+     * dirSize(= `.part` 포함)를 쓰면 "용량은 남았는데 눌러도 0B"가 된다 — 실기기에서
+     * 실제로 재현됐던 버그다(비운 뒤 `2.wav.part` 500KB가 남아 버튼이 계속 활성).
+     */
+    @Test
+    fun `clearable 크기는 clearFiles가 실제로 지우는 양과 같다`() {
+        val root = tmp.newFolder("mix")
+        write(root, "1.wav", 100)
+        write(root, "1.peaks", 20)
+        write(root, "2.wav.part", 40)
+        write(root, "3.peaks.tmp", 10)
+
+        val clearable = CacheStorage.clearableFileSize(root)
+        assertEquals("dirSize와 달라야 한다(그게 버그의 원인이었다)", 170L, CacheStorage.dirSize(root))
+        assertEquals(120L, clearable)
+        assertEquals("표시값과 실제 회수량이 같아야 한다", clearable, CacheStorage.clearFiles(root))
+        assertEquals("다 비운 뒤에는 0 — 버튼이 비활성이 된다", 0L, CacheStorage.clearableFileSize(root))
+    }
+
+    @Test
+    fun `clearable 하위 디렉터리 크기도 실제 삭제량과 같다`() {
+        val root = tmp.newFolder("stems")
+        write(root, "1/vocals.wav", 100)
+        write(root, "3.part/vocals.wav", 60)
+        write(root, "stray.txt", 5)
+
+        assertEquals(100L, CacheStorage.clearableSubdirectorySize(root))
+        val all = CacheStorage.clearableSubdirectorySize(root, includeInFlight = true)
+        assertEquals(160L, all)
+        assertEquals(all, CacheStorage.clearSubdirectories(root, includeInFlight = true))
+        assertEquals(0L, CacheStorage.clearableSubdirectorySize(root, includeInFlight = true))
+    }
+
     @Test
     fun `clearSubdirectories는 곡별 폴더를 통째로 지우고 part 폴더는 남긴다`() {
         val root = tmp.newFolder("stems")

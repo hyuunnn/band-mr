@@ -10,6 +10,7 @@ import com.bandmr.app.data.SettingsStore
 import com.bandmr.app.data.Song
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.separation.ModelManager
+import com.bandmr.app.separation.StemFiles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,7 +50,7 @@ class BandMrApp : Application() {
      * 곡 삭제와 백그라운드 작업(분리/캐시 준비)이 경쟁하면 스템·캐시가 고아로 남을 수 있다.
      */
     private fun cleanUpOrphans(validIds: Set<Long>) {
-        File(filesDir, "mixcache").listFiles()?.forEach { f ->
+        MixCache.dir(this).listFiles()?.forEach { f ->
             val id = f.name.substringBefore('.').toLongOrNull()
             // 1패스 전환 전 버전이 남긴 중간 raw(곡당 수십 MB). 지금은 아무도 쓰지 않으므로
             // 유효한 곡의 것도 지운다 — 그냥 두면 id가 살아있어 영구히 남는다.
@@ -61,7 +62,7 @@ class BandMrApp : Application() {
             }
             if (id == null || id !in validIds) f.delete()
         }
-        File(filesDir, "stems").listFiles()?.forEach { d ->
+        StemFiles.dir(this).listFiles()?.forEach { d ->
             val id = d.name.toLongOrNull()
             if (id == null || id !in validIds) d.deleteRecursively()
         }

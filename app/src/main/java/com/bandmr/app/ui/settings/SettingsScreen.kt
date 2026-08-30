@@ -29,16 +29,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.audio.MixCache
 import com.bandmr.app.io.CacheStorage
 import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
+import com.bandmr.app.separation.StemFiles
 import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 @Composable
 fun SettingsScreen() {
@@ -142,15 +143,21 @@ fun SettingsScreen() {
 @Composable
 private fun StorageSection() {
     val scope = rememberCoroutineScope()
-    var usage by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    var usage by remember { mutableStateOf<StorageUsage?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var confirmStems by remember { mutableStateOf(false) }
     var lastFreed by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(refreshKey) {
-        usage = withContext(Dispatchers.IO) {
-            CacheStorage.dirSize(mixCacheDir()) to CacheStorage.dirSize(stemsDir())
+    LaunchedEffect(refreshKey) { usage = withContext(Dispatchers.IO) { readUsage() } }
+
+    /** 정리 실행 → 회수량 표시 → 사용량 재조회. 두 버튼이 같은 절차를 쓴다 */
+    fun runCleanup(clear: suspend () -> Long) {
+        busy = true
+        scope.launch {
+            lastFreed = CacheStorage.formatBytes(clear())
+            refreshKey++
+            busy = false
         }
     }
 
@@ -163,10 +170,9 @@ private fun StorageSection() {
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val (mix, stems) = usage ?: (0L to 0L)
-            StorageRow("원본 캐시", mix, usage != null)
-            StorageRow("분리된 스템", stems, usage != null)
-            StorageRow("합계", mix + stems, usage != null, emphasize = true)
+            StorageRow("원본 캐시", usage?.mixCache)
+            StorageRow("분리된 스템", usage?.stems)
+            StorageRow("합계", usage?.total, emphasize = true)
 
             lastFreed?.let {
                 Text(
@@ -178,25 +184,19 @@ private fun StorageSection() {
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    enabled = !busy && (usage?.first ?: 0L) > 0L,
+                    enabled = !busy && (usage?.mixCache ?: 0L) > 0L,
                     onClick = {
-                        busy = true
-                        scope.launch {
+                        runCleanup {
                             // 재생 중인 엔진이 이 WAV를 열고 있다. 지우고 계속 재생하면 화면에는
-                            // 캐시가 없는데 소리는 나는 상태가 되므로, 종료 경로(release)를 지난다.
+                            // 캐시가 없는데 소리는 나는 상태가 되므로 종료 경로(release)를 지난다.
                             Locator.playerController.release()
-                            val freed = withContext(Dispatchers.IO) {
-                                CacheStorage.clearFiles(mixCacheDir())
-                            }
-                            lastFreed = CacheStorage.formatBytes(freed)
-                            refreshKey++
-                            busy = false
+                            withContext(Dispatchers.IO) { CacheStorage.clearFiles(MixCache.dir(Locator.context)) }
                         }
                     },
                 ) { Text("원본 캐시 비우기") }
 
                 OutlinedButton(
-                    enabled = !busy && (usage?.second ?: 0L) > 0L,
+                    enabled = !busy && (usage?.stems ?: 0L) > 0L,
                     onClick = { confirmStems = true },
                 ) { Text("분리 결과 삭제") }
             }
@@ -222,8 +222,7 @@ private fun StorageSection() {
             confirmButton = {
                 TextButton(onClick = {
                     confirmStems = false
-                    busy = true
-                    scope.launch {
+                    runCleanup {
                         // 진행 중인 분리를 먼저 취소한다. 취소는 세그먼트 경계에서만 판정되므로
                         // 그 사이 완료된 분리가 승격될 수 있다 → .part 디렉터리까지 함께 지워
                         // "DB는 미분리인데 스템만 남은" 고아를 만들지 않는다(승격이 실패로 끝난다)
@@ -232,16 +231,15 @@ private fun StorageSection() {
                         }
                         Locator.playerController.release()
                         val freed = withContext(Dispatchers.IO) {
-                            CacheStorage.clearSubdirectories(stemsDir(), includeInFlight = true)
+                            CacheStorage.clearSubdirectories(
+                                StemFiles.dir(Locator.context),
+                                includeInFlight = true,
+                            )
                         }
-                        // 파일이 사라졌으므로 DB의 분리 표시도 함께 내린다.
+                        // 파일이 사라졌으므로 DB의 분리 표시도 함께 내린다(한 문장 UPDATE).
                         // 안 내리면 AI ON이 스템 없는 곡을 열려다 실패한다
-                        Locator.songDao.getAllOnce()
-                            .filter { it.isSeparated }
-                            .forEach { Locator.songDao.clearSeparation(it.id) }
-                        lastFreed = CacheStorage.formatBytes(freed)
-                        refreshKey++
-                        busy = false
+                        Locator.songDao.clearAllSeparation()
+                        freed
                     }
                 }) { Text("삭제") }
             },
@@ -250,23 +248,28 @@ private fun StorageSection() {
     }
 }
 
-@Composable
-private fun StorageRow(label: String, bytes: Long, loaded: Boolean, emphasize: Boolean = false) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            modifier = Modifier.weight(1f),
-            style = if (emphasize) MaterialTheme.typography.titleSmall
-            else MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            if (loaded) CacheStorage.formatBytes(bytes) else "계산 중…",
-            style = if (emphasize) MaterialTheme.typography.titleSmall
-            else MaterialTheme.typography.bodyMedium,
-        )
-    }
+/**
+ * 화면에 보이는 용량. **실제로 비울 수 있는 양**만 센다 — 쓰는 중인 `.part`/`.tmp`를 포함하면
+ * "용량은 남았는데 버튼을 눌러도 0B"가 된다(정리가 그것들을 건너뛰므로).
+ */
+private data class StorageUsage(val mixCache: Long, val stems: Long) {
+    val total: Long get() = mixCache + stems
 }
 
-private fun mixCacheDir() = File(Locator.context.filesDir, "mixcache")
+private fun readUsage(): StorageUsage = StorageUsage(
+    mixCache = CacheStorage.clearableFileSize(MixCache.dir(Locator.context)),
+    stems = CacheStorage.clearableSubdirectorySize(
+        StemFiles.dir(Locator.context),
+        includeInFlight = true,
+    ),
+)
 
-private fun stemsDir() = File(Locator.context.filesDir, "stems")
+@Composable
+private fun StorageRow(label: String, bytes: Long?, emphasize: Boolean = false) {
+    val style = if (emphasize) MaterialTheme.typography.titleSmall
+    else MaterialTheme.typography.bodyMedium
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), style = style)
+        Text(bytes?.let { CacheStorage.formatBytes(it) } ?: "계산 중…", style = style)
+    }
+}

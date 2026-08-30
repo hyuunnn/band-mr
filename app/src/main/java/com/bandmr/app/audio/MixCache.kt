@@ -28,15 +28,18 @@ object MixCache {
 
     private const val DIR = "mixcache"
 
+    /** 캐시 루트. 용량 집계·정리(설정 화면)와 고아 정리가 같은 경로를 보게 한다 */
+    fun dir(context: Context): File = File(context.filesDir, DIR)
+
     fun cacheFile(context: Context, songId: Long): File =
-        File(File(context.filesDir, DIR), "$songId.wav")
+        File(dir(context), "$songId.wav")
 
     /**
      * 파형 막대 캐시 파일. `<songId>.peaks`라서 [delete]·cleanUpOrphans의
      * `substringBefore('.')` 규칙이 같은 songId로 인식한다.
      */
     fun peaksFile(context: Context, songId: Long): File =
-        File(File(context.filesDir, DIR), "$songId.peaks")
+        File(dir(context), "$songId.peaks")
 
     fun delete(context: Context, songId: Long) {
         cacheFile(context, songId).delete()
@@ -77,7 +80,7 @@ object MixCache {
         synchronized(lock) {
             val final = cacheFile(context, songId)
             if (final.exists()) return final
-            val dir = File(context.filesDir, DIR).apply { mkdirs() }
+            val dir = dir(context).apply { mkdirs() }
             val part = File(dir, "${final.name}.part")
             try {
                 val frames = WavWriter.create(part, PIPELINE_SAMPLE_RATE).use { writer ->

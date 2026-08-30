@@ -95,7 +95,7 @@ class SeparationService : Service() {
         // 취소 판정은 자기 자신의 Job으로 한다. 서비스 필드(job)를 읽으면 (a) 대입 전에는 null이라
         // 즉시 취소로 오판하고, (b) 취소 직후 새 작업이 필드를 덮어쓰면 이 작업이 영원히 취소되지 않는다
         val self = currentCoroutineContext()[Job]
-        val partDir = File(filesDir, "stems/$songId.part")
+        val partDir = StemFiles.partDir(this, songId)
         try {
             acquireWakeLock()
             val song = dao.get(songId) ?: error("곡을 찾을 수 없습니다")
@@ -122,7 +122,7 @@ class SeparationService : Service() {
                 check(stems.isNotEmpty()) { "분리 결과가 없습니다" }
                 // 완성된 결과만 정식 디렉터리로 교체한다. 중간에 취소/실패하면 이전 스템이 그대로
                 // 남아서 DB의 분리 완료 표시(stemsDir)와 파일이 어긋나지 않는다
-                promoteStems(partDir, File(filesDir, "stems/$songId"))
+                promoteStems(partDir, StemFiles.songDir(this@SeparationService, songId))
             }
             dao.updateSeparation(songId, tier.id, stemsDir.absolutePath)
             // 완료 여부는 Song.isSeparated가 갖는다 — 버스는 진행/오류 표시 전용이라 Idle로 되돌린다

@@ -20,10 +20,32 @@ object CacheStorage {
     private fun isInFlight(file: File): Boolean =
         file.name.endsWith(".part") || file.name.endsWith(".tmp")
 
-    /** [dir] 아래 모든 파일 크기 합. 디렉터리가 없으면 0 */
+    /**
+     * [dir] 아래 모든 파일 크기 합. 디렉터리가 없으면 0.
+     *
+     * 쓰는 중인 산출물도 포함한다 — 실제로 디스크를 쓰고 있으므로. 다만 **비우기 버튼의
+     * 표시·활성 기준으로 쓰면 안 된다**: 정리는 그것들을 건너뛰므로 "용량은 남았는데 눌러도
+     * 0B" 상태가 된다. 그쪽은 [clearableSize]를 쓸 것.
+     */
     fun dirSize(dir: File): Long =
         if (!dir.isDirectory) 0L
         else dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    /**
+     * [clearFiles]가 실제로 지울 수 있는 바이트 수(= `.part`/`.tmp` 제외).
+     * 표시·버튼 활성 판정은 이 값을 써야 [clearFiles] 결과와 어긋나지 않는다.
+     */
+    fun clearableFileSize(dir: File): Long =
+        dir.listFiles()?.filter { it.isFile && !isInFlight(it) }?.sumOf { it.length() } ?: 0L
+
+    /**
+     * [clearSubdirectories]가 실제로 지울 수 있는 바이트 수.
+     * [includeInFlight]는 그쪽과 같은 의미다.
+     */
+    fun clearableSubdirectorySize(dir: File, includeInFlight: Boolean = false): Long =
+        dir.listFiles()
+            ?.filter { it.isDirectory && (includeInFlight || !isInFlight(it)) }
+            ?.sumOf { dirSize(it) } ?: 0L
 
     /**
      * [dir] **바로 아래의 파일**만 지운다(하위 디렉터리는 건드리지 않는다).
