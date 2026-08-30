@@ -78,7 +78,8 @@ dependencies {
     // minifyEnabled=false라 R8이 걷어내지도 못해 전량이 dex에 실린다.
     // core에 없는 글리프(pause·music_note·link·forward/replay 5·10)는 res/drawable 벡터를 쓴다.
     implementation("androidx.compose.material:material-icons-core")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    // ui-tooling / ui-tooling-preview는 넣지 않는다 — @Preview가 하나도 없어서 쓰이지 않는데
+    // debug APK에 레이아웃 인스펙터용 코드가 실린다. @Preview를 쓰기 시작하면 되살릴 것.
 
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.activity:activity-compose:1.13.0")
