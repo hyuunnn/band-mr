@@ -2,6 +2,7 @@ package com.bandmr.app.audio
 
 import android.content.Context
 import android.net.Uri
+import com.bandmr.app.io.FilePromote
 import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
@@ -49,7 +50,7 @@ object MixCache {
 
     /**
      * 캐시 WAV가 생길 때까지 중단한다. 이미 있으면 즉시 반환.
-     * [prepare]가 rename 한 뒤에만 깨운다. 화면을 떠나면 호출 코루틴 취소로 끝난다.
+     * [prepare]가 정식 이름으로 승격한 뒤에만 깨운다. 화면을 떠나면 호출 코루틴 취소로 끝난다.
      */
     suspend fun awaitReady(context: Context, songId: Long) {
         ready.await(songId) { cacheFile(context, songId).exists() }
@@ -62,7 +63,7 @@ object MixCache {
      *
      * 디코딩 결과를 `.part`에 WAV로 곧바로 쓴다(중간 raw 파일 없음 — 쓰기량·피크 절반).
      * 헤더 크기 필드는 [WavWriter]가 close 시 패치하므로 총 길이를 미리 알 필요가 없다.
-     * rename은 반드시 close 뒤에 일어나야 한다(헤더 패치 완료 후 공개).
+     * 승격([FilePromote])은 반드시 close 뒤에 일어나야 한다(헤더 패치 완료 후 공개).
      *
      * @return 캐시된 WAV 파일 (총 프레임 수는 [WavReader]로 확인)
      */
@@ -84,9 +85,8 @@ object MixCache {
                         writer.writeShorts(buf, n)
                     }
                 }
-                if (final.exists()) final.delete()
-                check(part.renameTo(final)) { "캐시 파일 이동 실패: $part" }
-                // rename 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
+                FilePromote.file(part, final)
+                // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
                 // 이 emit을 놓쳐도 파일이 있으면 바로 끝난다
                 ready.signal(songId)
                 return final

@@ -6,6 +6,7 @@ import android.util.Log
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
+import com.bandmr.app.io.FilePromote
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -261,7 +262,7 @@ object YouTubeImport {
             if (part.length() <= 0L) {
                 throw IOException("다운로드 파일이 비어 있습니다")
             }
-            promotePart(part, final)
+            FilePromote.file(part, final)
             succeeded = true
             return final
         } finally {
@@ -357,15 +358,6 @@ internal fun shouldKeepDownload(
     if (copyReturned) return true
     if (downloadReachedTotal(received, total) || (total != null && fileLength >= total)) return true
     return isBenignDisconnect(e) && fileLength > 0L && total == null
-}
-
-/** rename이 같은 마운트에서 실패하는 기기용 copy 폴백. ModelManager와 동일. */
-internal fun promotePart(part: File, final: File) {
-    if (final.exists()) final.delete()
-    if (part.renameTo(final)) return
-    part.copyTo(final, overwrite = true)
-    part.delete()
-    check(final.exists() && final.length() > 0L) { "다운로드 파일 이동 실패: $part" }
 }
 
 /**

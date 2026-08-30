@@ -83,6 +83,36 @@ class PitchShifter {
         phase = 0f
     }
 
+    /**
+     * interleaved 스테레오 [frames]프레임에 피치를 적용해 PCM16으로 [out]에 쓴다.
+     *
+     * 재생([AudioTrackEngine])과 내보내기(Exporter)가 반드시 같은 순서·같은 클램프를 지나야
+     * 저장 파일이 들었던 소리와 일치한다 — 주석으로만 맞추지 않도록 이 함수를 공유한다.
+     */
+    fun renderTo(src: FloatArray, frames: Int, out: ShortArray) {
+        var i = 0
+        while (i < frames * 2) {
+            process(src[i], src[i + 1])
+            out[i] = DspChain.clampShort(outL)
+            out[i + 1] = DspChain.clampShort(outR)
+            i += 2
+        }
+    }
+
+    /**
+     * [renderTo]의 PCM16 입력판. 내부에서 -1..1로 정규화한다.
+     * [src]와 [out]이 같은 배열이어도 안전하다(프레임을 다 읽은 뒤에 쓴다) — Exporter가 제자리 처리에 쓴다.
+     */
+    fun renderTo(src: ShortArray, frames: Int, out: ShortArray) {
+        var i = 0
+        while (i < frames * 2) {
+            process(src[i] / 32768f, src[i + 1] / 32768f)
+            out[i] = DspChain.clampShort(outL)
+            out[i + 1] = DspChain.clampShort(outR)
+            i += 2
+        }
+    }
+
     companion object {
         private const val WINDOW = 1800 // 약 41ms @44.1k
     }

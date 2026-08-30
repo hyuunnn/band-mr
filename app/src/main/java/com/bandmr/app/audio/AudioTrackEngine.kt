@@ -181,26 +181,12 @@ abstract class AudioTrackEngine(
 
     /** interleaved shorts [frames]프레임 → 피치 적용해 [outShort]에 기록 */
     protected fun pitchShortToOut(src: ShortArray, frames: Int) {
-        val sh = shifter
-        var i = 0
-        while (i < frames * 2) {
-            sh.process(src[i] / 32768f, src[i + 1] / 32768f)
-            outShort[i] = DspChain.clampShort(sh.outL)
-            outShort[i + 1] = DspChain.clampShort(sh.outR)
-            i += 2
-        }
+        shifter.renderTo(src, frames, outShort)
     }
 
     /** interleaved floats [frames]프레임 → 피치 적용해 [outShort]에 기록 */
     protected fun pitchFloatToOut(src: FloatArray, frames: Int) {
-        val sh = shifter
-        var i = 0
-        while (i < frames * 2) {
-            sh.process(src[i], src[i + 1])
-            outShort[i] = DspChain.clampShort(sh.outL)
-            outShort[i + 1] = DspChain.clampShort(sh.outR)
-            i += 2
-        }
+        shifter.renderTo(src, frames, outShort)
     }
 
     private fun applySpeed() {

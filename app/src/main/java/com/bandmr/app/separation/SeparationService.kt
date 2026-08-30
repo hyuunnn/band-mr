@@ -16,6 +16,7 @@ import com.bandmr.app.Locator
 import com.bandmr.app.MainActivity
 import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
+import com.bandmr.app.io.FilePromote
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -124,7 +125,8 @@ class SeparationService : Service() {
                 promoteStems(partDir, File(filesDir, "stems/$songId"))
             }
             dao.updateSeparation(songId, tier.id, stemsDir.absolutePath)
-            setState(SepState.Done)
+            // 완료 여부는 Song.isSeparated가 갖는다 — 버스는 진행/오류 표시 전용이라 Idle로 되돌린다
+            setState(SepState.Idle)
         } catch (e: CancellationException) {
             partDir.deleteRecursively()
             setState(SepState.Idle)
@@ -141,12 +143,7 @@ class SeparationService : Service() {
 
     /** 완성된 임시 스템 디렉터리를 정식 위치로 교체 */
     private fun promoteStems(part: File, dest: File): File {
-        dest.deleteRecursively()
-        dest.parentFile?.mkdirs()
-        if (!part.renameTo(dest)) {
-            part.copyRecursively(dest, overwrite = true)
-            part.deleteRecursively()
-        }
+        FilePromote.directory(part, dest)
         return dest
     }
 

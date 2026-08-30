@@ -33,6 +33,19 @@ class PlayerController(private val context: Context) {
     private var mixer: StemMixPlayer? = null
     private var source: SourceWavPlayer? = null
 
+    /**
+     * 현재 모드의 엔진. 두 엔진 모두 [AudioTrackEngine]이라 재생/일시정지·시크·위치 조회는
+     * 이 하나를 지나간다 — 모드별 분기를 컨트롤 메서드마다 반복하면 한쪽만 고치는 버그가 생긴다.
+     * 반면 파라미터(키·배속·A-B·게인)는 모드를 바꿔도 유지되어야 하므로 [eachEngine]으로 양쪽에 건다.
+     */
+    private val active: AudioTrackEngine?
+        get() = if (aiMode) mixer else source
+
+    private inline fun eachEngine(block: (AudioTrackEngine) -> Unit) {
+        mixer?.let(block)
+        source?.let(block)
+    }
+
     @Volatile
     private var aiMode = false
 
@@ -113,7 +126,7 @@ class PlayerController(private val context: Context) {
     }
 
     private fun pauseAll() {
-        if (aiMode) mixer?.pause() else source?.pause()
+        active?.pause()
         isPlaying.value = false
         abandonFocus()
     }
@@ -133,7 +146,7 @@ class PlayerController(private val context: Context) {
         lastSpeed = PlaybackSpeed.snap(speed)
         val newAiMode = aiOn && song.isSeparated
         val modeChanged = newAiMode != aiMode || currentSong?.id != song.id
-        if (!modeChanged && engineExists()) {
+        if (!modeChanged && active != null) {
             applyParams(semitones, lastSpeed)
             applyLoopToEngines()
             snapIntoLoopIfNeeded()
@@ -159,15 +172,8 @@ class PlayerController(private val context: Context) {
     }
 
     private fun loadMixer(song: Song, gains: FloatArray, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
-        val dir = File(song.stemsDir!!)
-        val files = buildMap {
-            Stem.entries.forEach { stem ->
-                val f = File(dir, "${stem.fileName}.wav")
-                if (f.exists()) put(stem, f)
-            }
-        }
         mixer = StemMixPlayer(onEndedCallback = ::onAutoEnded).also {
-            it.load(files)
+            it.load(File(song.stemsDir!!))
             it.semitones = semi
             it.speed = speed
             it.gains = gains
@@ -278,11 +284,7 @@ class PlayerController(private val context: Context) {
     private var lastLoopStartMs: Long? = null
     private var lastLoopEndMs: Long? = null
 
-    private fun engineExists(): Boolean =
-        if (aiMode) mixer != null else source != null
-
-    private fun activeIsPlaying(): Boolean =
-        if (aiMode) mixer?.isPlaying == true else source?.isPlaying == true
+    private fun activeIsPlaying(): Boolean = active?.isPlaying == true
 
     private fun applyParams(semitones: Int, speed: Float) {
         setSemitones(semitones)
@@ -304,38 +306,37 @@ class PlayerController(private val context: Context) {
      */
     fun setPlaying(shouldPlay: Boolean) {
         if (shouldPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
-        when {
-            aiMode -> {
-                val m = mixer ?: run { if (shouldPlay) abandonFocus(); return }
-                if (shouldPlay) m.play() else m.pause()
-                isPlaying.value = m.isPlaying
-                // 이어폰 분리(pauseAll)와 동일하게 일시정지 시 포커스 반납
-                if (!m.isPlaying) abandonFocus()
-            }
-            source != null -> source?.let {
-                if (shouldPlay) it.play() else it.pause()
-                isPlaying.value = it.isPlaying
-                if (!it.isPlaying) abandonFocus()
-            }
-            else -> {
-                // 캐시 준비 중/실패: 재생 의도를 저장해 두면 준비 완료 직후 자동 재생된다.
-                // 실패 후라면 beginPrepare가 재시도 진입점이 된다 (준비 중이면 no-op)
-                if (shouldPlay) {
-                    val song = currentSong ?: run { abandonFocus(); return }
-                    val keepPos = if (pendingResumeSongId == song.id) pendingResumePosMs else 0L
-                    pendingResume(song.id, true, keepPos)
-                    beginPrepare(song.id, song.uri.toUri())
-                }
-            }
+        val engine = active
+        if (engine != null) {
+            if (shouldPlay) engine.play() else engine.pause()
+            isPlaying.value = engine.isPlaying
+            // 이어폰 분리(pauseAll)와 동일하게 일시정지 시 포커스 반납
+            if (!engine.isPlaying) abandonFocus()
+            return
         }
+        // 여기부터는 엔진이 없는 경우. 멈추라는 명령이면 이미 멈춘 상태다
+        if (!shouldPlay) return
+        // AI ON에서 믹서가 없으면 스템 로드가 실패한 것이라 준비할 것이 없다
+        if (aiMode) {
+            abandonFocus()
+            return
+        }
+        // 캐시 준비 중/실패: 재생 의도를 저장해 두면 준비 완료 직후 자동 재생된다.
+        // 실패 후라면 beginPrepare가 재시도 진입점이 된다 (준비 중이면 no-op)
+        val song = currentSong ?: run { abandonFocus(); return }
+        val keepPos = if (pendingResumeSongId == song.id) pendingResumePosMs else 0L
+        pendingResume(song.id, true, keepPos)
+        beginPrepare(song.id, song.uri.toUri())
     }
 
     fun seekTo(ms: Long) {
         val target = PlaybackLoop.clampSeek(ms, lastLoopStartMs, lastLoopEndMs, knownDurationMs())
-        when {
-            aiMode -> mixer?.seekToFrame(msToFrames(target))
-            source != null -> source?.seekToFrame(msToFrames(target))
-            else -> pendingResume(currentSong?.id ?: return, pendingResumePlay, target)
+        val engine = active
+        if (engine != null) {
+            engine.seekToFrame(msToFrames(target))
+        } else {
+            // 엔진이 없으면 준비 완료 후 이어갈 위치만 기억한다
+            pendingResume(currentSong?.id ?: return, pendingResumePlay, target)
         }
         // 알림 미디어 카드가 진행바를 바로 따라오게 한다(앱 → 알림 방향 반영)
         seekEpoch.value += 1
@@ -377,10 +378,10 @@ class PlayerController(private val context: Context) {
             startFrame = PlaybackLoop.DISABLED_FRAME
             endFrame = PlaybackLoop.DISABLED_FRAME
         }
-        mixer?.loopStartFrame = startFrame
-        mixer?.loopEndFrame = endFrame
-        source?.loopStartFrame = startFrame
-        source?.loopEndFrame = endFrame
+        eachEngine {
+            it.loopStartFrame = startFrame
+            it.loopEndFrame = endFrame
+        }
     }
 
     /** 스템 유지 퍼센트. 믹서 게인과 AI OFF 뮤트 마스크를 같이 갱신한다. */
@@ -392,14 +393,12 @@ class PlayerController(private val context: Context) {
     }
 
     fun setSemitones(n: Int) {
-        mixer?.semitones = n
-        source?.semitones = n
+        eachEngine { it.semitones = n }
     }
 
     fun setSpeed(v: Float) {
         lastSpeed = PlaybackSpeed.snap(v)
-        mixer?.speed = lastSpeed
-        source?.speed = lastSpeed
+        eachEngine { it.speed = lastSpeed }
     }
 
     /** AI OFF 보컬 제거 강도 0..1 (설정에서 로드/변경 시 호출) */
@@ -412,12 +411,9 @@ class PlayerController(private val context: Context) {
     fun currentSongId(): Long? = currentSong?.id
 
     fun positionMs(): Long =
-        when {
-            aiMode -> framesToMs(mixer?.positionFrames() ?: 0L)
-            source != null -> framesToMs(source?.positionFrames() ?: 0L)
-            pendingResumeSongId == currentSong?.id -> pendingResumePosMs
-            else -> 0L
-        }
+        active?.let { framesToMs(it.positionFrames()) }
+            // 엔진이 없으면 준비 완료 후 이어갈 위치를 그대로 보여준다(진행바가 0으로 튀지 않게)
+            ?: if (pendingResumeSongId == currentSong?.id) pendingResumePosMs else 0L
 
     private fun knownDurationMs(): Long =
         durationMs.value.takeIf { it > 0 } ?: currentSong?.durationMs ?: 0L

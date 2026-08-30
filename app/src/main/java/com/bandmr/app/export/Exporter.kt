@@ -2,13 +2,13 @@ package com.bandmr.app.export
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
 import com.bandmr.app.audio.PitchShifter
+import com.bandmr.app.audio.StemWavSet
 import com.bandmr.app.audio.WavReader
 import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Song
@@ -16,8 +16,6 @@ import com.bandmr.app.data.Stem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-
-private const val TAG = "Exporter"
 
 /** 가공 믹스 및 스템 개별 파일 내보내기 */
 class Exporter(private val context: Context) {
@@ -53,64 +51,36 @@ class Exporter(private val context: Context) {
         dest: Uri,
         onProgress: (Float) -> Unit,
     ) = withContext(Dispatchers.IO) {
-        val dir = File(song.stemsDir!!)
-        val readers = HashMap<Stem, WavReader>()
-        // 길이 기준은 재생(StemMixPlayer)과 동일하게 가장 긴 스템 — 짧은 스템은 뒷부분이 무음으로 섞인다
-        var total = 0L
-        Stem.entries.forEach { stem ->
-            val f = File(dir, "${stem.fileName}.wav")
-            if (f.exists()) runCatching {
-                val r = WavReader(f)
-                if (r.sampleRate == PIPELINE_SAMPLE_RATE) {
-                    readers[stem] = r
-                    total = maxOf(total, r.totalFrames)
-                } else {
-                    // 파이프라인 레이트 불일치 스템은 프레임 수학이 어긋나므로 제외한다
-                    Log.w(TAG, "샘플레이트 불일치 스템 제외: ${f.name} (${r.sampleRate}Hz)")
-                    runCatching { r.close() }
-                }
-            }
-        }
-        if (readers.isEmpty()) error("분리된 스템이 없습니다")
-
-        val tmp = File(context.cacheDir, "export_mix.wav")
-        tmp.delete()
-        try {
-            WavWriter.create(tmp, PIPELINE_SAMPLE_RATE).use { writer ->
-                try {
-                    val shifter = PitchShifter().also { it.semitones = semitones }
-                    val gains = Stem.gainArrayFromPacked(stemGainsPacked)
-                    val stemShort = ShortArray(CHUNK * 2)
-                    val mixed = FloatArray(CHUNK * 2)
-                    val outShort = ShortArray(CHUNK * 2)
-                    var pos = 0L
-                    while (pos < total) {
-                        val frames = minOf(CHUNK.toLong(), total - pos).toInt()
-                        java.util.Arrays.fill(mixed, 0, frames * 2, 0f)
-                        readers.forEach { (stem, reader) ->
-                            val g = gains[stem.ordinal]
-                            if (g <= 0f) return@forEach
-                            // 짧은 스템은 끝을 지나면 0프레임을 돌려주므로 더해지지 않는다(뒷부분 무음)
-                            val got = reader.read(pos, stemShort, CHUNK)
-                            for (i in 0 until got * 2) mixed[i] += stemShort[i] / 32768f * g
-                        }
-                        for (i in 0 until frames) {
-                            shifter.process(mixed[i * 2], mixed[i * 2 + 1])
-                            outShort[i * 2] = DspChain.clampShort(shifter.outL)
-                            outShort[i * 2 + 1] = DspChain.clampShort(shifter.outR)
-                        }
-                        writer.writeShorts(outShort, frames * 2)
-                        pos += frames
-                        onProgress(pos.toFloat() / total)
+        val shifter = PitchShifter().also { it.semitones = semitones }
+        val gains = Stem.gainArrayFromPacked(stemGainsPacked)
+        val stemShort = ShortArray(CHUNK * 2)
+        val mixed = FloatArray(CHUNK * 2)
+        val outShort = ShortArray(CHUNK * 2)
+        writeMixTo(dest) { writer ->
+            // 열기 규칙(누락·레이트 불일치 제외, 최장 스템 기준 길이)은 재생과 공유한다.
+            // use를 writer 안쪽에 두어 리더 6개가 dest 복사(수십 MB) 전에 닫히게 한다
+            StemWavSet.open(File(song.stemsDir!!)).use { stems ->
+                if (stems.isEmpty) error("분리된 스템이 없습니다")
+                val total = stems.totalFrames
+                var pos = 0L
+                while (pos < total) {
+                    val frames = minOf(CHUNK.toLong(), total - pos).toInt()
+                    java.util.Arrays.fill(mixed, 0, frames * 2, 0f)
+                    // 재생(StemMixPlayer)과 같은 접근자·같은 순서로 합산한다
+                    for (ordinal in Stem.entries.indices) {
+                        val g = gains[ordinal]
+                        if (g <= 0f) continue
+                        val reader = stems.readerAt(ordinal) ?: continue
+                        // 짧은 스템은 끝을 지나면 0프레임을 돌려주므로 더해지지 않는다(뒷부분 무음)
+                        val got = reader.read(pos, stemShort, CHUNK)
+                        for (i in 0 until got * 2) mixed[i] += stemShort[i] / 32768f * g
                     }
-                } finally {
-                    readers.values.forEach { runCatching { it.close() } }
+                    shifter.renderTo(mixed, frames, outShort)
+                    writer.writeShorts(outShort, frames * 2)
+                    pos += frames
+                    onProgress(pos.toFloat() / total)
                 }
             }
-            copyTmpToDest(tmp, dest)
-        } finally {
-            // 실패해도 수십 MB짜리 중간 파일을 캐시에 남기지 않는다(성공 시엔 이미 지워졌다)
-            tmp.delete()
         }
     }
 
@@ -134,18 +104,27 @@ class Exporter(private val context: Context) {
             it.vocalStrength = vocalStrength
         }
         val shifter = PitchShifter().also { it.semitones = semitones }
+        writeMixTo(dest) { writer ->
+            WavReader(source).use { reader ->
+                renderDspChunks(reader, chain, shifter, writer, decodeShare, onProgress)
+            }
+            chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
+        }
+    }
+
+    /**
+     * 캐시의 임시 WAV에 [render]로 쓴 뒤 [dest]로 복사한다.
+     *
+     * SAF 목적지에 곧바로 쓰지 못하는 이유: [WavWriter]는 close 때 헤더의 크기 필드를 되짚어
+     * 패치하므로 랜덤 액세스가 필요하다. 실패해도 수십 MB짜리 중간 파일을 캐시에 남기지 않는다.
+     */
+    private fun writeMixTo(dest: Uri, render: (WavWriter) -> Unit) {
         val tmp = File(context.cacheDir, "export_mix.wav")
         tmp.delete()
         try {
-            WavWriter.create(tmp, PIPELINE_SAMPLE_RATE).use { writer ->
-                WavReader(source).use { reader ->
-                    renderDspChunks(reader, chain, shifter, writer, decodeShare, onProgress)
-                }
-                chain.drain { buf, cnt -> writer.writeShorts(buf, cnt) }
-            }
+            WavWriter.create(tmp, PIPELINE_SAMPLE_RATE).use(render)
             copyTmpToDest(tmp, dest)
         } finally {
-            // 실패해도 수십 MB짜리 중간 파일을 캐시에 남기지 않는다(성공 시엔 이미 지워졌다)
             tmp.delete()
         }
     }
@@ -165,11 +144,7 @@ class Exporter(private val context: Context) {
             val frames = reader.read(pos, buf, CHUNK)
             if (frames == 0) break
             // 재생 경로(SourceWavPlayer)와 동일한 순서: 피치시프트 → 제거 체인
-            for (i in 0 until frames) {
-                shifter.process(buf[i * 2] / 32768f, buf[i * 2 + 1] / 32768f)
-                buf[i * 2] = DspChain.clampShort(shifter.outL)
-                buf[i * 2 + 1] = DspChain.clampShort(shifter.outR)
-            }
+            shifter.renderTo(buf, frames, buf)
             chain.processInPlace(buf, frames * 2)
             writer.writeShorts(buf, frames * 2)
             pos += frames

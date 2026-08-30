@@ -28,6 +28,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +54,7 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -68,28 +71,37 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     val importState by YouTubeImport.state.collectAsState()
     var showLinkDialog by remember { mutableStateOf(false) }
     var linkUrl by remember { mutableStateOf("") }
+    val snackbar = remember { SnackbarHostState() }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                runCatching {
+                val newId = try {
                     Locator.context.contentResolver.takePersistableUriPermission(
                         uri,
                         android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
                     )
                     val (title, durationMs) = readMetadata(uri)
-                    val newId = Locator.songDao.insert(
+                    Locator.songDao.insert(
                         Song(title = title, uri = uri.toString(), durationMs = durationMs)
                     )
-                    // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환.
-                    // 실패는 재생 시점 prepareFailedSongId로 노출되지만, 원인 추적을 위해 로그를 남긴다
-                    withContext(Dispatchers.IO) {
-                        if (!MixCache.cacheFile(Locator.context, newId).exists()) {
-                            runCatching { MixCache.prepare(Locator.context, newId, uri) }
-                                .onFailure { Log.w(TAG, "곡 $newId 캐시 준비 실패", it) }
-                        }
+                } catch (ce: CancellationException) {
+                    throw ce // 취소는 실패가 아니다 (YouTubeImport와 같은 규약)
+                } catch (t: Throwable) {
+                    // 등록이 실패하면 목록에 아무것도 안 생긴다 — 조용히 넘기면
+                    // 사용자는 곡이 왜 없는지 알 수 없다(권한 획득·메타데이터 읽기 실패 등)
+                    Log.w(TAG, "곡 추가 실패", t)
+                    snackbar.showSnackbar("곡을 추가하지 못했습니다: ${t.message ?: "알 수 없는 오류"}")
+                    return@launch
+                }
+                // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환.
+                // 캐시 실패는 재생 시점 prepareFailedSongId로 노출되므로 여기선 로그만 남긴다
+                withContext(Dispatchers.IO) {
+                    if (!MixCache.cacheFile(Locator.context, newId).exists()) {
+                        runCatching { MixCache.prepare(Locator.context, newId, uri) }
+                            .onFailure { Log.w(TAG, "곡 $newId 캐시 준비 실패", it) }
                     }
                 }
             }
@@ -97,6 +109,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             Column(
                 horizontalAlignment = Alignment.End,

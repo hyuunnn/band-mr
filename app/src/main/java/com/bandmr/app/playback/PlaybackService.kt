@@ -53,18 +53,11 @@ class PlaybackService : Service() {
     /**
      * 미디어 카드의 점프 버튼. 값이 변하지 않으므로 한 번만 만들어 재사용한다
      * (진행바 갱신은 파형 드래그 중 초당 10회까지 일어난다).
-     *
-     * 주의: 카드의 버튼 슬롯은 [custom0, prev, 재생, next, custom1] 순서로 그려지는데
-     * 등록 순서는 prev ← 1번째, next ← 2번째, custom0 ← 3번째, custom1 ← 4번째로 채워진다.
-     * 화면에 −10 / −5 / 재생 / +5 / +10 으로 보이게 하려면 이 순서여야 한다.
      */
     private val skipActions: List<PlaybackState.CustomAction> by lazy {
-        listOf(
-            customAction(ACTION_BACK_SMALL, "5초 뒤로", R.drawable.ic_replay_5),
-            customAction(ACTION_FWD_SMALL, "5초 앞으로", R.drawable.ic_forward_5),
-            customAction(ACTION_BACK_LARGE, "10초 뒤로", R.drawable.ic_replay_10),
-            customAction(ACTION_FWD_LARGE, "10초 앞으로", R.drawable.ic_forward_10),
-        )
+        SkipButton.mediaCardOrder.map {
+            PlaybackState.CustomAction.Builder(it.action, it.label, it.icon).build()
+        }
     }
 
     override fun onBind(intent: Intent?) = null
@@ -79,7 +72,7 @@ class PlaybackService : Service() {
                 override fun onSeekTo(pos: Long) = Locator.playerController.seekTo(pos)
                 override fun onStop() = stopPlaybackAndSelf()
                 override fun onCustomAction(action: String, extras: android.os.Bundle?) {
-                    handleSkip(action)
+                    SkipButton.of(action)?.let { skip(it) }
                 }
             })
             isActive = true
@@ -118,13 +111,14 @@ class PlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
         // 종료 뒤 파괴되기 전에 다시 시작 요청이 오면 정상 동작으로 되돌린다
-        if (intent?.action != ACTION_STOP) stopping = false
-        when (val action = intent?.action) {
-            ACTION_TOGGLE -> Locator.playerController.playPause()
-            ACTION_BACK_LARGE, ACTION_BACK_SMALL, ACTION_FWD_SMALL, ACTION_FWD_LARGE ->
-                handleSkip(action)
-            ACTION_STOP -> {
+        if (action != ACTION_STOP) stopping = false
+        val skipButton = action?.let { SkipButton.of(it) }
+        when {
+            skipButton != null -> skip(skipButton)
+            action == ACTION_TOGGLE -> Locator.playerController.playPause()
+            action == ACTION_STOP -> {
                 stopPlaybackAndSelf()
                 return START_NOT_STICKY
             }
@@ -152,15 +146,8 @@ class PlaybackService : Service() {
 
     // ---------- 조작 ----------
 
-    private fun handleSkip(action: String) {
-        val delta = when (action) {
-            ACTION_BACK_LARGE -> -PlaybackSkip.LARGE_MS
-            ACTION_BACK_SMALL -> -PlaybackSkip.SMALL_MS
-            ACTION_FWD_SMALL -> PlaybackSkip.SMALL_MS
-            ACTION_FWD_LARGE -> PlaybackSkip.LARGE_MS
-            else -> return
-        }
-        Locator.playerController.skipBy(delta) // seekEpoch로 진행바가 갱신된다
+    private fun skip(button: SkipButton) {
+        Locator.playerController.skipBy(button.deltaMs) // seekEpoch로 진행바가 갱신된다
     }
 
     /** 재생 정지 + 알림 제거 + 서비스 종료 (알림 지우기·앱 치우기·미디어 정지가 공유) */
@@ -213,9 +200,6 @@ class PlaybackService : Service() {
         s.setPlaybackState(builder.build())
     }
 
-    private fun customAction(action: String, label: String, icon: Int): PlaybackState.CustomAction =
-        PlaybackState.CustomAction.Builder(action, label, icon).build()
-
     private fun promoteOrUpdate() {
         if (stopping) return // 종료 중에는 알림을 다시 띄우지 않는다
         val playing = Locator.playerController.isPlaying.value
@@ -244,6 +228,9 @@ class PlaybackService : Service() {
             Icon.createWithResource(this, icon), label, actionPi(action, requestCode),
         ).build()
 
+    private fun action(button: SkipButton): Notification.Action =
+        action(button.icon, button.label, button.action, button.requestCode)
+
     /**
      * 미디어 카드로 그려지지 않는 환경(구형 런처·일부 알림 목록)을 위한 알림 액션도 함께 둔다.
      * 종료는 버튼 자리가 없어 알림을 지우는 동작(deleteIntent)에 붙였다.
@@ -260,7 +247,7 @@ class PlaybackService : Service() {
             .setShowActionsInCompactView(1, 2, 3) // 접힌 상태: −5초 / 재생·일시정지 / +5초
         session?.sessionToken?.let { style.setMediaSession(it) }
 
-        return Notification.Builder(this, CHANNEL_ID)
+        val builder = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_music_note)
             .setContentTitle(Locator.playerController.nowPlayingTitle.value ?: "밴드 MR")
             .setContentText(if (playing) "연습 재생 중" else "일시정지")
@@ -270,18 +257,19 @@ class PlaybackService : Service() {
             .setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setStyle(style)
-            .addAction(action(R.drawable.ic_replay_10, "10초 뒤로", ACTION_BACK_LARGE, 3))
-            .addAction(action(R.drawable.ic_replay_5, "5초 뒤로", ACTION_BACK_SMALL, 4))
-            .addAction(
-                action(
-                    if (playing) R.drawable.ic_pause else R.drawable.ic_play,
-                    if (playing) "일시정지" else "재생",
-                    ACTION_TOGGLE, 1,
-                )
+
+        // 알림 액션 순서는 −10 / −5 / 재생 / +5 / +10. 위 setShowActionsInCompactView(1, 2, 3)이
+        // 이 순서에 묶여 있으므로 재생 버튼은 뒤로/앞으로 사이에 들어가야 한다
+        SkipButton.rewind.forEach { builder.addAction(action(it)) }
+        builder.addAction(
+            action(
+                if (playing) R.drawable.ic_pause else R.drawable.ic_play,
+                if (playing) "일시정지" else "재생",
+                ACTION_TOGGLE, 1,
             )
-            .addAction(action(R.drawable.ic_forward_5, "5초 앞으로", ACTION_FWD_SMALL, 5))
-            .addAction(action(R.drawable.ic_forward_10, "10초 앞으로", ACTION_FWD_LARGE, 6))
-            .build()
+        )
+        SkipButton.forward.forEach { builder.addAction(action(it)) }
+        return builder.build()
     }
 
     private fun createChannel() {
@@ -296,10 +284,6 @@ class PlaybackService : Service() {
         private const val NOTIF_ID = 1002
         private const val ACTION_TOGGLE = "toggle"
         private const val ACTION_STOP = "stop"
-        private const val ACTION_BACK_LARGE = "back_large"
-        private const val ACTION_BACK_SMALL = "back_small"
-        private const val ACTION_FWD_SMALL = "fwd_small"
-        private const val ACTION_FWD_LARGE = "fwd_large"
 
         /** 재생 중 알림 진행바를 맞추는 주기 */
         private const val POSITION_SYNC_MS = 1_000L
@@ -307,5 +291,39 @@ class PlaybackService : Service() {
         fun start(context: Context) {
             context.startForegroundService(Intent(context, PlaybackService::class.java))
         }
+    }
+}
+
+/**
+ * 점프 버튼 한 벌. 알림 액션과 미디어 카드 커스텀 액션이 **같은 정의**를 써야 한다 —
+ * 두 곳에 따로 적으면 아이콘/라벨/이동량이 조용히 어긋난다.
+ * 등록 순서는 두 경로가 서로 다르므로 아래 companion의 목록으로 고정한다.
+ */
+private enum class SkipButton(
+    val action: String,
+    val label: String,
+    val icon: Int,
+    val deltaMs: Long,
+    /** PendingIntent 구분용. 겹치면 다른 버튼의 인텐트를 재사용해 버린다 */
+    val requestCode: Int,
+) {
+    BACK_LARGE("back_large", "10초 뒤로", R.drawable.ic_replay_10, -PlaybackSkip.LARGE_MS, 3),
+    BACK_SMALL("back_small", "5초 뒤로", R.drawable.ic_replay_5, -PlaybackSkip.SMALL_MS, 4),
+    FWD_SMALL("fwd_small", "5초 앞으로", R.drawable.ic_forward_5, PlaybackSkip.SMALL_MS, 5),
+    FWD_LARGE("fwd_large", "10초 앞으로", R.drawable.ic_forward_10, PlaybackSkip.LARGE_MS, 6);
+
+    companion object {
+        fun of(action: String): SkipButton? = entries.firstOrNull { it.action == action }
+
+        /**
+         * 미디어 카드 등록 순서. 카드의 버튼 슬롯은 [custom0, prev, 재생, next, custom1]로 그려지는데
+         * 등록 순서는 prev ← 1번째, next ← 2번째, custom0 ← 3번째, custom1 ← 4번째로 채워진다.
+         * 화면에 −10 / −5 / 재생 / +5 / +10 으로 보이게 하려면 이 순서여야 한다.
+         */
+        val mediaCardOrder = listOf(BACK_SMALL, FWD_SMALL, BACK_LARGE, FWD_LARGE)
+
+        /** 알림 액션은 화면 순서 그대로. 재생 버튼이 두 목록 사이에 들어간다 */
+        val rewind = listOf(BACK_LARGE, BACK_SMALL)
+        val forward = listOf(FWD_SMALL, FWD_LARGE)
     }
 }

@@ -5,9 +5,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -15,9 +13,6 @@ import java.io.InputStream
 import java.net.SocketException
 
 class YouTubeDownloadTest {
-
-    @get:Rule
-    val tmp = TemporaryFolder()
 
     private val payload = ByteArray(200) { it.toByte() }
 
@@ -95,18 +90,6 @@ class YouTubeDownloadTest {
         assertTrue(shouldKeepDownload(e, 200, 200, 200, copyReturned = false))
         assertFalse(shouldKeepDownload(e, 50, 200, 50, copyReturned = false))
         assertTrue(isBenignDisconnect(SocketException("Connection reset")))
-    }
-
-    @Test
-    fun `promotePart는 rename 실패 시 copy로 승격한다`() {
-        val part = tmp.newFile("id.m4a.part")
-        val final = tmp.newFile("id.m4a")
-        part.writeBytes(payload)
-        final.writeBytes(byteArrayOf(1))
-        // 목적지가 있으면 rename이 실패하는 환경이 있다
-        promotePart(part, final)
-        assertArrayEquals(payload, final.readBytes())
-        assertFalse(part.exists())
     }
 }
 

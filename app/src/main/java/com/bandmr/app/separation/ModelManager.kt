@@ -1,6 +1,7 @@
 package com.bandmr.app.separation
 
 import android.content.Context
+import com.bandmr.app.io.FilePromote
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -136,13 +137,7 @@ class ModelManager(private val context: Context) {
 
     /** 검증 끝난 임시 파일을 정식 모델 파일로 승격하고 Ready 상태로 전환 */
     private fun promoteTmp(tmp: File, tier: Tier) {
-        val dest = modelFile(tier)
-        dest.parentFile?.mkdirs()
-        if (dest.exists()) dest.delete()
-        if (!tmp.renameTo(dest)) {
-            tmp.copyTo(dest, overwrite = true)
-            tmp.delete()
-        }
+        FilePromote.file(tmp, modelFile(tier))
         setState(tier, ModelState.Ready)
     }
 

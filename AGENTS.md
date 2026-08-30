@@ -9,7 +9,7 @@
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # → /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (113개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (119개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -33,24 +33,32 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.prope
 ```
 audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·시크·배속 공통 베이스)
              AI OFF: SourceWavPlayer(원본 WAV 캐시 재생 + DspChain 실시간 적용) / AI ON: StemMixPlayer(스템 믹서)
+             PlayerController는 모드별 엔진을 active(=aiMode ? mixer : source) 하나로 다룬다.
+             재생/시크/위치는 active, 파라미터(키·배속·A-B·게인)는 eachEngine으로 양쪽에 걸어 모드 전환 후에도 유지
+             스템 WAV 열기는 StemWavSet 공용(누락 스킵·44.1k 불일치 제외·최장 스템 기준 길이) — 재생과 내보내기가 같은 규칙
              배속은 PlaybackSpeed → AudioTrack PlaybackParams (키와 독립, 곡마다 Song.speed 저장)
              점프는 PlaybackSkip(±5/±10초) → PlayerController.skipBy (0~duration 클램프)
              A-B는 PlaybackLoop(최소 0.5초) → 엔진이 B에서 A로 seek. Song.loopStartMs/EndMs 저장, 내보내기 제외
-             파형은 WaveformPeaks(MixCache WAV 막대 RMS, 곡 내 최댓값 정규화 — 리미터 음원도 윤곽 보이게) → WaveformBar. 캐시 없으면 슬라이더, MixCache.prepare rename 뒤 awaitReady로 자동 전환
+             파형은 WaveformPeaks(MixCache WAV 막대 RMS, 곡 내 최댓값 정규화 — 리미터 음원도 윤곽 보이게) → WaveformBar. 캐시 없으면 슬라이더, MixCache.prepare 승격 뒤 awaitReady로 자동 전환
              MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 1패스 디코딩해 filesDir/mixcache에 보관(중간 raw 없음). 완료는 CacheReadyGate 신호(폴링 아님)
+io/          FilePromote: .part/.tmp → 정식 경로 승격(rename 실패 시 copy 폴백). MixCache·스템·모델·유튜브 원본이 모두 이걸 지난다
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache 전용(MediaCodec→44.1k 스트림). 분리·내보내기는 MixCache WAV를 읽는다
              ONNX 세션은 separate() 호출마다 열고 닫는다(캐시하면 ORT 아레나가 수 GB를 계속 물고 있음)
+             SepBus는 "마지막 시도 결과"만 담는다(진행/오류). 완료는 Song.isSeparated가 갖고, 성공 시 Idle로 되돌린다
 playback/    PlaybackService(백그라운드 재생 FGS + MediaSession 알림)
              알림은 OS 미디어 카드로 그려진다 — 카드 버튼은 알림 액션이 아니라 PlaybackState의
              커스텀 액션에서 나오고, 슬롯 순서가 [custom0, prev, 재생, next, custom1]이라 등록 순서를 역산해야 한다
+             점프 4종은 SkipButton enum 한 곳에 정의(액션·아이콘·라벨·이동량) — 알림 액션과 커스텀 액션이 같은 표를 쓴다
              앱에서 시크하면 PlayerController.seekEpoch로 진행바를 갱신(안 하면 옛 위치에 남음)
 export/      믹스/스템 WAV 내보내기. 믹스는 스템 게인+키만 반영하고 배속·A-B는 넣지 않음
+             피치 적용은 PitchShifter.renderTo 공용 — 재생과 내보내기가 같은 순서·클램프를 지나야 결과가 같다
 youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스트림 추출·다운로드(filesDir/sources)
              → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
              임포트·모델 다운로드는 appScope(FGS 아님). 화면을 열어 둔 채 받아야 함(앱을 내리면 끊길 수 있음)
 data/        Room(Song v4: stemGainsPacked·muteMask/키/배속/loopStartMs/EndMs), DataStore(설정)
-             stemGainsPacked가 기준(악기별 0~100%). muteMask는 0%만 비트 ON으로 파생 저장. AI OFF DSP가 읽음
+             stemGainsPacked가 기준(악기별 0~100%). muteMask는 0%만 비트 ON으로 파생 저장 — 다만 재생·내보내기는
+             DB 값을 읽지 않고 매번 Stem.muteMaskFromPacked(packed)로 다시 만든다(muteMask 컬럼은 v3 이전 데이터 마이그레이션용)
              설정·분리 완료 저장은 컬럼별 UPDATE(updateStemLevels/Semitones/Speed/Loop/Separation). get→update(copy) 금지
 ui/          Compose (라이브러리/플레이어/설정). 파형 시크는 WaveformBar
 tools/       모델 변환 스크립트 (아래 참조)
@@ -79,9 +87,10 @@ tools/       모델 변환 스크립트 (아래 참조)
 - **내보내기는 배속·A-B를 넣지 않는다.** 연습용 배속/구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 - **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다. 내보내기(AI OFF 믹스)도 같은 캐시 WAV를 읽는다 — 별도 raw 디코딩을 다시 만들지 말 것
-- **MixCache 준비는 1패스다.** `AudioDecode.decodeTo44kStereo`가 청크 싱크로 흘려보내고 `WavWriter`가 `.part`에 바로 쓴다(헤더 크기는 close 때 패치). 중간 raw 파일을 만들면 디스크 쓰기와 피크 사용량이 2배가 된다(4분 곡 80MB vs 40MB). rename은 반드시 close 뒤 — 그 전에 공개하면 헤더 크기가 0인 WAV가 재생에 쓰인다. 1패스 출력이 옛 2패스와 바이트 동일함은 `MixCacheWavTest`가 고정한다
+- **MixCache 준비는 1패스다.** `AudioDecode.decodeTo44kStereo`가 청크 싱크로 흘려보내고 `WavWriter`가 `.part`에 바로 쓴다(헤더 크기는 close 때 패치). 중간 raw 파일을 만들면 디스크 쓰기와 피크 사용량이 2배가 된다(4분 곡 80MB vs 40MB). 승격은 반드시 close 뒤 — 그 전에 공개하면 헤더 크기가 0인 WAV가 재생에 쓰인다. 1패스 출력이 옛 2패스와 바이트 동일함은 `MixCacheWavTest`가 고정한다
 - **파형 막대는 `mixcache/<songId>.peaks`에 캐시한다.** 결과가 480 float(1.9KB)인데 계산은 WAV 전체 스캔이라 플레이어 재진입마다 훑을 이유가 없다. `WaveformPeaks.fromWavCached`가 막대 수·원본 크기를 함께 저장해 불일치·손상 시 다시 계산한다. 파일명이 `<songId>.peaks`라 `MixCache.delete`와 `cleanUpOrphans`의 `substringBefore('.')` 규칙에 그대로 걸린다
-- **분리 결과는 `stems/<songId>.part`에 쓰고 성공했을 때만 `stems/<songId>`로 rename한다.** 정식 디렉터리를 먼저 지우면 취소·실패 시 DB의 분리 완료 표시(stemsDir)만 남아 스템 없는 곡이 된다
+- **분리 결과는 `stems/<songId>.part`에 쓰고 성공했을 때만 `stems/<songId>`로 승격한다(`FilePromote.directory`).** 정식 디렉터리를 먼저 지우면 취소·실패 시 DB의 분리 완료 표시(stemsDir)만 남아 스템 없는 곡이 된다
+- **임시 산출물 승격은 반드시 `FilePromote`를 쓴다.** MixCache WAV·스템 디렉터리·모델 파일·유튜브 원본이 전부 "완성된 뒤에만 정식 이름으로 공개" 규약을 공유한다. `renameTo`만 쓰면 목적지가 이미 있거나 같은 마운트인데도 false를 돌려주는 기기에서 갈라진다(과거 MixCache만 폴백이 없었다). **복사 폴백이 도중에 실패하면 목적지를 반드시 지운다** — rename은 원자적이지만 복사는 잘린 결과를 남길 수 있고, 이 앱은 파일 존재를 완성 신호로 쓰므로 손상 캐시가 재생에 쓰인다(`FilePromoteTest`가 고정)
 - **분리 취소 판정은 코루틴 자신의 Job으로 한다(`currentCoroutineContext()[Job]`).** 서비스 필드를 읽으면 대입 전 null을 취소로 오판하고, 취소 직후 새 작업이 필드를 덮어써 이전 작업이 영원히 안 죽는다. 새 분리는 이전 Job을 `join`한 뒤 시작(ONNX 세션 수 GB가 겹치면 OOM). 서비스 종료는 `stopSelf(lastStartId)` + 현재 Job일 때만
 - **오디오 파이프라인은 44.1kHz(`PIPELINE_SAMPLE_RATE`) 고정 가정.** MixCache WAV·Demucs 스템 모두 이 레이트로 생성되며, 불일치 스템은 재생·내보내기에서 제외된다. PlayerController의 ms↔프레임 수학도 이 값에 묶인다
 - **OrtSession은 분리 1회마다 열고 닫는다(캐시 금지).** ORT 아레나는 추론 중 3GB대 네이티브 힙을 잡고 세션을 닫을 때까지 OS에 반환하지 않는다(SM-S931N 실측: 분리 중 3.17GB → 완료 후에도 3.17GB 유지, 세션 닫으면 0.03GB). 세션 오픈은 1초 남짓인데 분리는 곡당 수 분이라 재사용 이득이 없고, 재생·내보내기는 세션을 쓰지 않는다. 모델 파일 경로 기반 캐시는 "모델 삭제 후 재다운로드 시 옛 세션 재사용" 버그도 만든다

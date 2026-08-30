@@ -77,4 +77,66 @@ class PitchShiftTest {
             assertFalse("semi=$semi: 리셋 없이도 같으면 검증이 무의미", without.contentEquals(expected))
         }
     }
+
+    /**
+     * [PitchShifter.renderTo]는 재생([AudioTrackEngine])과 내보내기(Exporter)에 흩어져 있던
+     * "process → clampShort" 루프를 하나로 모은 것이다. 원래 인라인 루프와 **바이트 동일**해야
+     * 저장 파일이 들었던 소리와 일치한다(AGENTS.md: 신규 DSP는 원본 구현과 수치 비교).
+     */
+    @Test
+    fun `renderTo는 옛 인라인 루프와 바이트 동일 - float 입력`() {
+        for (semi in intArrayOf(-12, -5, 0, 7, 12)) {
+            val frames = 3000
+            val src = FloatArray(frames * 2) { i ->
+                sin(2.0 * PI * (i % 2 == 0).let { if (it) 220.0 else 277.0 } * i / 44100.0)
+                    .toFloat() * 0.8f
+            }
+
+            // 리팩토링 전 AudioTrackEngine.pitchFloatToOut 본문
+            val legacy = ShortArray(frames * 2)
+            val shLegacy = PitchShifter().also { it.semitones = semi }
+            var i = 0
+            while (i < frames * 2) {
+                shLegacy.process(src[i], src[i + 1])
+                legacy[i] = DspChain.clampShort(shLegacy.outL)
+                legacy[i + 1] = DspChain.clampShort(shLegacy.outR)
+                i += 2
+            }
+
+            val actual = ShortArray(frames * 2)
+            PitchShifter().also { it.semitones = semi }.renderTo(src, frames, actual)
+
+            assertArrayEquals("semi=$semi", legacy, actual)
+        }
+    }
+
+    @Test
+    fun `renderTo는 옛 인라인 루프와 바이트 동일 - PCM16 입력 및 제자리 처리`() {
+        for (semi in intArrayOf(-12, 0, 5)) {
+            val frames = 3000
+            val src = ShortArray(frames * 2) { i ->
+                (sin(2.0 * PI * 330.0 * i / 44100.0) * 20000).toInt().toShort()
+            }
+
+            // 리팩토링 전 Exporter.renderDspChunks 본문 (제자리 처리)
+            val legacy = src.copyOf()
+            val shLegacy = PitchShifter().also { it.semitones = semi }
+            for (f in 0 until frames) {
+                shLegacy.process(legacy[f * 2] / 32768f, legacy[f * 2 + 1] / 32768f)
+                legacy[f * 2] = DspChain.clampShort(shLegacy.outL)
+                legacy[f * 2 + 1] = DspChain.clampShort(shLegacy.outR)
+            }
+
+            // src === out 앨리어싱이 안전해야 한다 (Exporter가 이렇게 쓴다)
+            val inPlace = src.copyOf()
+            PitchShifter().also { it.semitones = semi }.renderTo(inPlace, frames, inPlace)
+
+            assertArrayEquals("semi=$semi 제자리", legacy, inPlace)
+
+            // 별도 출력 배열을 줘도 같은 결과
+            val separate = ShortArray(frames * 2)
+            PitchShifter().also { it.semitones = semi }.renderTo(src, frames, separate)
+            assertArrayEquals("semi=$semi 분리 버퍼", legacy, separate)
+        }
+    }
 }
