@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.IntentFilter
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.util.Log
 import android.content.BroadcastReceiver
 import android.content.Intent
 import androidx.core.content.ContextCompat
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+private const val TAG = "PlayerController"
 
 /**
  * AI ON: StemMixPlayer(스템 믹서) / AI OFF: SourceWavPlayer(원본 WAV 캐시 + 실시간 DSP).
@@ -186,7 +189,7 @@ class PlayerController(private val context: Context) {
     /** AI OFF 엔진 구성. 캐시가 없으면 준비 후 자동으로 이어 재생한다 */
     private fun loadSource(song: Song, mask: Int, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
         val f = MixCache.cacheFile(context, song.id)
-        val player = if (f.exists()) runCatching { newSourcePlayer(f) }.getOrNull() else null
+        val player = if (f.exists()) openSourceOrDiscardCache(song.id) else null
         if (player == null) {
             // 준비 중 재입장 시 사용자가 저장한 재생 의도를 덮어쓰지 않는다
             if (pendingResumeSongId != song.id) {
@@ -199,6 +202,24 @@ class PlayerController(private val context: Context) {
         attachSource(player, mask, semi, speed, wasPlaying && !wasAutoEnded, pos)
         clearPendingResume(song.id)
     }
+
+    /**
+     * 캐시 WAV로 엔진을 만든다. 파일이 있는데 열리지 않으면(헤더 손상 등) **캐시를 버리고** null.
+     *
+     * 열기 실패를 그냥 null로 흘리면 "캐시 없음"과 구분되지 않아 [beginPrepare]로 가는데,
+     * [MixCache.prepare]는 `exists()`만 보고 즉시 반환하므로 지우지 않으면 열기 실패가 영구히
+     * 반복된다 — 준비도 실패도 표시되지 않고 재생 버튼만 무반응이 되며 로그에도 흔적이 없다.
+     * 파형 캐시(.peaks)도 함께 버린다: 유효성 검사가 원본 WAV **크기** 기준이라
+     * 다시 만든 WAV가 같은 크기면 손상본으로 계산한 막대가 살아남을 수 있다.
+     */
+    private fun openSourceOrDiscardCache(songId: Long): SourceWavPlayer? =
+        try {
+            newSourcePlayer(MixCache.cacheFile(context, songId))
+        } catch (e: Exception) {
+            Log.w(TAG, "캐시 WAV를 열 수 없어 버리고 다시 만든다: songId=$songId", e)
+            MixCache.delete(context, songId)
+            null
+        }
 
     private fun newSourcePlayer(file: File): SourceWavPlayer =
         SourceWavPlayer(file, onEndedCallback = ::onAutoEnded)
@@ -251,8 +272,7 @@ class PlayerController(private val context: Context) {
                 }
                 val cur = currentSong ?: return@withContext
                 if (cur.id == songId && !aiMode) {
-                    val f = MixCache.cacheFile(context, songId)
-                    val player = runCatching { newSourcePlayer(f) }.getOrNull()
+                    val player = openSourceOrDiscardCache(songId)
                     if (player != null) {
                         val resume = pendingResumeSongId == songId
                         attachSource(
@@ -266,6 +286,12 @@ class PlayerController(private val context: Context) {
                         applyLoopToEngines()
                         snapIntoLoopIfNeeded()
                         isPlaying.value = player.isPlaying
+                    } else {
+                        // 준비는 성공했는데 캐시를 열지 못한 경우(위에서 그 캐시를 버렸다).
+                        // 실패를 노출해야 재생 버튼이 실제 재시도 진입점이 된다 — 조용히 지나가면
+                        // 화면에 아무 표시 없이 재생만 안 되는 상태로 남는다
+                        prepareFailedSongId.value = songId
+                        abandonFocus()
                     }
                     clearPendingResume(songId)
                 }

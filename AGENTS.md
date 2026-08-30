@@ -40,11 +40,10 @@ audio/       재생 골격은 AudioTrackEngine(오디오 스레드 루프·A-B·
              점프는 PlaybackSkip(±5/±10초) → PlayerController.skipBy (0~duration 클램프)
              A-B는 PlaybackLoop(최소 0.5초) → 엔진이 B에서 A로 seek. Song.loopStartMs/EndMs 저장, 내보내기 제외
              파형은 WaveformPeaks(MixCache WAV 막대 RMS, 곡 내 최댓값 정규화 — 리미터 음원도 윤곽 보이게) → WaveformBar. 캐시 없으면 슬라이더, MixCache.prepare 승격 뒤 awaitReady로 자동 전환
-             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 1패스 디코딩해 filesDir/mixcache에 보관(중간 raw 없음). 완료는 CacheReadyGate 신호(폴링 아님)
+             MixCache: 원본을 44.1kHz 스테레오 PCM16 WAV로 filesDir/mixcache에 보관. 완료는 CacheReadyGate 신호(폴링 아님)
 io/          FilePromote: .part/.tmp → 정식 경로 승격(rename 실패 시 copy 폴백). MixCache·스템·모델·유튜브 원본이 모두 이걸 지난다
 separation/  MixCache WAV → DemucsSeparator(ONNX) → 스템 WAV 캐시
              AudioDecode는 MixCache 전용(MediaCodec→44.1k 스트림). 분리·내보내기는 MixCache WAV를 읽는다
-             ONNX 세션은 separate() 호출마다 열고 닫는다(캐시하면 ORT 아레나가 수 GB를 계속 물고 있음)
              SepBus는 "마지막 시도 결과"만 담는다(진행/오류). 완료는 Song.isSeparated가 갖고, 성공 시 Idle로 되돌린다
 playback/    PlaybackService(백그라운드 재생 FGS + MediaSession 알림)
              알림은 OS 미디어 카드로 그려진다 — 카드 버튼은 알림 액션이 아니라 PlaybackState의
@@ -57,11 +56,9 @@ youtube/     유튜브 링크로 곡 추가: NewPipeExtractor로 오디오 스�
              → Song(file:// URI) 등록 → 기존 MixCache 파이프라인 그대로 사용
              임포트·모델 다운로드는 appScope(FGS 아님). 화면을 열어 둔 채 받아야 함(앱을 내리면 끊길 수 있음)
 data/        Room(Song v4: stemGainsPacked·muteMask/키/배속/loopStartMs/EndMs), DataStore(설정)
-             stemGainsPacked가 기준(악기별 0~100%). muteMask는 0%만 비트 ON으로 파생 저장 — 다만 재생·내보내기는
-             DB 값을 읽지 않고 매번 Stem.muteMaskFromPacked(packed)로 다시 만든다(muteMask 컬럼은 v3 이전 데이터 마이그레이션용)
-             설정·분리 완료 저장은 컬럼별 UPDATE(updateStemLevels/Semitones/Speed/Loop/Separation). get→update(copy) 금지
+             muteMask 컬럼은 v3 이전 데이터 마이그레이션용 — 재생·내보내기는 이 값을 읽지 않는다(불변식 참조)
 ui/          Compose (라이브러리/플레이어/설정). 파형 시크는 WaveformBar
-tools/       모델 변환 스크립트 (아래 참조)
+tools/       모델 변환 스크립트 (절차는 tools/README.md)
 ```
 
 핵심 불변식:
@@ -85,11 +82,12 @@ tools/       모델 변환 스크립트 (아래 참조)
 - 재생 배속은 AudioTrack.setPlaybackParams(speed, pitch=1)만 사용한다. 오프라인 WSOLA/타임스트레치는 쓰지 않음. 시크·재생 재개 때 배속을 다시 걸 것(일시정지 중 적용이 실패하는 기기 있음)
 - **A-B 랩은 오디오 스레드에서만 한다.** UI 폴링으로 B→A 하면 백그라운드에서 끊긴다. 시크/점프는 `PlaybackLoop.clampSeek`로 구간 안에 가둔다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용할 것(이전 곡 엔진에 먼저 걸면 안 됨)
 - **파형 데이터는 songId 기준 remember.** `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 아직 없으면 `MixCache.awaitReady`로 rename 완료 신호만 기다린다(파일 폴링 금지)
-- **Song 저장은 컬럼별 UPDATE만 쓴다.** 볼륨·키·배속·A-B·분리 완료(`updateSeparation`)를 `get→copy→update`로 쓰면 먼저 쓴 필드가 날아간다
+- **Song 저장은 컬럼별 UPDATE만 쓴다**(`updateStemLevels`/`Semitones`/`Speed`/`Loop`/`Separation`). 볼륨·키·배속·A-B·분리 완료를 `get→copy→update`로 쓰면 먼저 쓴 필드가 날아간다
 - **내보내기는 배속·A-B를 넣지 않는다.** 연습용 배속/구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
 - ModelManager 다운로드는 Range 이어받기를 한다 — 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 - **스템 분리는 MixCache WAV를 입력으로 쓴다.** 캐시가 있으면 원본을 다시 디코딩하지 않는다. 내보내기(AI OFF 믹스)도 같은 캐시 WAV를 읽는다 — 별도 raw 디코딩을 다시 만들지 말 것
 - **MixCache 준비는 1패스다.** `AudioDecode.decodeTo44kStereo`가 청크 싱크로 흘려보내고 `WavWriter`가 `.part`에 바로 쓴다(헤더 크기는 close 때 패치). 중간 raw 파일을 만들면 디스크 쓰기와 피크 사용량이 2배가 된다(4분 곡 80MB vs 40MB). 승격은 반드시 close 뒤 — 그 전에 공개하면 헤더 크기가 0인 WAV가 재생에 쓰인다. 1패스 출력이 옛 2패스와 바이트 동일함은 `MixCacheWavTest`가 고정한다
+- **열 수 없는 캐시 WAV는 즉시 버린다(`PlayerController.openSourceOrDiscardCache`).** `MixCache.prepare`가 `exists()`만 보고 반환하므로, 열기 실패를 "캐시 없음"으로만 흘리면 준비 → 실패 → 준비가 영구히 겉돈다(표시도 실패 알림도 없이 재생 버튼만 무반응). 파일이 있는데 `WavReader`가 거부하면 `MixCache.delete`로 wav·peaks를 함께 지우고 재생성한다 — 파형 캐시 검사는 원본 **크기** 기준인데 재생성 결과가 원본과 바이트 수까지 같을 수 있어(실측 확인) 손상본 기준 막대가 살아남는다. 준비 직후의 열기 실패는 `prepareFailedSongId`로 노출한다
 - **파형 막대는 `mixcache/<songId>.peaks`에 캐시한다.** 결과가 480 float(1.9KB)인데 계산은 WAV 전체 스캔이라 플레이어 재진입마다 훑을 이유가 없다. `WaveformPeaks.fromWavCached`가 막대 수·원본 크기를 함께 저장해 불일치·손상 시 다시 계산한다. 파일명이 `<songId>.peaks`라 `MixCache.delete`와 `cleanUpOrphans`의 `substringBefore('.')` 규칙에 그대로 걸린다
 - **분리 결과는 `stems/<songId>.part`에 쓰고 성공했을 때만 `stems/<songId>`로 승격한다(`FilePromote.directory`).** 정식 디렉터리를 먼저 지우면 취소·실패 시 DB의 분리 완료 표시(stemsDir)만 남아 스템 없는 곡이 된다
 - **임시 산출물 승격은 반드시 `FilePromote`를 쓴다.** MixCache WAV·스템 디렉터리·모델 파일·유튜브 원본이 전부 "완성된 뒤에만 정식 이름으로 공개" 규약을 공유한다. `renameTo`만 쓰면 목적지가 이미 있거나 같은 마운트인데도 false를 돌려주는 기기에서 갈라진다(과거 MixCache만 폴백이 없었다). **복사 폴백이 도중에 실패하면 목적지를 반드시 지운다** — rename은 원자적이지만 복사는 잘린 결과를 남길 수 있고, 이 앱은 파일 존재를 완성 신호로 쓰므로 손상 캐시가 재생에 쓰인다(`FilePromoteTest`는 "실패한 승격은 목적지를 남기지 않는다"는 결과만 고정한다 — 복사가 중간에 끊기는 상황 자체는 유닛테스트로 주입할 수 없다)
@@ -107,21 +105,9 @@ tools/       모델 변환 스크립트 (아래 참조)
 - 온디바이스 모델 파일명은 `model-6s.onnx`
 - 원본 PyTorch 대비 활성 구간 corr=1.0000 확인 완료
 
-## htdemucs_6s ONNX 변환 주의사항 (tools/export_demucs_onnx.py)
+## htdemucs_6s ONNX 변환
 
-사용법: `python export_demucs_onnx.py <출력폴더>` (htdemucs_6s 전용)
-
-그대로는 export 불가 — 아래 우회가 모두 필요:
-1. `torch.stft/istft` complex 반환 → `demucs.htdemucs.spectro/ispectro`를 re/im 쌍 텐서 버전으로 교체
-   - STFT: Conv1D(stride=hop) 투영 ×`win_length^-0.5`, iSTFT: DFT 행렬곱 + gather OLA ×`√win_length` (torch 배율 실험 확인값)
-2. `get_model()` 반환은 BagOfModels 감싸개 → `.models[0]` 사용 + `use_train_segment=False`
-3. `nn.MultiheadAttention`은 융합 연산자 때문에 수동 분해 버전으로 교체
-4. cac=True 경로의 `_magnitude/_mask`는 view_as_real/complex만 대체하면 됨
-5. opset 18 필요(col2im 등), `do_constant_folding=False` 권장
-6. int8 동적 양자화는 활성 범위 큰 입력에서 심각하게 깨짐(corr 0.01대) → 사용하지 말 것. fp16 컨버터(onnxruntime/onnxconverter_common)도 이 그래프에선 dtype 불일치 발생 → **fp32 그대로 사용**
-7. 검증 시 무음 패딩 구간이 corr을 망가뜨리므로 **활성 구간만** 비교할 것
-
-환경: python venv는 임시 폴더라 사라졌을 수 있음. 재구성: `python3 -m venv && pip install torch torchaudio demucs onnx onnxruntime onnxscript onnxconverter-common`
+절차·우회 목록은 `tools/README.md` 참조 (모델을 다시 export할 때만 필요).
 
 ## Git
 

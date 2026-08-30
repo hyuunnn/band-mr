@@ -142,7 +142,7 @@ app/src/main/java/com/bandmr/app/
 └── ui/                        # Compose (라이브러리/플레이어/설정)
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
 
-tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검증 포함)
+tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검증 포함, 절차는 tools/README.md)
 ```
 
 ## 테스트
