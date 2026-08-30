@@ -85,12 +85,10 @@ object MixCache {
                         writer.writeShorts(buf, n)
                     }
                 }
-                // 0프레임이면 헤더만 있는 44바이트 WAV가 된다. 이걸 승격하면 "열리기는 하는데
-                // 길이가 0인" 캐시가 정식 파일로 공개되고, 그 뒤로는 아무도 못 잡는다 —
-                // FilePromote의 크기 검사는 44 > 0이라 통과하고, WavReader도 정상 WAV로
-                // 파싱하므로 openSourceOrDiscardCache가 버리지 못하며, 재생은 play()의
-                // `totalFrames == 0` 가드에 걸려 조용히 no-op이 된다(재생 버튼 영구 무반응).
-                // 여기서 던지면 호출부의 실패 경로(prepareFailedSongId·내보내기 오류)로 나간다.
+                // 0프레임이면 헤더만 있는 44바이트 WAV가 남는다. 그걸 승격하면 "열리는데 길이가
+                // 0인" 캐시가 정식 파일로 공개되고 재생 버튼이 영구 무반응이 된다 — 어떤 기존
+                // 안전장치에도 걸리지 않는다(`MixCacheWavTest`가 그 이유를 실행으로 고정한다).
+                // 여기서 던지면 호출부의 실패 경로로 나간다(prepareFailedSongId·내보내기 오류).
                 check(frames > 0) { "곡에서 소리를 찾지 못했습니다 (빈 오디오)" }
                 FilePromote.file(part, final)
                 // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서

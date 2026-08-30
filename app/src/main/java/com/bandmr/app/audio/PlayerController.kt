@@ -212,13 +212,14 @@ class PlayerController(private val context: Context) {
      * 파형 캐시(.peaks)도 함께 버린다: 유효성 검사가 원본 WAV **크기** 기준이라
      * 다시 만든 WAV가 같은 크기면 손상본으로 계산한 막대가 살아남을 수 있다.
      *
-     * 길이 0도 버리는 이유: 헤더만 있는 44바이트 WAV는 [WavReader]가 정상 파싱해서 예외가 없는데,
-     * `play()`가 `totalFrames == 0`에서 조용히 반환해 재생 버튼이 무반응이 된다. 지금은
-     * [MixCache.prepare]가 승격 자체를 막지만, 그 검사가 없던 버전이 남긴 파일이 기기에 있을 수 있다.
+     * 길이 0도 버린다(**일회성 마이그레이션**): 헤더만 있는 44바이트 WAV는 [WavReader]가 예외 없이
+     * 열어서 위 규칙으로 걸러지지 않는다. 지금은 [MixCache.prepare]가 승격 자체를 막으므로 새로
+     * 생기지 않는다 — 그 검사가 없던 버전이 남긴 파일만 해당하고, 그 경로가 사라지면 지워도 된다.
      */
     private fun openSourceOrDiscardCache(songId: Long): SourceWavPlayer? =
         try {
             newSourcePlayer(MixCache.cacheFile(context, songId)).also {
+                // 마이그레이션 전용 분기 (위 KDoc 참조) — 새로 만든 캐시는 여기 걸리지 않는다
                 if (it.durationFrames <= 0) {
                     it.release()
                     error("캐시 WAV가 비어 있습니다 (0프레임)")
