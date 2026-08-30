@@ -22,6 +22,7 @@
 | 백그라운드 재생 | 화면을 벗어나거나 홈으로 나가도 재생 유지. 알림에서 −10/−5/재생·일시정지/+5/+10초 조작 |
 | 내보내기 | ① 스템 볼륨·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
 | 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
+| 저장공간 관리 | 설정에서 원본 캐시·분리 스템 사용량 확인 후 비우기. 원본 캐시는 재생 시 자동 재생성 |
 | 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
 ![앱 화면 구성 — 라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
@@ -115,10 +116,13 @@ app/src/main/java/com/bandmr/app/
 │   ├── StemWavSet.kt          # 스템 WAV 묶음 열기 (누락 스킵·44.1k 불일치 제외·최장 길이) — 재생·내보내기 공용
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
-├── io/FilePromote.kt          # .part/.tmp → 정식 경로 승격 (rename 실패 시 copy, 실패 시 목적지 정리)
+├── io/
+│   ├── FilePromote.kt         # .part/.tmp → 정식 경로 승격 (rename 실패 시 copy, 실패 시 목적지 정리)
+│   └── CacheStorage.kt        # 캐시 용량 집계·비우기 (쓰는 중인 .part/.tmp는 건너뜀)
 ├── playback/
 │   └── PlaybackService.kt     # 백그라운드 재생 FGS + MediaSession 알림(점프 5버튼·진행바)
 ├── separation/
+│   ├── StemFiles.kt           # 스템 경로의 유일한 정의 (stems/<songId>, <songId>.part)
 │   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 핀)
 │   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
 │   ├── AudioDecode.kt         # MediaCodec → 44.1kHz 스테레오 PCM16 스트림 (MixCache용, 1패스)
@@ -145,7 +149,7 @@ tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검�
 
 DSP·WAV·청크 수학은 전부 순수 JVM이라 단위테스트로 검증합니다 — FFT, WAV 입출력, 바이쿼드,
 피치 시프트, 배속·점프·A-B, 파형, 캐시 준비 신호, STFT, DSP 리셋, 리샘플러, 스템 게인,
-유튜브 링크 파싱, 파일 승격.
+유튜브 링크 파싱, 파일 승격, 캐시 정리.
 
 ## 알아두면 좋은 점
 

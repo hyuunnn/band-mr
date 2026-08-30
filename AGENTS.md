@@ -36,7 +36,9 @@ audio/       AudioTrackEngine  재생 공통 베이스(오디오 스레드 루�
              WaveformPeaks     막대 RMS(곡 내 최댓값 정규화) → WaveformBar
              PlaybackSpeed / PlaybackSkip(±5·±10초) / PlaybackLoop(최소 0.5초)
 io/          FilePromote       .part/.tmp → 정식 경로 승격 (rename 실패 시 copy 폴백)
+             CacheStorage      캐시 용량 집계·비우기(설정 화면). 순수 File 연산
 separation/  MixCache WAV → DemucsSeparator(ONNX) → stems/<songId>/
+             StemFiles는 스템 경로의 유일한 정의(분리·고아 정리·용량 집계·비우기 공용)
              AudioDecode는 MixCache 전용. 분리·내보내기는 MixCache WAV를 읽는다
              SepBus는 "마지막 시도 결과"(진행/오류)만 담고, 완료는 Song.isSeparated가 갖는다
 playback/    PlaybackService   백그라운드 재생 FGS + MediaSession(OS 미디어 카드)
@@ -82,6 +84,8 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **MixCache 준비는 1패스.** `decodeTo44kStereo` → `WavWriter`가 `.part`에 직접(헤더 크기는 close 때 패치). 중간 raw를 만들면 쓰기량·피크가 2배. 승격은 반드시 close 뒤
 - **빈 디코딩 결과는 승격하지 않는다.** `decodeTo44kStereo`가 0프레임을 돌려주면 `prepare`가 던진다 — 헤더만 있는 44바이트 WAV는 `FilePromote`(크기를 보지 않는다)와 `WavReader` 파싱을 **둘 다 통과**해서, 한 번 공개되면 아무도 못 잡고 `play()`가 조용히 no-op이 된다(재생 버튼 영구 무반응). `MixCacheWavTest`가 "기존 안전장치로는 못 막는다"를 고정한다
 - **쓸 수 없는 캐시 WAV는 즉시 버린다(`openSourceOrDiscardCache`).** `prepare`가 `exists()`만 보므로 열기 실패를 "캐시 없음"으로 흘리면 준비→실패→준비가 영구히 겉돈다. `MixCache.delete`로 wav·peaks를 함께 지울 것(파형 캐시 검사는 원본 **크기** 기준이라 재생성본이 같은 크기면 손상본 막대가 살아남는다). 길이 0 분기는 일회성 마이그레이션 — 위 검사가 없던 버전이 남긴 파일만 해당하고 그 경로가 사라지면 지워도 된다
+- **캐시 비우기의 표시·버튼 활성 기준은 `CacheStorage.clearable*`이다(`dirSize` 아님).** 정리는 쓰는 중인 `.part`/`.tmp`를 건너뛰므로, 집계에 그것들을 넣으면 "용량은 남았는데 눌러도 0B"가 된다. 선정 술어는 `clearableFiles`/`clearableSubdirs` 한 곳에만 두어 집계와 삭제가 갈라질 수 없게 한다(실제로 갈라졌던 버그)
+- **"분리 결과 삭제"는 `.part` 디렉터리까지 지운다(`includeInFlight`).** 취소는 세그먼트 경계에서만 판정되므로, 남겨두면 그 사이 완료된 분리가 승격되어 DB는 미분리인데 스템만 살아 있는 고아가 된다(유효 songId라 `cleanUpOrphans`도 못 지운다)
 - **파형 막대는 `mixcache/<songId>.peaks`에 캐시.** 계산은 WAV 전체 스캔인데 결과는 1.9KB다. 막대 수·원본 크기를 함께 저장해 불일치·손상 시 재계산. 표시 전용이라 실패해도 예외를 던지지 않는다(`FilePromote`를 쓰지 않는 유일한 산출물)
 - 파형 데이터는 **songId 기준 remember**. `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 없으면 `MixCache.awaitReady`로 기다린다(파일 폴링 금지)
 
