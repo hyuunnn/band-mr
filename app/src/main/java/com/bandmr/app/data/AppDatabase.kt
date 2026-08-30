@@ -48,6 +48,13 @@ interface SongDao {
 
     @Query("UPDATE songs SET separatedTier = :tier, stemsDir = :dir WHERE id = :id")
     suspend fun updateSeparation(id: Long, tier: String, dir: String)
+
+    /**
+     * 분리 결과를 지운 뒤 되돌린다(스템 캐시 비우기).
+     * [updateSeparation]은 non-null만 받으므로 해제용 쿼리를 따로 둔다 — 컬럼별 UPDATE 규약은 동일하다.
+     */
+    @Query("UPDATE songs SET separatedTier = NULL, stemsDir = NULL WHERE id = :id")
+    suspend fun clearSeparation(id: Long)
 }
 
 @Database(entities = [Song::class], version = 4, exportSchema = false)
