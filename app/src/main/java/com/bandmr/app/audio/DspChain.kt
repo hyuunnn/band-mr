@@ -14,6 +14,15 @@ import com.bandmr.app.data.Stem
  */
 class DspChain(private val sampleRate: Int, private val channels: Int) {
 
+    /**
+     * 제거할 스템 비트마스크. 변경 시 [reset]으로 상태를 비운다.
+     *
+     * **새로 만든 체인에만 설정할 것 — 재생 중인 체인에 대입하지 말 것.** [reset]은 오디오
+     * 스레드 전용인데(아래 KDoc) 이 setter는 어느 스레드에서나 불릴 수 있다. 살아 있는 체인에
+     * UI 스레드가 대입하면 [SpectralStage]의 FIFO 인덱스가 오디오 스레드와 겹쳐 깨진다
+     * (`fifoSize` 음수 → AIOOBE). 그래서 [SourceWavPlayer]는 마스크가 바뀔 때 체인 객체를
+     * 교체한다 — 시크는 제자리 리셋으로 바꿨지만 여기는 의도적으로 교체를 유지한 것이다.
+     */
     @Volatile
     var muteMask: Int = 0
         set(value) {

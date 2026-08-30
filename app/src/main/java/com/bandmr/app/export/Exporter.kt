@@ -93,11 +93,15 @@ class Exporter(private val context: Context) {
         onProgress: (Float) -> Unit,
     ) = withContext(Dispatchers.IO) {
         // 재생(SourceWavPlayer)과 같은 소스를 쓴다 — 캐시가 있으면 원본을 다시 디코딩하지 않는다.
-        // 캐시가 이미 있으면 디코딩 구간이 없으므로 진행률 전체를 렌더에 준다(0 → 0.4 점프 방지)
-        val decodeShare = if (MixCache.cacheFile(context, song.id).exists()) 0f else DECODE_SHARE
+        // 디코딩이 실제로 일어났는지는 콜백으로 관찰한다: 미리 exists()로 판정하면, 다른
+        // 작업(앱 시작의 preCacheMixes)이 같은 곡을 만드는 중일 때 곡 단위 락에서 대기하다
+        // 캐시가 생긴 뒤 진입해 onProgress 없이 반환하고, 렌더가 0.4부터 시작해 0 → 40%로 튄다.
+        var sawDecode = false
         val source = MixCache.prepare(context, song.id, song.uri.toUri()) { p ->
-            onProgress(p * decodeShare)
+            sawDecode = true
+            onProgress(p * DECODE_SHARE)
         }
+        val decodeShare = if (sawDecode) DECODE_SHARE else 0f
 
         val chain = DspChain(PIPELINE_SAMPLE_RATE, 2).also {
             it.muteMask = muteMask
