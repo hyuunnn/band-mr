@@ -86,15 +86,16 @@ class DemucsSeparator {
                     "분리 입력은 ${sr}Hz 스테레오 WAV여야 합니다 (got ${reader.sampleRate}Hz/${reader.channels}ch)"
                 }
                 val totalFrames = reader.totalFrames
-                var pos = 0L
-                while (pos < totalFrames) {
+                var written = 0L
+                for (chunk in chunkPlan(totalFrames, seg)) {
                     // 취소는 오류가 아니므로 CancellationException으로 전파한다
                     // (SeparationService가 Idle 상태로 정리하고 UI에 오류를 띄우지 않음)
                     if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
-                    val want = minOf(seg.toLong(), totalFrames - pos).toInt()
-                    val len = reader.read(pos, readShorts, want)
+                    val len = reader.read(chunk.pos, readShorts, chunk.len)
                     if (len == 0) break
-                    val isLast = pos + len >= totalFrames
+                    // 헤더가 알리는 길이보다 파일이 짧으면(잘린 WAV) 읽힌 만큼만 기록하고 끝낸다
+                    val truncated = len < chunk.len
+                    val isLast = chunk.isLast || truncated
                     interleavedS16ToPlanar(readShorts, len, seg, inPlanar)
 
                     // ---- 추론 ----
@@ -111,11 +112,7 @@ class DemucsSeparator {
 
                     // ---- 오버랩-애드 기록 ----
                     // 출력 텐서 레이아웃은 [stem][channel][seg] 이므로 stride는 len이 아니라 seg.
-                    val writable = when {
-                        !isLast -> hop
-                        chunkIdx > 0 -> maxOf(len, fade) // 이전 구간 캐리 끝까지 플러시
-                        else -> len
-                    }
+                    val writable = if (isLast) len else chunk.writable
                     for ((stem, writer) in writers) {
                         val si = stemIndex.getValue(stem)
                         val baseL = si * 2 * seg
@@ -153,9 +150,10 @@ class DemucsSeparator {
                         writer.writeShorts(shortBuf, writable * 2)
                     }
 
-                    pos += hop
+                    written += writable
                     chunkIdx++
-                    onProgress((pos.toFloat() / totalFrames).coerceIn(0f, 1f), "분리 중… ${chunkIdx}구간")
+                    onProgress((written.toFloat() / totalFrames).coerceIn(0f, 1f), "분리 중… ${chunkIdx}구간")
+                    if (truncated) break
                 }
             }
         } finally {
@@ -167,6 +165,46 @@ class DemucsSeparator {
     internal companion object {
         internal const val FADE_DIVISOR = 4
         private const val INTRA_OP_THREADS = 4
+
+        /** [chunkPlan]의 한 걸음. [pos]에서 [len]프레임을 읽어 [writable]프레임을 기록한다 */
+        internal data class Chunk(
+            val pos: Long,
+            val len: Int,
+            val writable: Int,
+            val isLast: Boolean,
+        )
+
+        /**
+         * 오버랩-애드 루프가 밟을 청크 순서. 루프와 테스트가 **같은 표**를 보게 하려고 분리했다.
+         *
+         * **기록 길이(writable)의 합은 [totalFrames]와 정확히 같아야 한다.** 어긋나면 스템이
+         * 원본보다 길어져 AI ON 재생 길이가 AI OFF와 달라지고(StemWavSet이 가장 긴 스템을
+         * 길이로 쓴다) 내보낸 파일도 함께 늘어난다.
+         *
+         * 예전 구현은 두 곳에서 초과 기록을 했다.
+         *  - 남은 전체를 읽은 청크(`pos + len >= totalFrames`) 뒤에도 `pos += hop`이 아직
+         *    끝보다 앞이면 루프가 한 바퀴 더 돌아 꼬리를 fade만큼 **다시 썼다**. 실기기 실측:
+         *    3분35초 곡(9,486,336프레임)을 균형형으로 분리하면 9,551,872프레임(+1.49초)이
+         *    나오고 마지막 약 1.1초가 중복 재생됐다. 길이·세그먼트 조합에 따라 약 1/3의 곡에서 발생
+         *  - 마지막 청크를 `maxOf(len, fade)`로 기록해 남은 프레임이 fade보다 적으면 곡 끝을
+         *    넘겼다. 그 구간의 캐리는 0 패딩된 입력에서 나온 것이라 버려야 한다
+         *
+         * 그래서 마지막 청크는 읽은 만큼만 기록하고 거기서 멈춘다.
+         */
+        internal fun chunkPlan(totalFrames: Long, seg: Int): List<Chunk> {
+            val fade = seg / FADE_DIVISOR
+            val hop = seg - fade
+            val plan = ArrayList<Chunk>()
+            var pos = 0L
+            while (pos < totalFrames) {
+                val len = minOf(seg.toLong(), totalFrames - pos).toInt()
+                val isLast = pos + len >= totalFrames
+                plan += Chunk(pos, len, if (isLast) len else hop, isLast)
+                if (isLast) break
+                pos += hop
+            }
+            return plan
+        }
 
         /**
          * interleaved stereo s16 → 모델 입력 planar float [L(seg) | R(seg)].
