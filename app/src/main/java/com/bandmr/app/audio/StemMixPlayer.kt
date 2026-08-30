@@ -1,7 +1,10 @@
 package com.bandmr.app.audio
 
+import android.util.Log
 import com.bandmr.app.data.Stem
 import java.io.File
+
+private const val TAG = "StemMixPlayer"
 
 /**
  * AI 분리 완료 후 스템 WAV 6개를 동기 재생하며 스템별 게인(제거)과 피치를 적용하는 커스텀 믹서.
@@ -27,10 +30,14 @@ class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
             field = value.copyOf()
         }
 
+    // 읽기 실패 로그를 스템별 1회로 억제한다. 렌더는 초당 20여 회 돌아서 그냥 찍으면 로그가 쏟아진다
+    private val readFailureLogged = BooleanArray(Stem.entries.size)
+
     /** [dir]의 스템 WAV를 열어 재생을 준비한다 */
     fun load(dir: File) {
         stopEngine()
         closeSources()
+        readFailureLogged.fill(false)
         val set = StemWavSet.open(dir)
         stems = set
         totalFrames = set.totalFrames
@@ -67,7 +74,14 @@ class StemMixPlayer(onEndedCallback: () -> Unit = {}) :
             // 그건 곡이 1개뿐이라 스템 단위로 건너뛸 수가 없어서다)
             val got = try {
                 reader.read(posFrames, stemShort, request)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // 해제 중이면 닫힌 리더를 읽은 정상적인 경우라 조용히 넘긴다.
+                // 그 밖의 실패(스템 파일 손상 등)는 흔적을 남긴다 — 안 남기면 사용자에게는
+                // "악기 하나가 안 들린다"로만 보이고 원인을 추적할 방법이 없다
+                if (!isReleased && !readFailureLogged[ordinal]) {
+                    readFailureLogged[ordinal] = true
+                    Log.w(TAG, "스템 읽기 실패로 무음 처리: ${Stem.entries[ordinal].fileName}.wav", e)
+                }
                 continue
             }
             if (got <= 0) continue

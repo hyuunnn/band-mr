@@ -64,6 +64,9 @@ abstract class AudioTrackEngine(
     @Volatile
     private var released = false
 
+    /** [release]가 시작됐는지. 해제 중에 생기는 정상적인 실패(닫힌 리더 읽기 등)를 구분하는 데 쓴다 */
+    protected val isReleased: Boolean get() = released
+
     @Volatile
     var semitones: Int = 0
         set(value) {
