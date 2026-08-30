@@ -18,8 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,9 +40,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.bandmr.app.Locator
+import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
 import com.bandmr.app.separation.SepBus
@@ -108,7 +108,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                         YouTubeImport.dismiss() // 이전 성공/실패 메시지 잔존 방지
                         showLinkDialog = true
                     },
-                    icon = { Icon(Icons.Default.Link, contentDescription = null) },
+                    icon = { Icon(painterResource(R.drawable.ic_link), contentDescription = null) },
                     text = { Text("링크로 추가") },
                 )
                 ExtendedFloatingActionButton(
@@ -125,7 +125,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(Icons.Default.MusicNote, contentDescription = null)
+                    Icon(painterResource(R.drawable.ic_music_note), contentDescription = null)
                     Text("하단 버튼으로 연습할 곡을 추가하세요", style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
@@ -293,7 +293,7 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
             Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.MusicNote, contentDescription = null)
+            Icon(painterResource(R.drawable.ic_music_note), contentDescription = null)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(

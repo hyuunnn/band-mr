@@ -13,12 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.Forward5
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -45,9 +40,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PlaybackLoop
 import com.bandmr.app.audio.PlaybackSkip
@@ -413,22 +410,23 @@ private fun TransportCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { onSkip(-PlaybackSkip.LARGE_MS) }) {
-                    Icon(Icons.Filled.Replay10, contentDescription = "10초 뒤로")
+                    Icon(painterResource(R.drawable.ic_replay_10), contentDescription = "10초 뒤로")
                 }
                 IconButton(onClick = { onSkip(-PlaybackSkip.SMALL_MS) }) {
-                    Icon(Icons.Filled.Replay5, contentDescription = "5초 뒤로")
+                    Icon(painterResource(R.drawable.ic_replay_5), contentDescription = "5초 뒤로")
                 }
                 FilledIconButton(onClick = { ctrl.playPause() }) {
-                    Icon(
-                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "재생/일시정지",
-                    )
+                    if (isPlaying) {
+                        Icon(painterResource(R.drawable.ic_pause), contentDescription = "일시정지")
+                    } else {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "재생")
+                    }
                 }
                 IconButton(onClick = { onSkip(PlaybackSkip.SMALL_MS) }) {
-                    Icon(Icons.Filled.Forward5, contentDescription = "5초 앞으로")
+                    Icon(painterResource(R.drawable.ic_forward_5), contentDescription = "5초 앞으로")
                 }
                 IconButton(onClick = { onSkip(PlaybackSkip.LARGE_MS) }) {
-                    Icon(Icons.Filled.Forward10, contentDescription = "10초 앞으로")
+                    Icon(painterResource(R.drawable.ic_forward_10), contentDescription = "10초 앞으로")
                 }
             }
             val start = loopStartMs

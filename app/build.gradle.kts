@@ -21,6 +21,14 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        ndk {
+            // ONNX Runtime 네이티브가 ABI당 23~38MB다. 4종을 다 넣으면 APK가 100MB 이상 불어나는데,
+            // armeabi-v7a(32비트)는 분리 추론이 잡는 3GB대 네이티브 힙을 담을 수 없고
+            // x86/x86_64는 에뮬레이터 전용이다. minSdk 31 실기기는 전부 arm64-v8a.
+            // (Apple Silicon 에뮬레이터도 arm64-v8a라 개발에 지장 없음)
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -65,9 +73,11 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.08.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    // material-icons-extended(AAR 34MB)는 쓰지 않는다 — 필요한 아이콘이 12개뿐이고
+    // minifyEnabled=false라 R8이 걷어내지도 못해 전량이 dex에 실린다.
+    // core에 없는 글리프(pause·music_note·link·forward/replay 5·10)는 res/drawable 벡터를 쓴다.
+    implementation("androidx.compose.material:material-icons-core")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.19.0")

@@ -261,7 +261,7 @@ class PlaybackService : Service() {
         session?.sessionToken?.let { style.setMediaSession(it) }
 
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_mr)
+            .setSmallIcon(R.drawable.ic_music_note)
             .setContentTitle(Locator.playerController.nowPlayingTitle.value ?: "밴드 MR")
             .setContentText(if (playing) "연습 재생 중" else "일시정지")
             .setContentIntent(openPi)

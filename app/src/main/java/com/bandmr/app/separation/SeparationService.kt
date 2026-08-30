@@ -166,7 +166,7 @@ class SeparationService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_mr)
+            .setSmallIcon(R.drawable.ic_music_note)
             .setContentTitle("스템 분리 중")
             .setContentText(text)
             .setProgress(100, progressPct, false)

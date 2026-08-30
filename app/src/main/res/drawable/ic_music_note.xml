@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Material Symbols "music_note" (Apache-2.0, Google).
+  앱 아이덴티티 글리프 — 라이브러리 목록과 알림 상태 아이콘이 같이 쓴다.
+  상태 아이콘 규격을 지키려고 흰색 단색으로 두고, Compose 쪽은 Icon의 tint가 덮는다.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

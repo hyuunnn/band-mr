@@ -9,13 +9,19 @@
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # → /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (106개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트 (113개)
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
 - Android SDK: `/opt/homebrew/share/android-commandlinetools` (`ANDROID_HOME` 또는 local.properties의 `sdk.dir`로 지정, local.properties는 커밋 금지). adb/sdkmanager는 `/opt/homebrew/bin`에 있음
 - compileSdk 37 / targetSdk 36, minSdk 31, Gradle 9.5.0, AGP 9.3.2(빌트인 Kotlin — kotlin.android 플러그인 없음), Kotlin 2.4.10, KSP 2.3.11(Kotlin과 독립 버전), ORT Android 1.29.0 (media3/ExoPlayer는 제거됨 — 아래 아키텍처 참조)
 - 실기기(SM-S931N, Android 16)가 adb로 연결되면 실기기 검증 가능. 그 외 런타임 검증은 빌드+JVM 단위테스트
+
+### 패키징 (APK 크기)
+
+- **`abiFilters = arm64-v8a` 단일 ABI 고정.** ONNX Runtime 네이티브가 ABI당 23~38MB라 4종을 넣으면 APK가 100MB 이상 불어난다. armeabi-v7a는 분리 추론의 3GB대 네이티브 힙을 담을 수 없고, x86/x86_64는 에뮬레이터 전용이다(Apple Silicon 에뮬레이터도 arm64-v8a라 개발에 지장 없음)
+- **`material-icons-extended`를 다시 넣지 말 것.** AAR이 34MB인데 쓰는 아이콘은 12개뿐이고 `isMinifyEnabled=false`라 R8이 걷어내지 못해 전량이 dex에 실린다. core에 없는 글리프(pause · music_note · link · forward/replay 5·10)는 `res/drawable` 벡터를 `painterResource`로 쓴다 — 알림(`Notification.Action`·`PlaybackState.CustomAction`)이 쓰는 것과 같은 파일이다
+- 현재 debug APK 약 71MB (arm64 .so 32MB + 미축소 dex 37MB). 더 줄이려면 R8을 켜야 하는데 NewPipeExtractor/rhino keep 규칙이 필요하다
 
 ## 검증 규칙 (중요)
 
