@@ -47,12 +47,16 @@ Apache License 2.0 — Copyright The Android Open Source Project.
 
 Apache License 2.0 — Copyright JetBrains s.r.o. 및 기여자들.
 
-## Material Design Icons (알림 컨트롤 아이콘)
+## Material Design Icons / Material Symbols
 
-`res/drawable/ic_replay_5·ic_replay_10·ic_forward_5·ic_forward_10·ic_play·ic_pause`는
-[google/material-design-icons](https://github.com/google/material-design-icons)의
+다음 벡터 드로어블은 [google/material-design-icons](https://github.com/google/material-design-icons)의
 경로 데이터를 Android 벡터 드로어블로 변환한 것입니다.
 Apache License 2.0 — Copyright Google LLC.
+
+- 알림·플레이어 컨트롤: `ic_replay_5` · `ic_replay_10` · `ic_forward_5` · `ic_forward_10` · `ic_play` · `ic_pause`
+- 그 외 UI: `ic_music_note`(라이브러리 목록·알림 상태 아이콘) · `ic_link`(유튜브 링크로 곡 추가)
+
+`ic_launcher_*`(어답티브 런처 아이콘)는 이 프로젝트에서 직접 제작한 것으로 위 고지 대상이 아닙니다.
 
 ## NewPipeExtractor (유튜브 링크 가져오기)
 
