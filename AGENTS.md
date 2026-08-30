@@ -10,7 +10,7 @@
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)                    # temurin-17. homebrew openjdk@17 경로는 없음
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools    # local.properties가 없으면 필수
 
-./gradlew :app:testDebugUnitTest      # 단위 테스트 (119개)
+./gradlew :app:testDebugUnitTest      # 단위 테스트
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
