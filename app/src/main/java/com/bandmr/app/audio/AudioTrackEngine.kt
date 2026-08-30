@@ -50,6 +50,20 @@ abstract class AudioTrackEngine(
     @Volatile
     private var running = false
 
+    /**
+     * [release] 이후에는 곡 끝 통보를 보내지 않는다.
+     *
+     * [finish]가 `mainHandler`에 올려둔 콜백이 해제 뒤에 도착하는 창이 있다(오디오 스레드가
+     * 마지막 청크를 끝내는 사이 화면이 곡을 바꾸거나 알림으로 종료하는 경우). 콜백에는 어느
+     * 엔진이 보냈는지가 실려 있지 않아서, 그대로 도착하면 이미 교체된 **새 엔진의 재생**을
+     * UI에서 일시정지로 뒤집고 오디오 포커스까지 반납한다.
+     *
+     * [stopEngine]이 아니라 [release]에서만 세운다 — `stopEngine`은 [StemMixPlayer.load]가
+     * 재사용을 위해 부르기도 하므로, 거기서 세우면 이후 정상 종료를 영구히 못 알린다.
+     */
+    @Volatile
+    private var released = false
+
     @Volatile
     var semitones: Int = 0
         set(value) {
@@ -134,6 +148,7 @@ abstract class AudioTrackEngine(
     }
 
     fun release() {
+        released = true
         stopEngine()
         closeSources()
     }
@@ -161,7 +176,8 @@ abstract class AudioTrackEngine(
     protected open fun finish() {
         synchronized(stateLock) { isPlaying = false }
         track?.pause()
-        mainHandler.post { onEndedCallback() }
+        // post 시점이 아니라 실행 시점에 확인한다 — 그 사이에 해제될 수 있다
+        mainHandler.post { if (!released) onEndedCallback() }
     }
 
     // ---------- 내부 ----------
