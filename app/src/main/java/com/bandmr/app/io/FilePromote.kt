@@ -24,7 +24,7 @@ object FilePromote {
 
     /**
      * [part] 파일을 [dest]로 옮긴다. 복사 폴백이 실패하면 [dest]를 지우고 예외를 그대로 던진다.
-     * @throws IllegalStateException 승격 후에도 결과가 비어 있으면
+     * @throws IllegalStateException 성공을 보고했는데 목적지가 없으면
      */
     fun file(part: File, dest: File) {
         dest.parentFile?.mkdirs()
@@ -38,11 +38,10 @@ object FilePromote {
             }
             part.delete()
         }
-        if (!dest.exists() || dest.length() <= 0L) {
-            // 옮겨졌다고 보고했는데 결과가 비어 있으면(기이한 파일시스템) 그 껍데기도 남기지 않는다
-            dest.delete()
-            error("파일 이동 실패: $part → $dest")
-        }
+        // 크기까지 보지는 않는다. 호출부가 이미 빈 결과를 막고 있어서 도달할 수 없다 —
+        // MixCache는 WAV 헤더 44바이트가 최소이고(0프레임은 prepare가 승격 전에 거른다),
+        // 모델은 SHA-256 검증 뒤에만 승격하며, 유튜브 원본은 바로 앞 줄에서 빈 파일을 던진다.
+        if (!dest.exists()) error("파일 이동 실패: $part → $dest")
     }
 
     /**

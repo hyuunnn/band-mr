@@ -36,9 +36,11 @@ class StemWavSet private constructor(
     fun readerAt(ordinal: Int): WavReader? = slots[ordinal]
 
     override fun close() {
-        // 슬롯을 닫는 즉시 비운다. 가시성이 보장되는 건 아니지만(배열 원소 쓰기는 volatile이 아님)
-        // 오디오 스레드가 진행 중인 바퀴에서 닫힌 리더를 잡을 창을 좁힌다.
-        // 확실한 방어는 호출부의 읽기 예외 흡수다 — [readerAt] 주석 참조
+        // 슬롯을 비우는 것은 **안전장치가 아니라 소음 줄이기다.** 비어 있으면 오디오 스레드가
+        // 닫힌 리더를 아예 잡지 않고 건너뛰므로 teardown 중 예외가 줄어든다. 다만 배열 원소
+        // 쓰기는 volatile이 아니라 가시성이 보장되지 않으니 이것만 믿어선 안 된다.
+        // 실제 안전장치는 호출부의 읽기 예외 흡수다([StemMixPlayer.renderChunk]) — 그쪽을
+        // 지우면 오디오 스레드가 죽는다. 여기를 지워도 동작은 유지된다(예외만 늘어난다).
         for (i in slots.indices) {
             runCatching { slots[i]?.close() }
             slots[i] = null

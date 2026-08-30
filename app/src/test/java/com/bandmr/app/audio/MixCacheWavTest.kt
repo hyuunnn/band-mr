@@ -126,7 +126,7 @@ class MixCacheWavTest {
         WavWriter.create(part, SR).use { }
         assertEquals("헤더 44바이트만 남는다", 44L, part.length())
 
-        // ① FilePromote의 빈 파일 검사(length <= 0)로는 못 막는다 — 44 > 0이다
+        // ① FilePromote는 크기를 보지 않는다 — 그대로 정식 파일로 공개된다
         FilePromote.file(part, dest)
         assertTrue("승격을 막지 못한다", dest.exists())
 
