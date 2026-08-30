@@ -204,19 +204,28 @@ class PlayerController(private val context: Context) {
     }
 
     /**
-     * 캐시 WAV로 엔진을 만든다. 파일이 있는데 열리지 않으면(헤더 손상 등) **캐시를 버리고** null.
+     * 캐시 WAV로 엔진을 만든다. 파일이 있는데 쓸 수 없으면(헤더 손상, 길이 0) **캐시를 버리고** null.
      *
      * 열기 실패를 그냥 null로 흘리면 "캐시 없음"과 구분되지 않아 [beginPrepare]로 가는데,
      * [MixCache.prepare]는 `exists()`만 보고 즉시 반환하므로 지우지 않으면 열기 실패가 영구히
      * 반복된다 — 준비도 실패도 표시되지 않고 재생 버튼만 무반응이 되며 로그에도 흔적이 없다.
      * 파형 캐시(.peaks)도 함께 버린다: 유효성 검사가 원본 WAV **크기** 기준이라
      * 다시 만든 WAV가 같은 크기면 손상본으로 계산한 막대가 살아남을 수 있다.
+     *
+     * 길이 0도 버리는 이유: 헤더만 있는 44바이트 WAV는 [WavReader]가 정상 파싱해서 예외가 없는데,
+     * `play()`가 `totalFrames == 0`에서 조용히 반환해 재생 버튼이 무반응이 된다. 지금은
+     * [MixCache.prepare]가 승격 자체를 막지만, 그 검사가 없던 버전이 남긴 파일이 기기에 있을 수 있다.
      */
     private fun openSourceOrDiscardCache(songId: Long): SourceWavPlayer? =
         try {
-            newSourcePlayer(MixCache.cacheFile(context, songId))
+            newSourcePlayer(MixCache.cacheFile(context, songId)).also {
+                if (it.durationFrames <= 0) {
+                    it.release()
+                    error("캐시 WAV가 비어 있습니다 (0프레임)")
+                }
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "캐시 WAV를 열 수 없어 버리고 다시 만든다: songId=$songId", e)
+            Log.w(TAG, "캐시 WAV를 쓸 수 없어 버리고 다시 만든다: songId=$songId", e)
             MixCache.delete(context, songId)
             null
         }

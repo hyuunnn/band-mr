@@ -80,7 +80,8 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 **파일·캐시**
 - **임시 산출물 승격은 반드시 `FilePromote`.** MixCache WAV·스템 디렉터리·모델·유튜브 원본이 "완성 뒤에만 정식 이름으로 공개" 규약을 공유한다. 복사 폴백이 도중에 실패하면 목적지를 지운다 — 이 앱은 파일 존재를 완성 신호로 쓰므로 잘린 결과가 남으면 손상 캐시가 재생에 쓰인다. 분리 결과는 `stems/<songId>.part` → 성공 시에만 승격(정식 디렉터리를 먼저 지우면 실패 시 스템 없는 곡이 된다)
 - **MixCache 준비는 1패스.** `decodeTo44kStereo` → `WavWriter`가 `.part`에 직접(헤더 크기는 close 때 패치). 중간 raw를 만들면 쓰기량·피크가 2배. 승격은 반드시 close 뒤
-- **열 수 없는 캐시 WAV는 즉시 버린다(`openSourceOrDiscardCache`).** `prepare`가 `exists()`만 보므로 열기 실패를 "캐시 없음"으로 흘리면 준비→실패→준비가 영구히 겉돈다. `MixCache.delete`로 wav·peaks를 함께 지울 것(파형 캐시 검사는 원본 **크기** 기준이라 재생성본이 같은 크기면 손상본 막대가 살아남는다)
+- **빈 디코딩 결과는 승격하지 않는다.** `decodeTo44kStereo`가 0프레임을 돌려주면 `prepare`가 던진다 — 헤더만 있는 44바이트 WAV는 `FilePromote`의 크기 검사(44 > 0)와 `WavReader` 파싱을 **둘 다 통과**해서, 한 번 공개되면 아무도 못 잡고 `play()`가 조용히 no-op이 된다(재생 버튼 영구 무반응). `MixCacheWavTest`가 "기존 안전장치로는 못 막는다"를 고정한다
+- **쓸 수 없는 캐시 WAV는 즉시 버린다(`openSourceOrDiscardCache`).** `prepare`가 `exists()`만 보므로 열기 실패를 "캐시 없음"으로 흘리면 준비→실패→준비가 영구히 겉돈다. `MixCache.delete`로 wav·peaks를 함께 지울 것(파형 캐시 검사는 원본 **크기** 기준이라 재생성본이 같은 크기면 손상본 막대가 살아남는다). 길이 0도 같이 버린다 — 위 검사가 없던 버전이 남긴 파일이 기기에 있을 수 있다
 - **파형 막대는 `mixcache/<songId>.peaks`에 캐시.** 계산은 WAV 전체 스캔인데 결과는 1.9KB다. 막대 수·원본 크기를 함께 저장해 불일치·손상 시 재계산. 표시 전용이라 실패해도 예외를 던지지 않는다(`FilePromote`를 쓰지 않는 유일한 산출물)
 - 파형 데이터는 **songId 기준 remember**. `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 없으면 `MixCache.awaitReady`로 기다린다(파일 폴링 금지)
 

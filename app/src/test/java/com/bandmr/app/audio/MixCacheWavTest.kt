@@ -1,10 +1,13 @@
 package com.bandmr.app.audio
 
+import com.bandmr.app.io.FilePromote
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 
 /**
  * MixCache가 만드는 WAV 캐시 검증.
@@ -102,6 +105,33 @@ class MixCacheWavTest {
         bb.short; bb.short; bb.int; bb.int; bb.short; bb.short // fmt 본문
         bb.int // data 아이디
         assertEquals(dataBytes.toInt(), bb.int) // data 크기
+    }
+
+    /**
+     * 디코딩 결과가 0프레임일 때(컨테이너는 멀쩡하지만 오디오가 비었거나 잘린 파일)
+     * 만들어지는 헤더-only WAV는 **기존 안전장치 어디에도 걸리지 않는다.**
+     * 그래서 [com.bandmr.app.audio.MixCache.prepare]가 승격 전에 프레임 수를 직접 확인한다.
+     *
+     * 이 테스트는 그 검사를 지우면 안 되는 이유를 고정한다 — "FilePromote나 WavReader가
+     * 알아서 걸러줄 것"이라는 판단이 틀렸음을 보여준다. 검사가 없으면 길이 0인 캐시가
+     * 정식 파일로 공개되고, 재생은 `play()`의 `totalFrames == 0` 가드에서 조용히 반환해
+     * 재생 버튼이 영구 무반응이 된다(표시·로그·자기치유 전부 없음).
+     */
+    @Test
+    fun `0프레임 WAV는 FilePromote도 WavReader도 걸러내지 못한다`() {
+        val part = File(tmp.root, "empty.wav.part")
+        val dest = File(tmp.root, "empty.wav")
+
+        // 디코더가 아무 샘플도 내놓지 못한 경우 = writeShorts 0회
+        WavWriter.create(part, SR).use { }
+        assertEquals("헤더 44바이트만 남는다", 44L, part.length())
+
+        // ① FilePromote의 빈 파일 검사(length <= 0)로는 못 막는다 — 44 > 0이다
+        FilePromote.file(part, dest)
+        assertTrue("승격을 막지 못한다", dest.exists())
+
+        // ② WavReader도 정상 WAV로 받아들인다 → 열기 실패로 캐시를 버릴 수 없다
+        WavReader(dest).use { assertEquals(0L, it.totalFrames) }
     }
 
     private fun pcm(frames: Int, channels: Int): ShortArray =
