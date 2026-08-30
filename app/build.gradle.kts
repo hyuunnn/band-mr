@@ -74,9 +74,9 @@ dependencies {
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
-    // material-icons-extended(AAR 34MB)는 쓰지 않는다 — 필요한 아이콘이 12개뿐이고
+    // material-icons-extended(AAR 34MB)는 쓰지 않는다 — 필요한 아이콘이 13개뿐이고
     // minifyEnabled=false라 R8이 걷어내지도 못해 전량이 dex에 실린다.
-    // core에 없는 글리프(pause·music_note·link·forward/replay 5·10)는 res/drawable 벡터를 쓴다.
+    // core에 없는 글리프(play·pause·music_note·link·forward/replay 5·10)는 res/drawable 벡터를 쓴다.
     implementation("androidx.compose.material:material-icons-core")
     // ui-tooling / ui-tooling-preview는 넣지 않는다 — @Preview가 하나도 없어서 쓰이지 않는데
     // debug APK에 레이아웃 인스펙터용 코드가 실린다. @Preview를 쓰기 시작하면 되살릴 것.

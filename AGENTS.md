@@ -57,7 +57,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 
 **패키징**
 - **`abiFilters = arm64-v8a` 단일 ABI.** ONNX 네이티브가 ABI당 23~38MB. armeabi-v7a는 분리의 3GB대 네이티브 힙을 못 담고, x86은 에뮬레이터 전용(Apple Silicon 에뮬레이터도 arm64)
-- **`material-icons-extended`를 다시 넣지 말 것.** AAR 34MB인데 쓰는 아이콘은 12개, `isMinifyEnabled=false`라 R8이 못 걷어낸다. core에 없는 글리프는 `res/drawable` 벡터를 `painterResource`로 — 알림이 쓰는 것과 같은 파일이다
+- **`material-icons-extended`를 다시 넣지 말 것.** AAR 34MB인데 쓰는 아이콘은 13개, `isMinifyEnabled=false`라 R8이 못 걷어낸다. core에 없는 글리프는 `res/drawable` 벡터를 `painterResource`로 — 알림이 쓰는 것과 같은 파일이다
 - 현재 debug APK 약 71MB. 더 줄이려면 R8을 켜야 하고 NewPipeExtractor/rhino keep 규칙이 필요하다
 
 **재생**
