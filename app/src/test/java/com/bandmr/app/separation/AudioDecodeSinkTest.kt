@@ -90,6 +90,23 @@ class AudioDecodeSinkTest {
         }
     }
 
+    @Test
+    fun `4채널 입력은 좌우 항 수가 같으므로 균형이 유지된다`() {
+        assertDownmixBalance(channels = 4)
+    }
+
+    @Test
+    fun `6채널 입력은 좌우 항 수가 같으므로 균형이 유지된다`() {
+        assertDownmixBalance(channels = 6)
+    }
+
+    @Test
+    fun `3채널 입력의 좌우 균형은 항 수 정규화 그대로다`() {
+        // 3ch는 좌 2항/우 1항이라 항 수가 어긋난다 — 정규화가 항 수 기준임을 고정한다
+        // (균일 나눗셈이면 우측이 2배가 된다)
+        assertDownmixBalance(channels = 3)
+    }
+
     // ---------- 헬퍼 ----------
 
     private fun assertSplitInvariant(inRate: Int) {
@@ -102,6 +119,32 @@ class AudioDecodeSinkTest {
         assertTrue(a.isNotEmpty())
         assertArrayEquals("inRate=$inRate: 청크 2048 vs 512", a, b)
         assertArrayEquals("inRate=$inRate: 청크 2048 vs 8192", a, c)
+    }
+
+    /**
+     * 다채널 다운믹스 좌우 균형. 짝수 인덱스 채널은 [EVEN], 홀수는 [ODD]로 채워 넣고
+     * 레이트 1:1로 돌려 리샘플 개입을 없앤다 — 그러면 출력 L은 [EVEN], R은 [ODD]가
+     * 그대로 나와야 한다(항 수 기준 정규화). 나눗수가 항 수에서 어긋나면 짝수 채널에서
+     * R이 [ODD] 대비 4/3배(+2.5dB) 커지고 좌우 불균형은 5/3배(+4.4dB)가 되어
+     * 이 테스트가 걸린다.
+     * flush가 마지막 프레임을 0쪽으로 보간하지만 1:1 레이트에서는 frac=0으로 정확히
+     * 떨어지므로 끝까지 같은 기대값이 성립한다.
+     */
+    private fun assertDownmixBalance(channels: Int) {
+        val frames = 1000
+        val data = ShortArray(frames * channels) { i ->
+            if ((i % channels) % 2 == 0) EVEN else ODD
+        }
+        val out = runSession(listOf(data), channels, PIPELINE_SAMPLE_RATE, garbageTail = 0)
+
+        assertEquals("입력 프레임 수가 그대로 나와야 한다", frames * 2, out.size)
+        // clampShort는 ×32767로 되살리므로 ×32768로 정규화된 값은 32767/32768만큼 줄어든다
+        val expectedL = EVEN * (32767f / 32768f)
+        val expectedR = ODD * (32767f / 32768f)
+        for (i in 0 until frames) {
+            assertEquals("L i=$i", expectedL, out[i * 2].toFloat(), 2f)
+            assertEquals("R i=$i", expectedR, out[i * 2 + 1].toFloat(), 2f)
+        }
     }
 
     /**
@@ -159,5 +202,9 @@ class AudioDecodeSinkTest {
     private companion object {
         /** 재사용 버퍼에 남은 이전 청크를 흉내는 표식(무음이 아니어야 새는 걸 잡는다) */
         const val GARBAGE: Short = 0x5A5A
+
+        /** 다운믹스 균형 테스트용 채널 값(짝수 인덱스=좌 합산, 홀수=우 합산) */
+        const val EVEN: Short = 12000
+        const val ODD: Short = 6000
     }
 }

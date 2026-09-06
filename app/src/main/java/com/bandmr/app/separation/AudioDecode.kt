@@ -194,8 +194,14 @@ object AudioDecode {
                     val v = data[i * channels + c] / 32768f
                     if (c % 2 == 0) sumL += v else sumR += v
                 }
-                val half = (channels + 1) / 2f
-                l[i] = sumL / half; r[i] = sumR / (channels - half)
+                // 좌/우에 실제로 합산된 항 수로 나눈다. (channels+1)/2f처럼 실수 나눗셈을 쓰면
+                // 짝수 채널에서 나눗수가 항 수와 0.5씩 어긋나(4ch: L÷2.5 vs R÷1.5) 좌우
+                // 불균형이 +4.4dB 벌어지고(우측은 정상 대비 +2.5dB) clampShort 포화로
+                // 왜곡까지 일으킨다. Int 나눗셈이라 항 수가 어긋난 홀수 채널(3ch: L 2항/R 1항)은
+                // 기존과 비트 단위로 같다.
+                val leftCount = (channels + 1) / 2
+                val rightCount = channels / 2
+                l[i] = sumL / leftCount; r[i] = sumR / rightCount
             }
         }
         return resampler.process(l, r, framesIn) { lo, ro ->
