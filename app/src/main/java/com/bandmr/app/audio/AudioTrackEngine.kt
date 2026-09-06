@@ -263,10 +263,16 @@ abstract class AudioTrackEngine(
             // 진행 중 시크가 끼어들었으면(framePos 변경) 스테일 값으로 덮어쓰지 않는다
             synchronized(stateLock) {
                 if (framePos == pos) framePos += produced
-            }
-            if (track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                track?.play()
-                applySpeed()
+                // 이 바퀴 도중 pause()가 끼었으면(위 write가 flush로 풀린 것일 수 있다) 트랙을
+                // 다시 켜지 않는다. 판정·재시작을 pause()의 track.pause()와 같은 락 안에서
+                // 직렬화하지 않으면 그 사이에 pause가 끼어 isPlaying=false인데 트랙만
+                // PLAYING으로 남고, flush로 비워진 큐에 쓴 청크 하나가 pause 뒤에 새어 들린다.
+                // 정상 경로(첫 시작·재개)는 play()/seekToFrame이 먼저 isPlaying=true를 세우므로
+                // 가드에 걸리지 않는다
+                if (isPlaying && track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                    track?.play()
+                    applySpeed()
+                }
             }
         }
         track?.release()
