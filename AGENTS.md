@@ -75,7 +75,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 
 **DSP**
 - **시크는 재할당이 아니라 제자리 리셋.** `seekToFrame`이 `processorsDirty`만 세우고 오디오 스레드가 렌더 직전에 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드 reset이면 FIFO 인덱스가 음수가 되어 죽고, 소비가 `framePos`·곡끝 판정보다 뒤면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask 변경만 객체 교체(`chain`은 `@Volatile`)
-- **`SpectralStage.reset()`은 magHist까지 비운다.** `histPos/histFill`은 인스턴스 단위인데 증가는 채널마다 일어나 안 쓴 슬롯을 읽는다. `DspChainResetTest`가 "리셋 출력 == 새 체인 출력"을 고정
+- **`SpectralStage.reset()`은 magHist와 vocalMagHist를 비운다.** 드럼 histPos/histFill은 인스턴스 단위인데 증가는 채널마다 일어나 안 쓴 슬롯을 읽는다. 보컬 타악 보호는 이 hist를 쓰지 않고 프레임당 1회 mid 히스토리를 쓴다 — 채널 hist를 쓰면 보컬이 타악으로 오인되어 안 깎인다. `DspChainResetTest`가 "리셋 출력 == 새 체인 출력"을 고정
 - `PitchShifter`는 0반음일 때 패스스루(지연 제거) — 비율 분기 건드릴 때 주의
 - 오디오는 interleaved stereo PCM16 기본. 모노는 DspChain/SpectralStage에서 `chCount=1` 분기
 - WAV I/O는 little-endian. FOURCC('RIFF' 등)도 LE int로 읽는다(`WavIo.kt` 상수)

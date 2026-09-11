@@ -44,7 +44,7 @@
 ```
 AI OFF (WAV 캐시, 절전)
   원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ SourceWavPlayer(DspChain)
-                                      ├ 보컬 제거: STFT 패닝 인덱스 중앙 마스킹 (저역 중앙 성분 보존)
+                                      ├ 보컬 제거: STFT 패닝 인덱스 중앙 마스킹 (포먼트 가중, 타악·서브 보존)
                                       ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
                                       ├ 드럼 제거: STFT HPSS 타악 억제 (근사)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
@@ -102,7 +102,7 @@ app/src/main/java/com/bandmr/app/
 ├── audio/
 │   ├── AudioTrackEngine.kt    # 두 재생 엔진 공통 골격 (스레드 루프·A-B·시크·배속·AudioTrack)
 │   ├── DspChain.kt            # STFT 스펙트럼 단계 + 바이쿼드 체인 (실시간·오프라인 공용)
-│   ├── SpectralStage.kt       # 드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
+│   ├── SpectralStage.kt       # 보컬=포먼트 중앙 마스킹 / 드럼=HPSS / 베이스=f0 노칭
 │   ├── Fft.kt                 # radix-2 FFT (사전 계산 트위들 테이블)
 │   ├── Biquad.kt              # RBJ cookbook 바이쿼드 (스펙트럼 단계·리샘플러 사용)
 │   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 1패스 생성(filesDir/mixcache). 완료는 awaitReady 신호
@@ -155,6 +155,8 @@ DSP·WAV·청크 수학은 전부 순수 JVM이라 단위테스트로 검증합�
 
 **음질** — 비AI 모드는 신호처리 근사입니다
 
+- 보컬 제거는 가운데 포먼트(200–4kHz)를 깎고, 스네어 같은 타악과 80Hz 미만 서브는 살립니다.
+  더블링·패닝된 보컬은 남습니다. 목소리 몸통이 있을 때만 80–200Hz 가슴 저역도 감쇠합니다.
 - 기타 제거는 중역대를 깎는 방식이라 같은 대역의 다른 악기도 함께 옅어집니다(정확한 분리는 AI 모드).
 - 드럼 제거는 STFT HPSS 근사로, 트랜지언트 일부가 같이 약해집니다.
 - 키를 바꾸면 음색이 미세하게 훑는 플랜저 성분이 얹힙니다(곡 속도는 바뀌지 않습니다). 반음이

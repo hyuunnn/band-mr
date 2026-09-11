@@ -2,7 +2,7 @@ package com.bandmr.app.audio
 
 /**
  * STFT 기반 스펙트럼 처리 스테이지.
- *  - 보컬 제거: 패닝 인덱스 기반 중앙 성분 마스킹 (Avendano 2003 계열)
+ *  - 보컬 제거: 패닝 인덱스 중앙 마스킹 (Avendano 2003) + 포먼트 가중 + 타악/서브 보존
  *  - 드럼 제거: 주파수축 중간값 필터링(HPSS)으로 타악 성분 억제
  *  - 베이스 제거: f0 검출 후 배음 콤 노칭
  *
@@ -50,12 +50,22 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
     private val chIm = Array(2) { FloatArray(n) }
     private val mags = FloatArray(bins)
     private val medV = FloatArray(bins)
+    // 보컬용 HPSS: 프레임당 1회, mid 스펙트럼. 드럼 magHist는 채널마다 칸을 건너뛰어
+    // 시간 중간값이 0으로 끌리므로 보컬 보호에 쓰면 안 된다.
+    private val vocalMagHist = Array(MEDIAN_TIME) { FloatArray(bins) }
+    private val vocalMags = FloatArray(bins)
+    private val vocalPerc = FloatArray(bins)
+    private val vocalMedV = FloatArray(bins)
+    private var vocalHistPos = 0
+    private var vocalHistFill = 0
     private val ilace = FloatArray(hop * chCount)
     private val scratch = FloatArray(MEDIAN_FREQ)
 
-    /** 이 빈 미만의 저역은 보컬 마스킹에서 보존 (킥/베이스 중앙 성분) */
-    private val vocalKeepBins =
-        kotlin.math.ceil(VOCAL_KEEP_HZ * n / sampleRate.toDouble()).toInt().coerceAtLeast(1)
+    /** 포먼트 대역(보컬 존재 판정·최대 감쇠). 빈 주파수는 process 때 j * sr / n */
+    private val formantLoBin =
+        kotlin.math.ceil(FORMANT_LO_HZ * n / sampleRate.toDouble()).toInt().coerceAtLeast(1)
+    private val formantHiBin =
+        kotlin.math.floor(FORMANT_HI_HZ * n / sampleRate.toDouble()).toInt().coerceAtMost(n / 2)
 
     /**
      * 보컬 제거 강도 0..1. 감쇠 시작 유사도와 최대 감쇠 깊이를 함께 조절한다.
@@ -125,6 +135,10 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         histFill = 0
         histPos = 0
         magHist.forEach { ch -> ch.forEach { it.fill(0f) } }
+        vocalMagHist.forEach { it.fill(0f) }
+        vocalPerc.fill(0f)
+        vocalHistPos = 0
+        vocalHistFill = 0
         olaTail.forEach { it.fill(0f) }
         fifoHead = 0; fifoSize = 0
         lpState = 0f
@@ -150,9 +164,15 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
                 im[i] = 0f
             }
             fft.run(re, im, inverse = false)
+        }
 
+        // 드럼 억제 전에 mid 타악 비율을 잡는다. 드럼 hist를 쓰면 보컬이 타악으로 오인된다.
+        if (muteVocal && chCount == 2) updateVocalPerc()
+
+        for (ch in 0 until chCount) {
+            val re = chRe[ch]
+            val im = chIm[ch]
             if (muteDrums) applyPercussiveSuppression(ch, re, im)
-
             if (muteBass && bassF0 > 0f) applyBassNotch(bassF0, re, im)
         }
 
@@ -190,7 +210,13 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
      * 1에 가까울수록(=진폭·위상이 같은 중앙 패닝) 강하게 감쇠한다.
      * 시간영역 L-R 상쇄 대비: 스테레오 이미지가 보존되고, 위상이 어긋난
      * 사이드 성분(리버브·스테레오 악기)은 sim이 낮아 건드리지 않는다.
-     * 저역(vocalKeepBins 미만)은 킥/베이스 중앙 성분 보존을 위해 통과.
+     *
+     * 전대역을 같은 깊이로 깎지 않는다.
+     *  - 200–4kHz(포먼트): 기존과 같은 최대 감쇠
+     *  - 타악 비율이 높은 빈(가운데 스네어): 보컬로 보지 않음
+     *  - 80Hz 미만 서브: 항상 보존
+     *  - 80–200Hz: 포먼트에 화성 중앙 성분이 있을 때만 가슴 저역으로 보고 감쇠
+     *  - 4kHz 이상: 심벌·에어 보존을 위해 감쇠를 줄임
      */
     private fun applyCenterSuppression() {
         val s = vocalStrength.coerceIn(0f, 1f)
@@ -201,20 +227,115 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         val reL = chRe[0]; val imL = chIm[0]
         val reR = chRe[1]; val imR = chIm[1]
         val half = n / 2
-        for (j in vocalKeepBins..half) {
+        val voicePresent = detectVoicePresence(simThr)
+        val binHz = sampleRate.toFloat() / n
+
+        for (j in 1..half) {
             val crossRe = reL[j] * reR[j] + imL[j] * imR[j]
             val pwr = reL[j] * reL[j] + imL[j] * imL[j] + reR[j] * reR[j] + imR[j] * imR[j]
             val sim = 2f * crossRe / (pwr + 1e-12f)
             if (sim <= simThr) continue
             val t = (sim - simThr) / (1f - simThr)
-            val keep = 1f - maxSuppress * t * t // 소프트 램프 (뮤지컬 노이즈 완화)
+            val w = vocalBandWeight(j * binHz, voicePresent)
+            val vocalFrac = t * t * w * percProtect(vocalPerc[j])
+            if (vocalFrac < 1e-6f) continue
+            val keep = 1f - maxSuppress * vocalFrac
             reL[j] *= keep; imL[j] *= keep
             reR[j] *= keep; imR[j] *= keep
-            if (j in 1 until half) {
+            if (j < half) {
                 reL[n - j] *= keep; imL[n - j] *= keep
                 reR[n - j] *= keep; imR[n - j] *= keep
             }
         }
+    }
+
+    /**
+     * 전체 에너지 대비 포먼트의 (중앙이면서 화성적) 에너지.
+     * 분모를 포먼트만으로 두면 저역 순음의 스펙트럼 누설이 목소리로 오인된다.
+     * 가운데 스네어는 타악이라 num이 거의 0이다.
+     */
+    private fun detectVoicePresence(simThr: Float): Boolean {
+        val reL = chRe[0]; val imL = chIm[0]
+        val reR = chRe[1]; val imR = chIm[1]
+        val half = n / 2
+        var num = 0f
+        var den = 0f
+        for (j in 1..half) {
+            val pwr = reL[j] * reL[j] + imL[j] * imL[j] + reR[j] * reR[j] + imR[j] * imR[j]
+            if (pwr < 1e-12f) continue
+            den += pwr
+            if (j !in formantLoBin..formantHiBin) continue
+            val crossRe = reL[j] * reR[j] + imL[j] * imR[j]
+            val sim = 2f * crossRe / (pwr + 1e-12f)
+            val simRamp = ((sim - simThr) / (1f - simThr)).coerceAtLeast(0f)
+            num += pwr * simRamp * percProtect(vocalPerc[j])
+        }
+        return den > 1e-6f && num / den > VOICE_PRESENT_THR
+    }
+
+    /** 대역별 보컬 감쇠 가중. 0=안 깎음, 1=강도 슬라이더의 최대 깊이. */
+    private fun vocalBandWeight(hz: Float, voicePresent: Boolean): Float {
+        if (hz < SUB_KEEP_HZ) return 0f
+        if (hz < FORMANT_LO_HZ) {
+            if (!voicePresent) return 0f
+            val t = (hz - SUB_KEEP_HZ) / (FORMANT_LO_HZ - SUB_KEEP_HZ)
+            return CHEST_WEIGHT_LO + (1f - CHEST_WEIGHT_LO) * t
+        }
+        if (hz <= FORMANT_HI_HZ) return 1f
+        if (hz <= AIR_HZ) {
+            val t = (hz - FORMANT_HI_HZ) / (AIR_HZ - FORMANT_HI_HZ)
+            return 1f - t * (1f - AIR_EDGE_WEIGHT)
+        }
+        return AIR_WEIGHT
+    }
+
+    /**
+     * 확실한 타악만 보컬 감쇠에서 빼 준다. 중간 값은 보컬을 깎는다.
+     * 드럼 hist의 부풀려진 perc를 곱하면 포먼트까지 통과한다.
+     */
+    private fun percProtect(perc: Float): Float {
+        if (perc <= PERC_PROTECT_LO) return 1f
+        if (perc >= PERC_PROTECT_HI) return 0f
+        val t = (perc - PERC_PROTECT_LO) / (PERC_PROTECT_HI - PERC_PROTECT_LO)
+        return 1f - t * t
+    }
+
+    /** mid 스펙트럼으로 프레임당 한 번 타악 비율을 갱신한다. */
+    private fun updateVocalPerc() {
+        val half = n / 2
+        for (j in 0..half) {
+            val l = kotlin.math.hypot(chRe[0][j].toDouble(), chIm[0][j].toDouble()).toFloat()
+            val r = kotlin.math.hypot(chRe[1][j].toDouble(), chIm[1][j].toDouble()).toFloat()
+            vocalMags[j] = 0.5f * (l + r)
+        }
+        medianFreq(vocalMags, vocalMedV, scratch)
+        System.arraycopy(vocalMags, 0, vocalMagHist[vocalHistPos], 0, bins)
+        vocalHistPos = (vocalHistPos + 1) % histDepth
+        if (vocalHistFill < histDepth) vocalHistFill++
+
+        val cnt = vocalHistFill
+        for (j in 0..half) {
+            val h = medianVocalHist(j, cnt)
+            val p = vocalMedV[j]
+            vocalPerc[j] = (p * p) / (h * h + p * p + 1e-9f)
+        }
+    }
+
+    private fun medianVocalHist(bin: Int, cnt: Int): Float {
+        if (cnt == 1) {
+            val idx = if (vocalHistPos == 0) histDepth - 1 else vocalHistPos - 1
+            return vocalMagHist[idx][bin]
+        }
+        for (t in 0 until cnt) histScratch[t] = vocalMagHist[t][bin]
+        for (a in 1 until cnt) {
+            val v = histScratch[a]
+            var b = a - 1
+            while (b >= 0 && histScratch[b] > v) {
+                histScratch[b + 1] = histScratch[b]; b--
+            }
+            histScratch[b + 1] = v
+        }
+        return histScratch[cnt / 2]
     }
 
     /** 주파수축 중간값(타악 추정) 대비 시간축 중간값(화성 추정) 소프트 마스크로 타악 억제 */
@@ -223,9 +344,7 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         for (j in 0..half) {
             mags[j] = kotlin.math.hypot(re[j].toDouble(), im[j].toDouble()).toFloat()
         }
-        // 수직(주파수축) 중간값 → 타악 추정
         medianFreq(mags, medV, scratch)
-        // 히스토리 저장 후 수평(시간축) 중간값 → 화성 추정
         val cur = magHist[ch][histPos]
         System.arraycopy(mags, 0, cur, 0, bins)
         histPos = (histPos + 1) % histDepth
@@ -234,10 +353,8 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         for (j in 0..half) {
             val h = medianOverHist(ch, j)
             val p = medV[j]
-            val denom = h * h + p * p + 1e-9f
-            val percRatio = (p * p) / denom
-            val suppress = percRatio * percRatio // 소프트 마스크 제곱
-            val keep = 1f - suppress.coerceIn(0f, 1f)
+            val perc = (p * p) / (h * h + p * p + 1e-9f)
+            val keep = 1f - (perc * perc).coerceIn(0f, 1f)
             re[j] *= keep
             im[j] *= keep
             if (j in 1 until half) {
@@ -351,8 +468,22 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         private const val CONFIDENCE_THR = 0.30f
         private const val NOTCH_GAIN = 0.85f
 
-        /** 보컬 마스킹에서 보존할 저역 상한 */
-        private const val VOCAL_KEEP_HZ = 150f
+        /** 이 주파수 미만은 보컬 마스크가 절대 안 건드린다 (서브/킥) */
+        private const val SUB_KEEP_HZ = 80f
+        /** 포먼트(최대 감쇠) 하한. 여기까지는 가슴 저역으로 보고 게이트한다 */
+        private const val FORMANT_LO_HZ = 200f
+        private const val FORMANT_HI_HZ = 4000f
+        /** 이 주파수 이상부터는 심벌·에어로 보고 감쇠를 줄인다 */
+        private const val AIR_HZ = 8000f
+        private const val AIR_EDGE_WEIGHT = 0.45f
+        private const val AIR_WEIGHT = 0.30f
+        /** 목소리 존재 시 80Hz에서의 가슴 저역 감쇠 비율 (200Hz에서 1.0으로 상승) */
+        private const val CHEST_WEIGHT_LO = 0.60f
+        /** 포먼트 대역에서 중앙+화성 에너지 비율이 이 값 넘으면 가슴 저역을 깎는다 */
+        private const val VOICE_PRESENT_THR = 0.22f
+        /** 이 타악 비율 이하는 보컬로 보고 깎는다. 이상만 스네어 보호 */
+        private const val PERC_PROTECT_LO = 0.62f
+        private const val PERC_PROTECT_HI = 0.90f
         /** 감쇠 램프 시작 유사도: 강도 0(부드럽게) ~ 1(강하게) */
         private const val CENTER_THR_SOFT = 0.8f
         private const val CENTER_THR_HARD = 0.45f

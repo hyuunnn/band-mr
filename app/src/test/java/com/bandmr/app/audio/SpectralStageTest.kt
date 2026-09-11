@@ -131,6 +131,67 @@ class SpectralStageTest {
         return outE / inE
     }
 
+    /** 보컬 마스킹 후 [hz] 성분 에너지 / 입력 [hz] 성분 에너지 */
+    private fun vocalComponentRatio(
+        frames: Int,
+        left: (Int) -> Float,
+        right: (Int) -> Float,
+        hz: Double,
+        strength: Float = 1f,
+    ): Double {
+        val st = SpectralStage(44100)
+        st.vocalStrength = strength
+        val input = FloatArray(frames * 2)
+        for (f in 0 until frames) {
+            input[f * 2] = left(f)
+            input[f * 2 + 1] = right(f)
+        }
+        st.feed(input, 0, input.size, muteDrums = false, muteBass = false, muteVocal = true)
+        val out = FloatArray(input.size)
+        var got = 0
+        while (true) {
+            val g = st.read(out, got, out.size - got)
+            if (g <= 0) break
+            got += g
+        }
+        val start = SpectralStage.BLOCK * 4
+        val end = minOf(got, input.size) - SpectralStage.BLOCK * 4
+        val inC = goertzelMid(input, start, end, hz)
+        val outC = goertzelMid(out, start, end, hz)
+        return outC / inC
+    }
+
+    private fun goertzelMid(stereo: FloatArray, start: Int, end: Int, hz: Double): Double {
+        var re = 0.0
+        var im = 0.0
+        val w = 2.0 * Math.PI * hz / 44100.0
+        var i = start
+        var f = 0
+        while (i + 1 < end) {
+            val mid = 0.5 * (stereo[i] + stereo[i + 1])
+            re += mid * kotlin.math.cos(w * f)
+            im += mid * kotlin.math.sin(w * f)
+            i += 2
+            f++
+        }
+        return re * re + im * im
+    }
+
+    /**
+     * 2026-09 이전 보컬 마스크(150Hz 이상 전대역 동일 감쇠).
+     * 새 구현이 포먼트는 유지하고 고역·타악은 더 남기는지 비교하는 기준값.
+     */
+    private fun legacyVocalKeep(sim: Float, hz: Float, strength: Float): Double {
+        if (hz < 150f) return 1.0
+        val s = strength.coerceIn(0f, 1f)
+        val simThr = 0.8f + (0.45f - 0.8f) * s
+        val depthDb = 12.0 + (40.0 - 12.0) * s
+        val maxSuppress = 1.0 - Math.pow(10.0, -depthDb / 20.0)
+        if (sim <= simThr) return 1.0
+        val t = ((sim - simThr) / (1f - simThr)).toDouble()
+        return 1.0 - maxSuppress * t * t
+    }
+
     private fun sine(hz: Double, amp: Float): (Int) -> Float =
         { f -> (kotlin.math.sin(2.0 * Math.PI * hz * f / 44100.0) * amp).toFloat() }
 
@@ -167,9 +228,68 @@ class SpectralStageTest {
 
     @Test
     fun `보컬 마스킹 - 저역 중앙 성분은 보존`() {
-        val kick = sine(80.0, 0.5f) // 150Hz 미만 → 보존 대상
+        val kick = sine(80.0, 0.5f) // 포먼트 없는 서브 → 보존
         val ratio = vocalEnergyRatio(32768, kick, kick)
         assertTrue("low-freq center energy ratio=$ratio", ratio > 0.7)
+    }
+
+    @Test
+    fun `보컬 마스킹 - 고역 중앙은 포먼트보다 덜 깎는다`() {
+        val formant = vocalEnergyRatio(32768, sine(1000.0, 0.5f), sine(1000.0, 0.5f))
+        val air = vocalEnergyRatio(32768, sine(10_000.0, 0.5f), sine(10_000.0, 0.5f))
+        assertTrue("formant=$formant air=$air", air > formant * 10)
+        assertTrue("air=$air", air > 0.25)
+    }
+
+    @Test
+    fun `보컬 마스킹 - 가운데 타악은 포먼트 순음보다 많이 남긴다`() {
+        val formant = vocalEnergyRatio(32768, sine(1000.0, 0.5f), sine(1000.0, 0.5f))
+        val click: (Int) -> Float = { f ->
+            if (f % 2800 < 6) (if ((f / 3) % 2 == 0) 0.7f else -0.55f) else 0f
+        }
+        val perc = vocalEnergyRatio(32768, click, click)
+        assertTrue("formant=$formant perc=$perc", perc > formant * 8)
+        assertTrue("perc=$perc", perc > 0.15)
+    }
+
+    @Test
+    fun `보컬 마스킹 - 포먼트가 있으면 가슴 저역도 감쇠`() {
+        val voice: (Int) -> Float = { f ->
+            sine(120.0, 0.45f)(f) + sine(360.0, 0.28f)(f) + sine(600.0, 0.22f)(f)
+        }
+        val chest = vocalComponentRatio(32768, voice, voice, 120.0)
+        assertTrue("chest residual=$chest", chest < 0.50)
+    }
+
+    @Test
+    fun `보컬 마스킹 - 배음이 많은 중앙 파형도 감쇠`() {
+        // 실제 보컬처럼 배음이 촘촘하면, 잘못된 타악 판정이 마스크를 꺼 버린다
+        val saw: (Int) -> Float = { f ->
+            var x = 0.0
+            for (k in 1..10) {
+                x += kotlin.math.sin(2.0 * Math.PI * 220.0 * k * f / 44100.0) / k
+            }
+            (x * 0.25).toFloat()
+        }
+        val ratio = vocalEnergyRatio(32768, saw, saw)
+        assertTrue("saw energy ratio=$ratio", ratio < 0.08)
+    }
+
+    @Test
+    fun `보컬 마스킹 - 레거시보다 고역·타악은 남기고 포먼트는 같이 지운다`() {
+        // 옛 구현은 150Hz 이상을 같은 깊이로 깎았다. 1kHz 중앙 순음의 잔여(<0.02)가
+        // 그 기준이고, 10kHz·타악이 그보다 훨씬 남으면 반주 보존이 좋아진 것이다.
+        val formant = vocalEnergyRatio(32768, sine(1000.0, 0.5f), sine(1000.0, 0.5f))
+        val air = vocalEnergyRatio(32768, sine(10_000.0, 0.5f), sine(10_000.0, 0.5f))
+        val click: (Int) -> Float = { f ->
+            if (f % 2800 < 6) (if ((f / 3) % 2 == 0) 0.7f else -0.55f) else 0f
+        }
+        val perc = vocalEnergyRatio(32768, click, click)
+        val legacyAirEnergy = legacyVocalKeep(sim = 1f, hz = 10_000f, strength = 1f).let { it * it }
+
+        assertTrue("formant=$formant (레거시와 같이 깊게)", formant < 0.02)
+        assertTrue("air=$air legacyEnergy=$legacyAirEnergy", air > legacyAirEnergy * 20)
+        assertTrue("perc=$perc", perc > 0.15)
     }
 
     @Test

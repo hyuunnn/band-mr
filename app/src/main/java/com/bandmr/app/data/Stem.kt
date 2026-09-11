@@ -10,7 +10,7 @@ enum class Stem(
     val dspHint: String,
     val aiOnly: Boolean = false,
 ) {
-    VOCAL("vocals", "보컬", "중앙 성분 마스킹 (저역 보존)"),
+    VOCAL("vocals", "보컬", "중앙 마스킹 (타악·저역 보존)"),
     DRUMS("drums", "드럼", "HPSS 타악 억제"),
     BASS("bass", "베이스", "f0 배음 노칭 + 하이패스"),
     GUITAR("guitar", "기타", "중역대 손실 (실험적)"),
