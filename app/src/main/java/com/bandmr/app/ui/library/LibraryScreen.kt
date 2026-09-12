@@ -52,6 +52,7 @@ import com.bandmr.app.data.Song
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
+import com.bandmr.app.separation.Tier
 import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
 import kotlinx.coroutines.CancellationException
@@ -311,7 +312,7 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(
                     text = formatDuration(song.durationMs) +
-                        if (song.separatedTier != null) " · AI 분리됨" else "",
+                        if (song.separatedTier != null) " · AI ${Tier.fromId(song.separatedTier).layout.label}" else "",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""htdemucs_6s -> 복소수 없는 ONNX(fp32) 변환 + 검증.
+"""htdemucs / htdemucs_6s -> 복소수 없는 ONNX(fp32) 변환 + 검증.
 
-사용법: python export_demucs_onnx.py <출력폴더>
+사용법: python export_demucs_onnx.py <출력폴더> <htdemucs|htdemucs_6s>
+4스템: drums/bass/other/vocals.
 6스템: drums/bass/other/vocals/guitar/piano.
 
 torch.stft/istft는 complex dtype을 반환해 ONNX export가 불가능하다.
 demucs.spec의 spectro/ispectro를 실수(re/im 쌍) 연산으로 재구현해 교체한다.
-htdemucs_6s는 cac=True가 기본이라 complex 사용이 view뿐이므로 이 치환만으로
+두 모델 모두 cac=True가 기본이라 complex 사용이 view뿐이므로 이 치환만으로
 원본과 수치 동등한 동적 그래프가 만들어진다.
 
 - STFT: reflect 패딩 후 Conv1D(stride=hop)로 창+DFT 투영 동시 수행
@@ -27,16 +28,17 @@ import numpy as np
 import torch as th
 import torch.nn.functional as F
 
-USAGE = "사용법: python export_demucs_onnx.py <출력폴더>"
-if len(sys.argv) < 2:
+USAGE = "사용법: python export_demucs_onnx.py <출력폴더> <htdemucs|htdemucs_6s>"
+MODELS = {
+    "htdemucs": ("htdemucs4s", 4),
+    "htdemucs_6s": ("htdemucs6s", 6),
+}
+if len(sys.argv) != 3 or sys.argv[2] not in MODELS:
     print(USAGE, file=sys.stderr)
     sys.exit(2)
-if len(sys.argv) > 2 and sys.argv[2] != "htdemucs_6s":
-    print(f"{USAGE}\n이 스크립트는 htdemucs_6s만 변환합니다.", file=sys.stderr)
-    sys.exit(2)
 OUT_DIR = sys.argv[1]
-MODEL_NAME = "htdemucs_6s"
-MODEL_TAG = "htdemucs6s"
+MODEL_NAME = sys.argv[2]
+MODEL_TAG, EXPECTED_SRC = MODELS[MODEL_NAME]
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -154,7 +156,7 @@ wrapper = get_model(MODEL_NAME).cpu().eval()
 model = wrapper.models[0] if hasattr(wrapper, "models") else wrapper
 model.use_train_segment = False
 N_SRC = len(model.sources)
-assert N_SRC == 6, f"htdemucs_6s가 아님: sources={list(model.sources)}"
+assert N_SRC == EXPECTED_SRC, f"{MODEL_NAME}이 아님: sources={list(model.sources)}"
 log(f"모델={MODEL_NAME}, 스템 순서={list(model.sources)} (총 {N_SRC}개)")
 
 # nn.MultiheadAttention은 ONNX export 시 융합 연산자(aten::_native_multi_head_attention)가
@@ -211,7 +213,7 @@ with th.no_grad():
 log(f"원본(complex) 경로 기준 출력: {tuple(Y_REF.shape)}")
 
 # ---------------------------------------------------------------- 패치 적용
-import demucs.htdemucs as hd  # noqa: E402  # HTDemucs 구현 모듈. 가중치는 htdemucs_6s
+import demucs.htdemucs as hd  # noqa: E402  # HTDemucs 구현 모듈. 가중치는 MODEL_NAME
 
 hd.spectro = spectro_pair
 hd.ispectro = ispectro_pair
@@ -263,15 +265,15 @@ with th.no_grad():
 rel = ((Y_REF - Y_NEW).norm() / Y_REF.norm()).item()
 mx = (Y_REF - Y_NEW).abs().max().item()
 log(f"패치 수치 검증: rel_err={rel:.2e}, max_abs_diff={mx:.2e}")
-# htdemucs_6s=~1e-4 수준 — fp32 연산 순서 차이의 정상 범위
+# 두 모델 모두 ~1e-4 수준 — fp32 연산 순서 차이의 정상 범위
 assert rel < 1e-3, "패치된 경로가 원본과 다름"
 del Y_REF, Y_NEW
 
 # ---------------------------------------------------------------- export
 # Kotlin 쪽(DemucsSeparator)은 항상 고정 길이 세그먼트로 추론하므로
 # 등급별 고정 길이로 각각 export한다 (동적 축 불필요 → 그래프 단순·안전).
+# 경량(131072)은 쓰지 않는다 — 균형형/품질만.
 TIERS = [
-    (f"{MODEL_TAG}-light-fp32.onnx", 131072, "fp32"),
     (f"{MODEL_TAG}-balanced-fp32.onnx", 262144, "fp32"),
     (f"{MODEL_TAG}-quality-fp32.onnx", 344064, "fp32"),
 ]
@@ -354,7 +356,7 @@ for fname, seg, kind in TIERS:
     assert rms_err < 0.1, f"{fname} 오차 큼"
 
 # 서로 다른 스템이 실제로 다른 값인지 (분리가 동작하는지 스모크)
-sess = ort.InferenceSession(PRODUCED[1], providers=["CPUExecutionProvider"])
+sess = ort.InferenceSession(PRODUCED[0], providers=["CPUExecutionProvider"])
 y = sess.run(None, {"audio": pad_to(make_input(5), 262144)})[0]
 stems = y[0].reshape(N_SRC, -1)
 c01 = np.corrcoef(stems[0], stems[1])[0, 1]

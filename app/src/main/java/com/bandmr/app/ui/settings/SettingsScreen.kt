@@ -36,6 +36,7 @@ import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemFiles
+import com.bandmr.app.separation.StemLayout
 import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,7 +45,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun SettingsScreen() {
     val scope = rememberCoroutineScope()
-    val currentTier by Locator.settings.modelTier.collectAsState(initial = Tier.BALANCED.id)
+    val currentTier by Locator.settings.modelTier.collectAsState(initial = Tier.S6_BALANCED.id)
     val modelStates by Locator.modelManager.states.collectAsState()
     var busyTier by remember { mutableStateOf<String?>(null) }
 
@@ -62,62 +63,31 @@ fun SettingsScreen() {
             style = MaterialTheme.typography.bodySmall,
         )
 
-        Tier.entries.forEach { tier ->
-            val state = modelStates[tier]
-            Card(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(
-                        selected = currentTier == tier.id,
-                        onClick = {
-                            if (Locator.modelManager.isDownloaded(tier) || state is ModelState.Ready) {
-                                scope.launch { Locator.settings.setModelTier(tier.id) }
-                            }
-                        },
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text("${tier.label} (약 ${tier.approxSizeMb}MB)", style = MaterialTheme.typography.titleSmall)
-                        Text(tier.description, style = MaterialTheme.typography.bodySmall)
-                        when (state) {
-                            is ModelState.Downloading -> {
-                                LinearProgressIndicator(
-                                    progress = { state.progress },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                )
-                            }
-                            is ModelState.Failed -> Text(
-                                "다운로드 실패: ${state.message}",
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                            ModelState.Ready -> Text(
-                                "다운로드됨",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                            else -> {}
+        StemLayout.entries.forEach { layout ->
+            Text(layout.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+            Text(layout.description, style = MaterialTheme.typography.bodySmall)
+            Tier.entries.filter { it.layout == layout }.forEach { tier ->
+                ModelTierCard(
+                    tier = tier,
+                    state = modelStates[tier],
+                    selected = currentTier == tier.id,
+                    busy = busyTier != null,
+                    onSelect = {
+                        if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
+                            scope.launch { Locator.settings.setModelTier(tier.id) }
                         }
-                    }
-                    when {
-                        state is ModelState.Downloading -> {}
-                        state is ModelState.Ready -> OutlinedButton(onClick = {
-                            Locator.modelManager.delete(tier)
-                        }) { Text("삭제") }
-                        else -> Button(
-                            enabled = busyTier == null,
-                            onClick = {
-                                busyTier = tier.id
-                                // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
-                                Locator.appScope.launch {
-                                    runCatching { Locator.modelManager.download(tier) }
-                                    busyTier = null
-                                }
-                            },
-                        ) { Text(if (state is ModelState.Failed) "재시도" else "받기") }
-                    }
-                }
+                    },
+                    onDownload = {
+                        busyTier = tier.id
+                        // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
+                        Locator.appScope.launch {
+                            runCatching { Locator.modelManager.download(tier) }
+                                .onSuccess { Locator.settings.setModelTier(tier.id) }
+                            busyTier = null
+                        }
+                    },
+                    onDelete = { Locator.modelManager.delete(tier) },
+                )
             }
         }
 
@@ -133,11 +103,62 @@ fun SettingsScreen() {
     }
 }
 
+@Composable
+private fun ModelTierCard(
+    tier: Tier,
+    state: ModelState?,
+    selected: Boolean,
+    busy: Boolean,
+    onSelect: () -> Unit,
+    onDownload: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = selected, onClick = onSelect)
+            Column(Modifier.weight(1f)) {
+                Text("${tier.quality.label} (약 ${tier.approxSizeMb}MB)", style = MaterialTheme.typography.titleSmall)
+                Text(tier.description, style = MaterialTheme.typography.bodySmall)
+                when (state) {
+                    is ModelState.Downloading -> {
+                        LinearProgressIndicator(
+                            progress = { state.progress },
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        )
+                    }
+                    is ModelState.Failed -> Text(
+                        "다운로드 실패: ${state.message}",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    ModelState.Ready -> Text(
+                        "다운로드됨",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    else -> {}
+                }
+            }
+            when {
+                state is ModelState.Downloading -> {}
+                state is ModelState.Ready -> OutlinedButton(onClick = onDelete) { Text("삭제") }
+                else -> Button(
+                    enabled = !busy,
+                    onClick = onDownload,
+                ) { Text(if (state is ModelState.Failed) "재시도" else "받기") }
+            }
+        }
+    }
+}
+
 /**
  * 저장공간 사용량과 비우기.
  *
  * 파이프라인이 44.1kHz 스테레오 PCM16 고정이라 4분 곡 하나가 원본 캐시 약 40MB,
- * 스템 6개 약 242MB를 쓴다. 곡을 지우지 않으면 아무도 정리하지 않으므로
+ * 스템 4~6개 약 161~242MB를 쓴다. 곡을 지우지 않으면 아무도 정리하지 않으므로
  * (`cleanUpOrphans`는 DB에서 사라진 곡만 본다) 사용자가 직접 비울 수단이 필요하다.
  */
 @Composable
@@ -164,7 +185,7 @@ private fun StorageSection() {
     Text("저장공간", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
     Text(
         "원본 캐시와 분리된 스템은 무압축 WAV(44.1kHz 스테레오)로 저장됩니다. " +
-            "4분 곡 기준 원본 약 40MB, 스템 6개 약 242MB입니다.",
+            "4분 곡 기준 원본 약 40MB, 스템 4개 약 161MB · 6개 약 242MB입니다.",
         style = MaterialTheme.typography.bodySmall,
     )
 

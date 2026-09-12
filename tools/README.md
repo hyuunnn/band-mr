@@ -1,9 +1,14 @@
-# htdemucs_6s → ONNX 변환
+# htdemucs / htdemucs_6s → ONNX 변환
 
-앱이 쓰는 온디바이스 모델(`model-6s.onnx`)을 만드는 절차. 모델을 다시 export할 때만 필요하고,
+앱이 쓰는 온디바이스 모델(`model-4s.onnx` / `model-6s.onnx`)을 만드는 절차. 모델을 다시 export할 때만 필요하고,
 앱 코드를 고치는 작업과는 무관하다 — 그래서 AGENTS.md에서 이 파일로 분리했다.
 
-사용법: `python export_demucs_onnx.py <출력폴더>` (htdemucs_6s 전용)
+사용법:
+
+```bash
+python export_demucs_onnx.py <출력폴더> htdemucs      # 4스템
+python export_demucs_onnx.py <출력폴더> htdemucs_6s   # 6스템
+```
 
 ## 그대로는 export 불가 — 아래 우회가 모두 필요
 
@@ -27,8 +32,8 @@ python3 -m venv && pip install torch torchaudio demucs onnx onnxruntime onnxscri
 
 ## export 후 할 일
 
-- 세그먼트 3종(light 131072 / balanced 262144 / quality 344064)을 fp32로 뽑는다 — 약 178MB씩
-- GitHub Releases에 올리고 **`ModelCatalog.kt`의 SHA-256 핀 3개를 갱신**한다 (안 하면 다운로드가 무결성 실패로 전부 삭제된다)
+- 세그먼트 2종(balanced 262144 / quality 344064)을 fp32로 뽑는다 — 약 178MB씩. 경량은 쓰지 않는다
+- 4스템은 GitHub Releases `model-v3`, 6스템은 `model-v2`에 올리고 **`ModelCatalog.kt`의 SHA-256 핀을 갱신**한다 (안 하면 다운로드가 무결성 실패로 전부 삭제된다)
 - 원본 PyTorch와 활성 구간 corr을 비교해 1.0000을 확인한다
 
 앱이 기대하는 스템 순서·파일명 등은 AGENTS.md의 "AI 모델" 절이 기준이다.

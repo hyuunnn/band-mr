@@ -3,7 +3,7 @@
 밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타 / 피아노(키보드) / 그 외**를 악기별로 줄이거나 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
 
 > 스템 분리에는 [Demucs](https://github.com/facebookresearch/demucs) (MIT, Meta Platforms)의
-> htdemucs_6s 가중치를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
+> htdemucs(4스템)·htdemucs_6s(6스템) 가중치를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
 
 📊 **그림으로 보는 소개 페이지**: [docs/index.html](docs/index.html)
 
@@ -11,7 +11,7 @@
 
 | 기능 | 설명 |
 |---|---|
-| 스템별 볼륨 | AI ON(분리 후): 보컬·드럼·베이스·기타·피아노·그 외를 0~100%로 조절 (0%=제거). AI OFF: 체크 제거(피아노·그 외는 AI 전용) |
+| 스템별 볼륨 | AI ON(분리 후): 4스템(보컬·드럼·베이스·그 외) 또는 6스템(+기타·피아노)을 0~100%로 조절 (0%=제거). AI OFF: 체크 제거(피아노·그 외는 AI 전용) |
 | AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
 | 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
 | 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
@@ -21,7 +21,7 @@
 | A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
 | 백그라운드 재생 | 화면을 벗어나거나 홈으로 나가도 재생 유지. 알림에서 −10/−5/재생·일시정지/+5/+10초 조작 |
 | 내보내기 | ① 스템 볼륨·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
-| 모델 3종 | 경량/균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
+| 모델 4종 | 4스템·6스템 × 균형/품질 (세그먼트 길이 차이, 각 약 178MB) 선택 다운로드 |
 | 저장공간 관리 | 설정에서 원본 캐시·분리 스템 사용량 확인 후 비우기. 원본 캐시는 재생 시 자동 재생성 |
 | 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
@@ -50,7 +50,7 @@ AI OFF (WAV 캐시, 절전)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(6스템, 고정 세그먼트)
+  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(4 또는 6스템, 고정 세그먼트)
              ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치/배속
 ```
 
@@ -60,7 +60,7 @@ AI ON (사전 분리 후 캐시, 고품질)
 
 - **AI OFF**: 즉시 반응하고 배터리를 거의 쓰지 않지만, 신호처리 특성상 완전히 분리되진 않습니다(특히 기타).
 - **AI ON**: 곡당 한 번만 처리하면 캐시로 재사용되며, 스템별 볼륨(0~100%)으로 정확히 조절됩니다.
-  - 경량: 몇십 초 ~ 1분 내외 / 품질: 수분 소요, 발열 있음
+  - 균형형: 수분 내외 / 품질: 더 길고 발열 있음
 
 ## 빌드
 
@@ -76,22 +76,27 @@ minSdk 31 (Android 12+) / targetSdk 36
 
 ## 🤖 AI 모델
 
-AI를 ON하면 설정에서 모델 3종 중 하나를 선택해 다운로드할 수 있습니다.
-모델은 이 저장소의 [Releases](https://github.com/hyuunnn/band-mr/releases/tag/model-v2)에
+AI를 ON하면 설정에서 4스템/6스템과 균형형/품질을 골라 다운로드할 수 있습니다.
+6스템은 [model-v2](https://github.com/hyuunnn/band-mr/releases/tag/model-v2),
+4스템은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에
 호스팅되어 있으며, 다운로드 시 SHA-256 무결성이 검증됩니다.
+
+| 구성 | 스템 | 모델 |
+|---|---|---|
+| 4스템 | 보컬·드럼·베이스·그 외 | htdemucs |
+| 6스템 | + 기타·피아노 | htdemucs_6s |
 
 | 등급 | 세그먼트 | 특징 |
 |---|---|---|
-| 경량 우선 | 131,072 샘플 (약 3초) | 빠름, 저메모리, 저발열 |
 | 균형형 (권장) | 262,144 샘플 (약 6초) | 속도·품질 균형 |
 | 품질 우선 | 344,064 샘플 (약 7.8초) | 최고 품질 — RAM 4GB 이상 권장 |
 
 ### 모델 재변환
 
-htdemucs_6s는 `torch.stft`의 complex 출력 때문에 그대로는 ONNX export가 되지 않아, 여러 우회가
+htdemucs는 `torch.stft`의 complex 출력 때문에 그대로는 ONNX export가 되지 않아, 여러 우회가
 필요합니다. 절차와 우회 목록은 [`tools/README.md`](tools/README.md)에 있고 변환은
 [`tools/export_demucs_onnx.py`](tools/export_demucs_onnx.py)가 검증까지 자동으로 합니다.
-모델을 다시 올릴 때는 `ModelCatalog.kt`의 SHA-256 핀 3개를 반드시 갱신해야 합니다.
+모델을 다시 올릴 때는 `ModelCatalog.kt`의 SHA-256 핀을 반드시 갱신해야 합니다.
 
 ## 프로젝트 구조
 
@@ -112,7 +117,7 @@ app/src/main/java/com/bandmr/app/
 │   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
 │   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
 │   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 (막대 RMS 정규화, <songId>.peaks로 캐시)
-│   ├── StemMixPlayer.kt       # 스템 6개 동기 재생 믹서 (AudioTrack)
+│   ├── StemMixPlayer.kt       # 스템 동기 재생 믹서 (AudioTrack)
 │   ├── StemWavSet.kt          # 스템 WAV 묶음 열기 (누락 스킵·44.1k 불일치 제외·최장 길이) — 재생·내보내기 공용
 │   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
 │   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
@@ -123,7 +128,7 @@ app/src/main/java/com/bandmr/app/
 │   └── PlaybackService.kt     # 백그라운드 재생 FGS + MediaSession 알림(점프 5버튼·진행바)
 ├── separation/
 │   ├── StemFiles.kt           # 스템 경로의 유일한 정의 (stems/<songId>, <songId>.part)
-│   ├── ModelCatalog.kt        # 모델 3종 정의 (URL·SHA-256 핀)
+│   ├── ModelCatalog.kt        # 모델 4종 정의 (4/6스템 × 균형/품질, URL·SHA-256 핀)
 │   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
 │   ├── AudioDecode.kt         # MediaCodec → 44.1kHz 스테레오 PCM16 스트림 (MixCache용, 1패스)
 │   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
@@ -138,7 +143,7 @@ app/src/main/java/com/bandmr/app/
 └── ui/                        # Compose (라이브러리/플레이어/설정)
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
 
-tools/export_demucs_onnx.py    # htdemucs_6s → ONNX 변환 스크립트 (검증 포함, 절차는 tools/README.md)
+tools/export_demucs_onnx.py    # htdemucs / htdemucs_6s → ONNX 변환 스크립트 (검증 포함, 절차는 tools/README.md)
 ```
 
 ## 테스트

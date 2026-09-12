@@ -67,6 +67,13 @@ class StemGainsTest {
     }
 
     @Test
+    fun `4스템 other 라벨은 기타와 피아노를 포함한다`() {
+        assertEquals("그 외 반주 (신스 등)", Stem.labelFor(Stem.OTHER, fourStem = false))
+        assertEquals("그 외 (기타·피아노·신스 등)", Stem.labelFor(Stem.OTHER, fourStem = true))
+        assertEquals(Stem.VOCAL.label, Stem.labelFor(Stem.VOCAL, fourStem = true))
+    }
+
+    @Test
     fun `저장 경로는 패킹에서 뮤트 마스크를 파생한다`() {
         // SongDao.updateStemLevels(id, packed, mask) 호출부가 지켜야 할 규약:
         // mask는 별도 상태가 아니라 반드시 Stem.muteMaskFromPacked(packed)로 파생한다

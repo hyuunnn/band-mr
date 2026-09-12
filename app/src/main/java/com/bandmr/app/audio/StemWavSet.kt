@@ -48,7 +48,7 @@ class StemWavSet private constructor(
     }
 
     companion object {
-        /** `<dir>/<stem.fileName>.wav` 6개를 연다 */
+        /** `<dir>/<stem.fileName>.wav`를 연다. 4스템이면 guitar/piano 파일이 없어 건너뛴다 */
         fun open(dir: File): StemWavSet {
             val slots = arrayOfNulls<WavReader>(Stem.entries.size)
             var total = 0L

@@ -23,17 +23,19 @@ sealed interface ModelState {
 /** 다운받은 파일 자체가 손상된 경우(부분 파일을 남기면 안 됨) */
 private class IntegrityException(message: String) : IOException(message)
 
-/** 3종(경량/균형/품질) 모델의 다운로드·삭제·상태 관리 */
+/** 4종(4/6스템 × 균형/품질) 모델의 다운로드·삭제·상태 관리 */
 class ModelManager(private val context: Context) {
 
     private val _states = MutableStateFlow<Map<Tier, ModelState>>(emptyMap())
     val states: StateFlow<Map<Tier, ModelState>> = _states
 
     init {
+        // 경량 티어는 카탈로그에서 빠졌다. 받아 둔 파일은 고아로 남지 않게 지운다
+        File(context.filesDir, "models/light").deleteRecursively()
         _states.value = Tier.entries.associateWith { if (modelFile(it).exists()) ModelState.Ready else ModelState.NotDownloaded }
     }
 
-    fun modelFile(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), MODEL_FILE)
+    fun modelFile(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), tier.fileName)
 
     fun isDownloaded(tier: Tier): Boolean = modelFile(tier).exists()
 
@@ -41,7 +43,7 @@ class ModelManager(private val context: Context) {
         if (isDownloaded(tier)) return
         withContext(Dispatchers.IO) {
             setState(tier, ModelState.Downloading(0f))
-            val tmp = File(context.cacheDir, "model_${tier.id}-6s.tmp")
+            val tmp = File(context.cacheDir, "model_${tier.id}.tmp")
             try {
                 // 이어받기 준비: 기존 부분 파일의 프리픽스 해시 선계산
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -151,7 +153,6 @@ class ModelManager(private val context: Context) {
     }
 
     companion object {
-        private const val MODEL_FILE = "model-6s.onnx"
         private const val DEFAULT_BUF = 128 * 1024
 
         private fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }

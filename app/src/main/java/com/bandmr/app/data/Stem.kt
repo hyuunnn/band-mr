@@ -1,7 +1,8 @@
 package com.bandmr.app.data
 
 /**
- * 분리/제거 대상 스템. AI 모델(htdemucs_6s) 출력 파일명과 대응된다.
+ * 분리/제거 대상 스템. AI 모델 출력 파일명과 대응된다.
+ * 4스템은 vocals/drums/bass/other, 6스템은 guitar/piano가 더 있다.
  * [aiOnly]=true인 스템은 AI OFF 실시간 DSP로는 근사조차 어려워 AI 분리 전용.
  */
 enum class Stem(
@@ -30,6 +31,10 @@ enum class Stem(
         const val DEFAULT_PACKED = 0x646464646464L
 
         fun fromFileName(name: String): Stem? = entries.firstOrNull { it.fileName == name }
+
+        /** 4스템의 other는 기타·피아노를 포함한다 */
+        fun labelFor(stem: Stem, fourStem: Boolean): String =
+            if (fourStem && stem == OTHER) "그 외 (기타·피아노·신스 등)" else stem.label
 
         fun packPercents(percents: IntArray): Long {
             var packed = 0L

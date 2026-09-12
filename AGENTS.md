@@ -105,9 +105,9 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 
 ## AI 모델 (GitHub Releases 호스팅)
 
-- htdemucs_6s 6스템 — `ModelConfig.stemOrder`가 `drums/bass/other/vocals/guitar/piano` 순서와 일치해야 한다
-- 3종 모두 fp32, 세그먼트만 다름: light 131072 / balanced 262144 / quality 344064 (약 178MB씩). 온디바이스 파일명은 `model-6s.onnx`
-- `github.com/hyuunnn/band-mr/releases/download/model-v2/*.onnx` (public이라 익명 다운로드)
-- `ModelCatalog.kt`에 SHA-256 핀 — **모델을 다시 올리면 해시 3개 반드시 갱신**
+- 4스템은 `htdemucs`(drums/bass/other/vocals), 6스템은 `htdemucs_6s`(+guitar/piano). `ModelConfig.stemOrder`가 해당 `Tier.stemOrder`와 일치해야 한다
+- 품질은 균형형 262144 / 품질 344064 두 개만 (경량 131072 없음). 온디스크는 6스템 `models/{balanced,quality}/model-6s.onnx`, 4스템 `models/4s-*/model-4s.onnx`
+- 6스템 URL은 `model-v2`, 4스템은 `model-v3`. `ModelCatalog.kt` SHA-256 핀 — **모델을 다시 올리면 해당 해시 반드시 갱신**
+- 예전 id `light`/`balanced`/`quality`는 `Tier.fromId`가 6스템으로 읽는다 (`balanced`/`quality` id는 6스템 그대로)
 - 가중치는 Meta demucs(MIT) 파생, NewPipeExtractor는 GPL-3.0 → `THIRD_PARTY_NOTICES.md` 고지 유지
 - 재export 절차·우회 목록은 `tools/README.md`

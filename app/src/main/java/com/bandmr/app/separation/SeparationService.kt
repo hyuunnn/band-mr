@@ -110,7 +110,7 @@ class SeparationService : Service() {
 
                 partDir.deleteRecursively()
                 val stems = DemucsSeparator().separate(
-                    modelFile, ModelConfig(), wav, partDir,
+                    modelFile, ModelConfig(stemOrder = tier.stemOrder), wav, partDir,
                     segmentSamples = tier.segmentSamples,
                     onProgress = { p, stage ->
                         // 취소된 뒤에는 상태를 되살리지 않는다. isCancelled는 세그먼트 경계에서만

@@ -57,6 +57,8 @@ import com.bandmr.app.playback.PlaybackService
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
+import com.bandmr.app.separation.StemLayout
+import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -70,6 +72,7 @@ fun PlayerScreen(songId: Long) {
     val ctrl = remember { Locator.playerController }
 
     val aiOn by Locator.settings.aiEnabled.collectAsState(initial = false)
+    val selectedTierId by Locator.settings.modelTier.collectAsState(initial = Tier.S6_BALANCED.id)
     val sepState by SepBus.state.collectAsState()
 
     var stemGainsPacked by remember { mutableLongStateOf(Stem.DEFAULT_PACKED) }
@@ -158,6 +161,10 @@ fun PlayerScreen(songId: Long) {
 
     val s = song ?: return
     val separated = s.isSeparated
+    val selectedTier = Tier.fromId(selectedTierId)
+    val separatedTier = if (separated) Tier.fromId(s.separatedTier) else null
+    val mixerStems = separatedTier?.stems ?: Stem.entries
+    val fourStemMixer = separatedTier?.layout == StemLayout.FOUR
     val runningSep = sepState as? SepState.Running
     val running = runningSep?.songId == songId
     val otherRunning = runningSep != null && runningSep.songId != songId
@@ -261,6 +268,9 @@ fun PlayerScreen(songId: Long) {
         ModeCard(
             aiOn = aiOn,
             separated = separated,
+            separatedLabel = separatedTier?.label,
+            selectedLabel = selectedTier.label,
+            canReseparate = separated && selectedTier.id != s.separatedTier,
             running = running,
             otherRunning = otherRunning,
             stage = sepProgress?.stage,
@@ -268,6 +278,7 @@ fun PlayerScreen(songId: Long) {
             error = (sepState as? SepState.Error)?.takeIf { it.songId == songId }?.message,
             onToggleAi = { enabled -> scope.launch { Locator.settings.setAiEnabled(enabled) } },
             onStartSeparation = {
+                if (separated) Locator.playerController.release()
                 if (Build.VERSION.SDK_INT >= 33) {
                     notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 } else {
@@ -279,6 +290,8 @@ fun PlayerScreen(songId: Long) {
 
         StemCard(
             separated = separated && aiOn,
+            stems = mixerStems,
+            fourStem = fourStemMixer,
             stemGainsPacked = stemGainsPacked,
             vocalStrength = vocalStrength,
             onVocalStrengthChange = { v ->
@@ -485,6 +498,9 @@ internal fun formatTime(ms: Long): String {
 private fun ModeCard(
     aiOn: Boolean,
     separated: Boolean,
+    separatedLabel: String?,
+    selectedLabel: String,
+    canReseparate: Boolean,
     running: Boolean,
     otherRunning: Boolean,
     stage: String?,
@@ -508,27 +524,35 @@ private fun ModeCard(
                 Switch(checked = aiOn, onCheckedChange = onToggleAi, enabled = !running)
             }
 
-            if (aiOn && !separated) {
-                if (running) {
-                    LinearProgressIndicator(
-                        progress = { progress ?: 0f },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(stage ?: "준비 중…", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = onCancelSeparation) { Text("취소") }
-                } else {
-                    // 분리 서비스는 1곡씩만 처리하므로 다른 곡 진행 중인 요청은 무시된다 —
-                    // 조용히 무시되지 않도록 버튼을 막고 이유를 보여준다
+            if (aiOn && running) {
+                LinearProgressIndicator(
+                    progress = { progress ?: 0f },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(stage ?: "준비 중…", style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = onCancelSeparation) { Text("취소") }
+            } else if (aiOn && !separated) {
+                // 분리 서비스는 1곡씩만 처리하므로 다른 곡 진행 중인 요청은 무시된다 —
+                // 조용히 무시되지 않도록 버튼을 막고 이유를 보여준다
+                Button(onClick = onStartSeparation, enabled = !otherRunning) {
+                    Text(if (otherRunning) "다른 곡 분리 중…" else "이 곡 분리하기")
+                }
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            } else if (aiOn && separated) {
+                Text(
+                    "✓ 분리 완료 (${separatedLabel ?: ""}) — 스템별 볼륨으로 정확히 조절됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (canReseparate) {
                     Button(onClick = onStartSeparation, enabled = !otherRunning) {
-                        Text(if (otherRunning) "다른 곡 분리 중…" else "이 곡 분리하기")
-                    }
-                    error?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Text(if (otherRunning) "다른 곡 분리 중…" else "$selectedLabel 로 다시 분리")
                     }
                 }
-            }
-            if (aiOn && separated) {
-                Text("✓ 분리 완료 — 스템별 볼륨으로 정확히 조절됩니다", style = MaterialTheme.typography.bodySmall)
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
@@ -537,6 +561,8 @@ private fun ModeCard(
 @Composable
 private fun StemCard(
     separated: Boolean,
+    stems: List<Stem>,
+    fourStem: Boolean,
     stemGainsPacked: Long,
     vocalStrength: Float,
     onVocalStrengthChange: (Float) -> Unit,
@@ -557,12 +583,12 @@ private fun StemCard(
                     "0%면 제거, 100%면 원음량입니다",
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Stem.entries.forEach { stem ->
+                stems.forEach { stem ->
                     val percent = Stem.percentOf(stemGainsPacked, stem)
                     Column(Modifier.padding(top = 8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                stem.label,
+                                Stem.labelFor(stem, fourStem),
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f),
                             )

@@ -20,7 +20,7 @@ class SettingsStore(private val context: Context) {
 
     val aiEnabled: Flow<Boolean> = context.dataStore.data.map { it[aiKey] ?: false }
 
-    val modelTier: Flow<String> = context.dataStore.data.map { it[tierKey] ?: Tier.BALANCED.id }
+    val modelTier: Flow<String> = context.dataStore.data.map { it[tierKey] ?: Tier.S6_BALANCED.id }
 
     /** AI OFF 보컬 제거 강도 0..1 (기본 1 = 강하게) */
     val vocalStrength: Flow<Float> =
