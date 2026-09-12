@@ -54,7 +54,7 @@ enum class Quality(
  * 다운로드 가능한 온디바이스 분리 모델.
  *
  * 4스템(`htdemucs`)·6스템(`htdemucs_6s`)을 균형형/품질 세그먼트로 export해
- * GitHub Releases에 호스팅한다. 6스템 균형형/품질 id는 예전 `balanced`/`quality`를
+ * GitHub Releases `model-v3`에 호스팅한다. 6스템 균형형/품질 id는 예전 `balanced`/`quality`를
  * 그대로 써서, 이미 받은 파일과 DB `separatedTier`가 살아 있게 한다.
  *
  * 모델을 다시 올리면 SHA-256을 반드시 갱신할 것 (`tools/export_demucs_onnx.py`가 해시 출력).
@@ -85,13 +85,13 @@ enum class Tier(
     ),
     S6_BALANCED(
         "balanced", StemLayout.SIX, Quality.BALANCED,
-        "https://github.com/hyuunnn/band-mr/releases/download/model-v2/htdemucs6s-balanced-fp32.onnx",
-        "fd5ae237bd6ade5589323e71b5ba47a19d0e2d1f2e1da0f0819a8328e308c477",
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v3/htdemucs6s-balanced-fp32.onnx",
+        "d2d04ceaeaa865dd6ab35c41526baecfd7d4353e532b87fe134dc0873a66c597",
     ),
     S6_QUALITY(
         "quality", StemLayout.SIX, Quality.QUALITY,
-        "https://github.com/hyuunnn/band-mr/releases/download/model-v2/htdemucs6s-quality-fp32.onnx",
-        "d9f222f4015c720408e368b49b54982b5ba437c22cfc94dda370a438c8ceadc7",
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v3/htdemucs6s-quality-fp32.onnx",
+        "f743870066a9ea71656df9acddc8988f17f97b7056994eac3aa0221d7b44c71e",
     );
 
     val label: String get() = "${layout.label} ${quality.label}"

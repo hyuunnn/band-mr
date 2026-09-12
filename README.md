@@ -77,8 +77,7 @@ minSdk 31 (Android 12+) / targetSdk 36
 ## 🤖 AI 모델
 
 AI를 ON하면 설정에서 4스템/6스템과 균형형/품질을 골라 다운로드할 수 있습니다.
-6스템은 [model-v2](https://github.com/hyuunnn/band-mr/releases/tag/model-v2),
-4스템은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에
+4스템·6스템 모델은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에
 호스팅되어 있으며, 다운로드 시 SHA-256 무결성이 검증됩니다.
 
 | 구성 | 스템 | 모델 | 용량 |
