@@ -32,7 +32,7 @@ python3 -m venv && pip install torch torchaudio demucs onnx onnxruntime onnxscri
 
 ## export 후 할 일
 
-- 세그먼트 2종(balanced 262144 / quality 344064)을 fp32로 뽑는다 — 약 178MB씩. 경량은 쓰지 않는다
+- 세그먼트 2종(balanced 262144 / quality 344064)을 fp32로 뽑는다. 4스템 약 236MB, 6스템 약 178MB. 경량은 쓰지 않는다
 - 4스템은 GitHub Releases `model-v3`, 6스템은 `model-v2`에 올리고 **`ModelCatalog.kt`의 SHA-256 핀을 갱신**한다 (안 하면 다운로드가 무결성 실패로 전부 삭제된다)
 - 원본 PyTorch와 활성 구간 corr을 비교해 1.0000을 확인한다
 
