@@ -14,7 +14,7 @@ import java.nio.FloatBuffer
  * Demucs ONNX 모델로 스템 분리.
  * 입력: MixCache와 동일한 44.1kHz 스테레오 PCM16 WAV / 출력: 스템별 WAV + 오버랩 크로스페이드.
  *
- * htdemucs / htdemucs_6s / SCNet XL IHF는 모델 내부에서 STFT를 하므로
+ * htdemucs / htdemucs_6s / SCNet XL / XL IHF는 모델 내부에서 STFT를 하므로
  * 파형은 raw [-1,1] 값을 그대로 넣는다. 입출력은 [1,2,seg] → [1,S,2,seg].
  * 첫 구간은 램프인, 마지막 구간은 램프아웃을 생략한다(곡 시작/끝 페이드 방지).
  *
@@ -36,7 +36,7 @@ class DemucsSeparator {
         isCancelled: () -> Boolean = { false },
     ): Map<Stem, File> =
         OrtSession.SessionOptions().use { opts ->
-            opts.setIntraOpNumThreads(INTRA_OP_THREADS)
+            configureSession(opts)
             env.createSession(modelFile.absolutePath, opts).use { session ->
                 runSeparation(session, config, inputWav, outDir, segmentSamples, onProgress, isCancelled)
             }
@@ -164,7 +164,19 @@ class DemucsSeparator {
 
     internal companion object {
         internal const val FADE_DIVISOR = 4
-        private const val INTRA_OP_THREADS = 4
+        private const val INTRA_OP_THREADS = 2
+
+        /**
+         * 모바일에서 피크 RAM을 줄인다. 기본 arena+mem-pattern은 고정 shape
+         * 중간 텐서를 한 덩어리로 잡아, SCNet 11초 IHF가 S25에서 스왑 7GB → SIGKILL.
+         */
+        private fun configureSession(opts: OrtSession.SessionOptions) {
+            opts.setIntraOpNumThreads(INTRA_OP_THREADS)
+            opts.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+            opts.setCPUArenaAllocator(false)
+            opts.setMemoryPatternOptimization(false)
+            opts.addConfigEntry("session.disable_prepacking", "1")
+        }
 
         /** [chunkPlan]의 한 걸음. [pos]에서 [len]프레임을 읽어 [writable]프레임을 기록한다 */
         internal data class Chunk(

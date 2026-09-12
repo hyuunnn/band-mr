@@ -8,7 +8,8 @@
 ```bash
 python export_demucs_onnx.py <출력폴더> htdemucs      # Demucs 4스템
 python export_demucs_onnx.py <출력폴더> htdemucs_6s   # Demucs 6스템
-python export_scnet_onnx.py <출력폴더>               # SCNet XL IHF (4스템, 485100)
+python export_scnet_onnx.py <출력폴더> xl            # SCNet XL (4스템, 262144)
+python export_scnet_onnx.py <출력폴더> xl-ihf        # SCNet XL IHF (4스템, 262144)
 ```
 
 ## 그대로는 export 불가 — 아래 우회가 모두 필요
@@ -37,18 +38,18 @@ python3 -m venv && pip install torch torchaudio demucs onnx onnxruntime onnxscri
 - 4스템·6스템·SCNet 모두 GitHub Releases `model-v3`에 올리고 **`ModelCatalog.kt`의 SHA-256 핀을 갱신**한다 (안 하면 다운로드가 무결성 실패로 전부 삭제된다)
 - 원본 PyTorch와 활성 구간 corr을 비교해 1.0000을 확인한다
 
-## SCNet XL IHF
+## SCNet XL / XL IHF
 
-ZFTurbo `model_scnet_ep_36_sdr_10.0891.ckpt` (MUSDB-only). 입출력은 Demucs와 같다.
+ZFTurbo MUSDB-only. 입출력은 Demucs와 같다. XL은 고역 stride 16, IHF는 4(고역을 덜 줄임).
 
 그대로는 export 불가:
 
 1. `torch.stft/istft` complex — 사각창(원본 `window` 키 없음)·normalized STFT를 re/im 쌍으로 교체
 2. `FeatureConversion`의 `rfft`/`irfft`+complex — 직교 정규화 DFT 행렬곱
-3. 세그먼트는 학습 청크 **485100만**. Demucs 6s/7.8s를 넣지 말 것
+3. 온디바이스 세그먼트는 **262144**(6초). 학습 청크 485100은 S25에서 IHF 스왑 7GB → LMKD SIGKILL
 4. LSTM은 ORT Android가 지원한다(Tran으로 바꾸지 않음)
-5. fp32, opset 18, `do_constant_folding=False`. 파일명은 `scnetxl-ihf-fp32.onnx` — `model-4s.onnx`를 덮지 않는다
+5. fp32, opset 18, `do_constant_folding=False`. 파일명은 `scnetxl-fp32.onnx` / `scnetxl-ihf-fp32.onnx` — `model-4s.onnx`를 덮지 않는다
 
-올린 위치는 `model-v3` (`scnetxl-ihf-fp32.onnx`, 약 287MB). SHA-256 핀을 `S4_SCNET_XL_IHF`에 넣는다.
+올린 위치는 `model-v3`. SHA-256 핀을 `S4_SCNET_XL` / `S4_SCNET_XL_IHF`에 넣는다.
 
 앱이 기대하는 스템 순서·파일명 등은 AGENTS.md의 "AI 모델" 절이 기준이다.

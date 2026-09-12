@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""SCNet XL IHF → 복소수 없는 ONNX(fp32) 변환 + 검증.
+"""SCNet XL / XL IHF → 복소수 없는 ONNX(fp32) 변환 + 검증.
 
-사용법: python export_scnet_onnx.py <출력폴더>
+사용법: python export_scnet_onnx.py <출력폴더> <xl|xl-ihf>
 
-DemucsSeparator와 같은 입출력: audio [1,2,485100] → stems [1,4,2,485100]
-(drums, bass, other, vocals). 세그먼트는 학습 청크 11초 고정.
+DemucsSeparator와 같은 입출력: audio [1,2,262144] → stems [1,4,2,262144]
+(drums, bass, other, vocals). 가중치는 11초 학습이지만 온디바이스는 6초 청크.
+11초(485100) IHF export는 S25에서 첫 추론 스왑 7GB → LMKD SIGKILL.
 
 우회:
 - torch.stft/istft complex → re/im 쌍. 창은 원본과 같이 사각창(Hann 아님).
@@ -22,27 +23,19 @@ import numpy as np
 import torch as th
 import torch.nn.functional as F
 
-USAGE = "사용법: python export_scnet_onnx.py <출력폴더>"
-if len(sys.argv) != 2:
+USAGE = "사용법: python export_scnet_onnx.py <출력폴더> <xl|xl-ihf>"
+if len(sys.argv) != 3:
     print(USAGE, file=sys.stderr)
     sys.exit(2)
 OUT_DIR = sys.argv[1]
+VARIANT = sys.argv[2]
 os.makedirs(OUT_DIR, exist_ok=True)
 
-CKPT_URL = (
-    "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/"
-    "download/v1.0.15/model_scnet_ep_36_sdr_10.0891.ckpt"
-)
-CONFIG_URL = (
-    "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/"
-    "download/v1.0.15/config_musdb18_scnet_xl_more_wide_v5.yaml"
-)
 MSS_REPO = "https://github.com/ZFTurbo/Music-Source-Separation-Training.git"
-SEG = 485_100
-FNAME = "scnetxl-ihf-fp32.onnx"
+SEG = 262_144
+ZF = "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download"
 
-# 공식 yaml을 못 받을 때. IHF = 고역 stride/kernel 16→4, conv_depths 전부 3.
-IHF_FALLBACK = {
+COMMON = {
     "sources": ["drums", "bass", "other", "vocals"],
     "audio_channels": 2,
     "dims": [4, 64, 128, 256],
@@ -51,14 +44,48 @@ IHF_FALLBACK = {
     "win_size": 4096,
     "normalized": True,
     "band_SR": [0.23, 0.37, 0.4],
-    "band_stride": [1, 4, 4],
-    "band_kernel": [3, 4, 4],
-    "conv_depths": [3, 3, 3],
     "compress": 4,
     "conv_kernel": 3,
     "num_dplayer": 8,
     "expand": 1,
 }
+VARIANTS = {
+    "xl": {
+        "fname": "scnetxl-fp32.onnx",
+        "ckpt": f"{ZF}/v1.0.13/model_scnet_ep_54_sdr_9.8051.ckpt",
+        "config": f"{ZF}/v1.0.13/config_musdb18_scnet_xl.yaml",
+        "cfg_name": "config_musdb18_scnet_xl.yaml",
+        "ckpt_name": "model_scnet_ep_54_sdr_9.8051.ckpt",
+        "fallback": {
+            **COMMON,
+            "band_stride": [1, 4, 16],
+            "band_kernel": [3, 4, 16],
+            "conv_depths": [3, 2, 1],
+        },
+    },
+    "xl-ihf": {
+        "fname": "scnetxl-ihf-fp32.onnx",
+        "ckpt": f"{ZF}/v1.0.15/model_scnet_ep_36_sdr_10.0891.ckpt",
+        "config": f"{ZF}/v1.0.15/config_musdb18_scnet_xl_more_wide_v5.yaml",
+        "cfg_name": "config_musdb18_scnet_xl_more_wide_v5.yaml",
+        "ckpt_name": "model_scnet_ep_36_sdr_10.0891.ckpt",
+        # IHF = 고역 stride/kernel 16→4, conv_depths 전부 3.
+        "fallback": {
+            **COMMON,
+            "band_stride": [1, 4, 4],
+            "band_kernel": [3, 4, 4],
+            "conv_depths": [3, 3, 3],
+        },
+    },
+}
+if VARIANT not in VARIANTS:
+    print(USAGE, file=sys.stderr)
+    sys.exit(2)
+SPEC = VARIANTS[VARIANT]
+CKPT_URL = SPEC["ckpt"]
+CONFIG_URL = SPEC["config"]
+FNAME = SPEC["fname"]
+FALLBACK = SPEC["fallback"]
 
 
 def log(msg):
@@ -319,12 +346,12 @@ import yaml  # noqa: E402
 from models.scnet.scnet import SCNet  # noqa: E402
 from models.scnet.separation import FeatureConversion  # noqa: E402
 
-cfg_path = os.path.join(cache, "config_musdb18_scnet_xl_more_wide_v5.yaml")
-ckpt_path = os.path.join(cache, "model_scnet_ep_36_sdr_10.0891.ckpt")
+cfg_path = os.path.join(cache, SPEC["cfg_name"])
+ckpt_path = os.path.join(cache, SPEC["ckpt_name"])
 try:
     download(CONFIG_URL, cfg_path)
 except Exception as e:
-    log(f"공식 yaml 실패({e}) — IHF 폴백 사용")
+    log(f"공식 yaml 실패({e}) — {VARIANT} 폴백 사용")
     cfg_path = None
 download(CKPT_URL, ckpt_path)
 
@@ -337,7 +364,7 @@ if cfg_path and os.path.exists(cfg_path):
     with open(cfg_path) as f:
         # 공식 yaml에 !!python/tuple(증강 확률)이 있어 SafeLoader는 실패한다
         candidates.append(("yaml", yaml.load(f, Loader=yaml.FullLoader)["model"]))
-candidates.append(("fallback", IHF_FALLBACK))
+candidates.append(("fallback", FALLBACK))
 
 model = None
 for name, mc in candidates:

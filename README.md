@@ -3,7 +3,7 @@
 밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타 / 피아노(키보드) / 그 외**를 악기별로 줄이거나 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
 
 > 스템 분리에는 [Demucs](https://github.com/facebookresearch/demucs) (MIT, Meta Platforms)의
-> htdemucs(4스템)·htdemucs_6s(6스템)와 [SCNet](https://github.com/starrytong/SCNet) XL IHF
+> htdemucs(4스템)·htdemucs_6s(6스템)와 [SCNet](https://github.com/starrytong/SCNet) XL/XL IHF
 > (MIT, ZFTurbo MUSDB 가중치)를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
 
 📊 **그림으로 보는 소개 페이지**: [docs/index.html](docs/index.html)
@@ -22,7 +22,7 @@
 | A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
 | 백그라운드 재생 | 화면을 벗어나거나 홈으로 나가도 재생 유지. 알림에서 −10/−5/재생·일시정지/+5/+10초 조작 |
 | 내보내기 | ① 스템 볼륨·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
-| 모델 5종 | Demucs 4스템·6스템 × 균형/품질 (약 236MB · 178MB) + SCNet XL IHF 4스템 (11초 세그먼트) 선택 다운로드 |
+| 모델 6종 | Demucs 4스템·6스템 × 균형/품질 (약 236MB · 178MB) + SCNet XL/XL IHF 4스템 (6초 세그먼트) 선택 다운로드 |
 | 저장공간 관리 | 설정에서 원본 캐시·분리 스템 사용량 확인 후 비우기. 원본 캐시는 재생 시 자동 재생성 |
 | 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
 
@@ -77,7 +77,7 @@ minSdk 31 (Android 12+) / targetSdk 36
 
 ## 🤖 AI 모델
 
-AI를 ON하면 설정에서 Demucs 4스템/6스템(균형형·품질) 또는 SCNet XL IHF를 골라
+AI를 ON하면 설정에서 Demucs 4스템/6스템(균형형·품질) 또는 SCNet XL/XL IHF를 골라
 다운로드할 수 있습니다. 모델은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에
 호스팅되며, 다운로드 시 SHA-256 무결성이 검증됩니다.
 
@@ -85,13 +85,15 @@ AI를 ON하면 설정에서 Demucs 4스템/6스템(균형형·품질) 또는 SCN
 |---|---|---|---|
 | Demucs 4스템 | 보컬·드럼·베이스·그 외 | htdemucs | 약 236MB |
 | Demucs 6스템 | + 기타·피아노 | htdemucs_6s | 약 178MB |
-| SCNet XL IHF | 보컬·드럼·베이스·그 외 | SCNet XL IHF | 약 287MB |
+| SCNet XL | 보컬·드럼·베이스·그 외 | SCNet XL | 약 286MB |
+| SCNet XL IHF | 보컬·드럼·베이스·그 외 | SCNet XL IHF | 약 283MB |
 
 | 등급 | 세그먼트 | 특징 |
 |---|---|---|
 | 균형형 (권장) | 262,144 샘플 (약 6초) | Demucs 속도·품질 균형 |
 | 품질 우선 | 344,064 샘플 (약 7.8초) | Demucs 최고 품질 — RAM 4GB 이상 권장 |
-| SCNet XL IHF | 485,100 샘플 (11초) | 보컬·고역이 Demucs 4스보다 나음 |
+| SCNet XL | 262,144 샘플 (약 6초) | Demucs 4스보다 낫고 IHF보다 빠름 |
+| SCNet XL IHF | 262,144 샘플 (약 6초) | 보컬·고역이 XL보다 나음 |
 
 ### 모델 재변환
 
@@ -131,7 +133,7 @@ app/src/main/java/com/bandmr/app/
 │   └── PlaybackService.kt     # 백그라운드 재생 FGS + MediaSession 알림(점프 5버튼·진행바)
 ├── separation/
 │   ├── StemFiles.kt           # 스템 경로의 유일한 정의 (stems/<songId>, <songId>.part)
-│   ├── ModelCatalog.kt        # 모델 5종 정의 (Demucs 4/6 × 균형/품질 + SCNet XL IHF, URL·SHA-256 핀)
+│   ├── ModelCatalog.kt        # 모델 6종 정의 (Demucs 4/6 × 균형/품질 + SCNet XL/XL IHF, URL·SHA-256 핀)
 │   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
 │   ├── AudioDecode.kt         # MediaCodec → 44.1kHz 스테레오 PCM16 스트림 (MixCache용, 1패스)
 │   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
@@ -147,7 +149,7 @@ app/src/main/java/com/bandmr/app/
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
 
 tools/export_demucs_onnx.py    # htdemucs / htdemucs_6s → ONNX 변환 스크립트 (검증 포함, 절차는 tools/README.md)
-tools/export_scnet_onnx.py     # SCNet XL IHF → ONNX 변환 스크립트 (검증 포함)
+tools/export_scnet_onnx.py     # SCNet XL / XL IHF → ONNX 변환 스크립트 (검증 포함)
 ```
 
 ## 테스트

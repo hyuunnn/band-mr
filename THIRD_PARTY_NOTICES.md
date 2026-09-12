@@ -33,12 +33,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## SCNet XL IHF 모델 가중치 (ONNX 변환 포함)
+## SCNet XL / XL IHF 모델 가중치 (ONNX 변환 포함)
 
-`scnet-xl-ihf` ONNX(`releases/tag/model-v3`의 `scnetxl-ihf-fp32.onnx`)는
+`scnet-xl`·`scnet-xl-ihf` ONNX(`releases/tag/model-v3`의 `scnetxl-fp32.onnx`·`scnetxl-ihf-fp32.onnx`)는
 [starrytong/SCNet](https://github.com/starrytong/SCNet) 아키텍처(MIT)를
 [ZFTurbo/Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)
-이 MUSDB18HQ로 학습한 XL IHF 가중치(`model_scnet_ep_36_sdr_10.0891.ckpt`)에서 파생했습니다.
+이 MUSDB18HQ로 학습한 XL(`model_scnet_ep_54_sdr_9.8051.ckpt`)·XL IHF(`model_scnet_ep_36_sdr_10.0891.ckpt`) 가중치에서 파생했습니다.
 아키텍처·학습 코드 모두 MIT. 학습 데이터 MUSDB18HQ는 연구용 라이선스입니다.
 
 ```
