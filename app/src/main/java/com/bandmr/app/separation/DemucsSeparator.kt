@@ -36,7 +36,7 @@ class DemucsSeparator {
         isCancelled: () -> Boolean = { false },
     ): Map<Stem, File> =
         OrtSession.SessionOptions().use { opts ->
-            configureSession(opts)
+            opts.setIntraOpNumThreads(INTRA_OP_THREADS)
             env.createSession(modelFile.absolutePath, opts).use { session ->
                 runSeparation(session, config, inputWav, outDir, segmentSamples, onProgress, isCancelled)
             }
@@ -164,19 +164,7 @@ class DemucsSeparator {
 
     internal companion object {
         internal const val FADE_DIVISOR = 4
-        private const val INTRA_OP_THREADS = 2
-
-        /**
-         * 모바일에서 피크 RAM을 줄인다. 기본 arena+mem-pattern은 고정 shape
-         * 중간 텐서를 한 덩어리로 잡아, SCNet 11초 IHF가 S25에서 스왑 7GB → SIGKILL.
-         */
-        private fun configureSession(opts: OrtSession.SessionOptions) {
-            opts.setIntraOpNumThreads(INTRA_OP_THREADS)
-            opts.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-            opts.setCPUArenaAllocator(false)
-            opts.setMemoryPatternOptimization(false)
-            opts.addConfigEntry("session.disable_prepacking", "1")
-        }
+        private const val INTRA_OP_THREADS = 4
 
         /** [chunkPlan]의 한 걸음. [pos]에서 [len]프레임을 읽어 [writable]프레임을 기록한다 */
         internal data class Chunk(
