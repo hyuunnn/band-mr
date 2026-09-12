@@ -149,8 +149,12 @@ class PlayerController(private val context: Context) {
         lastSpeed = PlaybackSpeed.snap(speed)
         val newAiMode = aiOn && song.isSeparated
         val songChanged = currentSong?.id != song.id
-        val modeChanged = newAiMode != aiMode || songChanged
-        if (!modeChanged && active != null) {
+        if (!shouldReloadEngine(
+                currentSong?.id, aiMode,
+                currentSong?.separatedTier, currentSong?.stemsDir,
+                song, newAiMode,
+            ) && active != null
+        ) {
             applyParams(semitones, lastSpeed)
             applyLoopToEngines()
             snapIntoLoopIfNeeded()
@@ -501,5 +505,27 @@ class PlayerController(private val context: Context) {
          */
         internal fun startPositionMs(songChanged: Boolean, currentPosMs: Long): Long =
             if (songChanged) 0L else currentPosMs
+
+        /**
+         * 엔진을 다시 열어야 하는 조건.
+         *
+         * 곡 id와 AI 모드만 보면 **다시 분리**가 빠진다. `isSeparated`는 그대로 true라
+         * 화면이 `separatedTier`만 바꿔 [ensureLoaded]를 다시 호출해도 이전 스템 fd를 붙잡는다.
+         * 위치는 [startPositionMs]가 곡 id로만 판단하므로 티어 변경은 위치를 유지한다.
+         * 게인·키·배속은 여기 넣지 않는다 — 그건 setter 경로다.
+         */
+        internal fun shouldReloadEngine(
+            currentSongId: Long?,
+            currentAiMode: Boolean,
+            currentSeparatedTier: String?,
+            currentStemsDir: String?,
+            incoming: Song,
+            newAiMode: Boolean,
+        ): Boolean {
+            val songChanged = currentSongId != incoming.id
+            val stemsChanged = currentSeparatedTier != incoming.separatedTier ||
+                currentStemsDir != incoming.stemsDir
+            return newAiMode != currentAiMode || songChanged || stemsChanged
+        }
     }
 }

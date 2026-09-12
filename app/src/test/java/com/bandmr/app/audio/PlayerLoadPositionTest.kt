@@ -1,7 +1,10 @@
 package com.bandmr.app.audio
 
+import com.bandmr.app.data.Song
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -44,4 +47,68 @@ class PlayerLoadPositionTest {
         assertEquals(0L, PlaybackSkip.clamp(fixed, newDurationMs))
         assertNotEquals("수정 전과 결과가 같으면 검증이 무의미", carried, fixed)
     }
+
+    @Test
+    fun `같은 곡의 분리 티어가 바뀌면 엔진을 다시 연다`() {
+        val before = song(tier = "balanced")
+        val after = song(tier = "4s-balanced")
+        assertTrue(
+            PlayerController.shouldReloadEngine(
+                currentSongId = before.id,
+                currentAiMode = true,
+                currentSeparatedTier = before.separatedTier,
+                currentStemsDir = before.stemsDir,
+                incoming = after,
+                newAiMode = true,
+            ),
+        )
+        assertEquals(
+            12_000L,
+            PlayerController.startPositionMs(songChanged = false, currentPosMs = 12_000),
+        )
+    }
+
+    @Test
+    fun `스템 경로만 바뀌어도 엔진을 다시 연다`() {
+        val before = song(stemsDir = "/stems/1")
+        val after = song(stemsDir = "/stems/1-new")
+        assertTrue(
+            PlayerController.shouldReloadEngine(
+                currentSongId = before.id,
+                currentAiMode = true,
+                currentSeparatedTier = before.separatedTier,
+                currentStemsDir = before.stemsDir,
+                incoming = after,
+                newAiMode = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `게인만 바뀌면 엔진을 다시 열지 않는다`() {
+        val s = song()
+        assertFalse(
+            PlayerController.shouldReloadEngine(
+                currentSongId = s.id,
+                currentAiMode = true,
+                currentSeparatedTier = s.separatedTier,
+                currentStemsDir = s.stemsDir,
+                incoming = s.copy(stemGainsPacked = 0L),
+                newAiMode = true,
+            ),
+        )
+    }
+
+    private fun song(
+        id: Long = 1,
+        tier: String? = "balanced",
+        stemsDir: String? = "/stems/1",
+    ) = Song(
+        id = id,
+        title = "t",
+        uri = "file://x",
+        durationMs = 60_000,
+        separatedTier = tier,
+        stemsDir = stemsDir,
+    )
 }

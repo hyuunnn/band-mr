@@ -28,7 +28,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools    # local.prop
 ```
 audio/       AudioTrackEngine  재생 공통 베이스(오디오 스레드 루프·시크·A-B·배속)
              SourceWavPlayer   AI OFF: MixCache WAV + DspChain 실시간
-             StemMixPlayer     AI ON: 스템 6개 믹서
+             StemMixPlayer     AI ON: 스템 4~6개 믹서
              PlayerController  엔진 2개를 active(=aiMode ? mixer : source) 하나로 다룸.
                                오디오 포커스·이어폰 분리(BECOMING_NOISY)도 여기서 관리
              StemWavSet        스템 WAV 열기 규칙 — 재생·내보내기 공용
@@ -68,6 +68,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **알림·잠금화면·블루투스는 `setPlaying(Boolean)`(절대 명령)으로 받는다.** 상태를 읽어 토글하면 그 사이에 낀 자동 일시정지(포커스 상실·이어폰 분리)가 명령을 뒤집는다. 상태를 읽는 곳은 화면 버튼용 `playPause()` 한 곳뿐
 - **`AudioTrackEngine.release()` 이후 곡끝 통보는 막힌다(`released`).** 확인은 post 시점이 아니라 **콜백 실행 시점**. 플래그는 `stopEngine`이 아니라 `release`에서만 세울 것
 - **`StemMixPlayer.renderChunk`는 0 이하를 돌려주지 않는다.** 엔진이 `produced <= 0`을 곡 끝으로 읽는다 → 읽을 게 없으면 무음, 닫힌 리더 예외는 스템 단위로 흡수(`loop()`에 catch가 없어 오디오 스레드가 죽는다)
+- **`ensureLoaded`는 `separatedTier`/`stemsDir`가 바뀌면 믹서를 다시 연다.** 곡 id와 AI 모드만 보면 다시 분리 뒤 UI는 새 레이아웃인데 엔진은 이전 스템 fd를 붙잡는다. 게인·키·배속은 setter 경로. `PlayerLoadPositionTest`가 티어 변경 → reload를 고정
 - **A-B 랩은 오디오 스레드에서만.** UI 폴링이면 백그라운드에서 끊긴다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용(이전 곡 엔진에 먼저 걸면 안 됨)
 - **write 직후 트랙 재시작 판정은 `isPlaying` 가드로 `stateLock` 안에서 pause와 직렬화한다.** pause의 flush가 막힌 write를 풀어주므로, 락 밖에서 `playState`만 보고 `track.play()`하면 사실상 매 일시정지마다 트랙이 다시 켜져 flush로 비워진 큐에 쓴 청크 하나가 pause 뒤에 새어 나온다
 - **일시정지마다 최대 버퍼(~90ms)가 스킵되는 건 pause flush 설계의 트레이드오프다.** "스킵 고친다"고 flush를 그냥 빼면 재개가 영구 무음이 된다 — `track.play()` 호출점이 `seekToFrame`과 루프 재시작뿐이라 일시정지 중 write에 매달린 스레드를 풀 방법이 없다. 없애려면 flush 제거 + 재개 시 트랙 재시작 + `stopEngine`의 flush를 join 앞으로 + 스테일 청크 flush가 한 세트다
