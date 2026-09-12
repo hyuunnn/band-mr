@@ -60,7 +60,7 @@ enum class ModelFamily(
     ),
     SCNET_XL_IHF(
         "SCNet XL IHF",
-        "4스템. 보컬·고역이 XL보다 낫습니다",
+        "4스템. 보컬·고역이 XL보다 낫습니다. XL보다 약 1.5~2배 느립니다",
     );
 
     val isScnet: Boolean get() = this == SCNET_XL || this == SCNET_XL_IHF
@@ -157,7 +157,7 @@ enum class Tier(
     val label: String get() = if (family.isScnet) family.label else "${layout.label} ${quality.label}"
     val description: String get() = when (family) {
         ModelFamily.SCNET_XL -> "6초 세그먼트. IHF보다 빠름"
-        ModelFamily.SCNET_XL_IHF -> "6초 세그먼트. 고역이 XL보다 나음 · RAM 4GB+"
+        ModelFamily.SCNET_XL_IHF -> "6초 세그먼트. XL보다 약 1.5~2배 느림 · RAM 4GB+"
         else -> quality.description
     }
     val cardTitle: String get() = when (family) {
