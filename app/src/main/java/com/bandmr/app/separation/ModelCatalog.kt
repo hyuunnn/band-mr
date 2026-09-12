@@ -12,17 +12,14 @@ import com.bandmr.app.data.Stem
 enum class StemLayout(
     val id: String,
     val label: String,
-    val description: String,
     val stemOrder: List<String>,
 ) {
     FOUR(
         "4s", "4스템",
-        "보컬·드럼·베이스·그 외. 코어 분리가 더 깨끗합니다",
         listOf("drums", "bass", "other", "vocals"),
     ),
     SIX(
         "6s", "6스템",
-        "기타·피아노를 따로 줄일 수 있습니다",
         listOf("drums", "bass", "other", "vocals", "guitar", "piano"),
     );
 
