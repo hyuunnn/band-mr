@@ -30,7 +30,7 @@
       <circle cx="58" cy="320" r="18" fill="#7C4DFF" opacity="0.55"/>
       <polygon points="53,311 53,329 68,320" fill="#ffffff"/>
       <text x="88" y="312" font-size="16" fill="#ffffff">Champagne Supernova</text>
-      <text x="88" y="336" font-size="13" fill="#8888a0">7:27 · AI 4스템</text>
+      <text x="88" y="336" font-size="13" fill="#8888a0">7:27 · AI SCNet XL IHF</text>
 
       <rect x="18" y="376" width="324" height="88" rx="16" fill="#181822"/>
       <circle cx="58" cy="420" r="18" fill="#7C4DFF" opacity="0.55"/>
@@ -198,43 +198,54 @@
     <text x="24" y="100" font-family="-apple-system,'Segoe UI',sans-serif" font-size="12" fill="#8888a0">한 번만 받으면 오프라인에서도 사용</text>
 
     <g font-family="-apple-system,'Segoe UI',sans-serif">
-      <text x="24" y="128" font-size="15" font-weight="bold" fill="#ffffff">4스템</text>
-      <text x="24" y="146" font-size="11" fill="#8888a0">보컬·드럼·베이스·그 외. 코어가 더 깨끗함</text>
+      <text x="24" y="126" font-size="14" font-weight="bold" fill="#ffffff">Demucs 4스템</text>
+      <text x="24" y="142" font-size="11" fill="#8888a0">보컬·드럼·베이스·그 외. 코어가 더 깨끗함</text>
 
-      <rect x="18" y="158" width="324" height="88" rx="14" fill="#181822"/>
-      <circle cx="44" cy="186" r="10" fill="none" stroke="#CFBCFF" stroke-width="2.2"/>
-      <circle cx="44" cy="186" r="4.5" fill="#CFBCFF"/>
-      <text x="66" y="180" font-size="15" fill="#ffffff">균형형 (약 236MB)</text>
-      <text x="66" y="200" font-size="12" fill="#8888a0">속도와 품질의 균형 (권장)</text>
-      <text x="328" y="186" font-size="12" fill="#64FFDA" text-anchor="end">다운로드됨</text>
-      <text x="66" y="228" font-size="11" fill="#8888a0">세그먼트 262144</text>
+      <rect x="18" y="152" width="324" height="68" rx="12" fill="#181822"/>
+      <circle cx="44" cy="178" r="9" fill="none" stroke="#CFBCFF" stroke-width="2.2"/>
+      <circle cx="44" cy="178" r="4" fill="#CFBCFF"/>
+      <text x="66" y="172" font-size="14" fill="#ffffff">균형형 (약 236MB)</text>
+      <text x="66" y="190" font-size="11" fill="#8888a0">속도와 품질의 균형 (권장)</text>
+      <text x="328" y="178" font-size="11" fill="#64FFDA" text-anchor="end">다운로드됨</text>
+      <text x="66" y="208" font-size="10" fill="#8888a0">세그먼트 262144</text>
 
-      <rect x="18" y="254" width="324" height="88" rx="14" fill="#181822"/>
-      <circle cx="44" cy="282" r="10" fill="none" stroke="#55556a" stroke-width="2.2"/>
-      <text x="66" y="276" font-size="15" fill="#ffffff">품질 우선 (약 236MB)</text>
-      <text x="66" y="296" font-size="12" fill="#8888a0">긴 세그먼트 · RAM 4GB 이상</text>
-      <rect x="246" y="268" width="80" height="32" rx="16" fill="#7C4DFF"/>
-      <text x="286" y="289" font-size="13" fill="#ffffff" text-anchor="middle">받기</text>
-      <text x="66" y="324" font-size="11" fill="#8888a0">세그먼트 344064</text>
+      <rect x="18" y="226" width="324" height="68" rx="12" fill="#181822"/>
+      <circle cx="44" cy="252" r="9" fill="none" stroke="#55556a" stroke-width="2.2"/>
+      <text x="66" y="246" font-size="14" fill="#ffffff">품질 우선 (약 236MB)</text>
+      <text x="66" y="264" font-size="11" fill="#8888a0">긴 세그먼트 · RAM 4GB 이상</text>
+      <rect x="250" y="238" width="76" height="28" rx="14" fill="#7C4DFF"/>
+      <text x="288" y="257" font-size="12" fill="#ffffff" text-anchor="middle">받기</text>
+      <text x="66" y="282" font-size="10" fill="#8888a0">세그먼트 344064</text>
 
-      <text x="24" y="368" font-size="15" font-weight="bold" fill="#ffffff">6스템</text>
-      <text x="24" y="386" font-size="11" fill="#8888a0">기타·피아노를 따로 줄일 수 있음</text>
+      <text x="24" y="318" font-size="14" font-weight="bold" fill="#ffffff">Demucs 6스템</text>
+      <text x="24" y="334" font-size="11" fill="#8888a0">기타·피아노를 따로 줄일 수 있음</text>
 
-      <rect x="18" y="398" width="324" height="88" rx="14" fill="#181822"/>
-      <circle cx="44" cy="426" r="10" fill="none" stroke="#55556a" stroke-width="2.2"/>
-      <text x="66" y="420" font-size="15" fill="#ffffff">균형형 (약 178MB)</text>
-      <text x="66" y="440" font-size="12" fill="#8888a0">속도와 품질의 균형 (권장)</text>
-      <rect x="246" y="412" width="80" height="32" rx="16" fill="#7C4DFF"/>
-      <text x="286" y="433" font-size="13" fill="#ffffff" text-anchor="middle">받기</text>
-      <text x="66" y="468" font-size="11" fill="#8888a0">세그먼트 262144</text>
+      <rect x="18" y="344" width="324" height="68" rx="12" fill="#181822"/>
+      <circle cx="44" cy="370" r="9" fill="none" stroke="#55556a" stroke-width="2.2"/>
+      <text x="66" y="364" font-size="14" fill="#ffffff">균형형 (약 178MB)</text>
+      <text x="66" y="382" font-size="11" fill="#8888a0">속도와 품질의 균형 (권장)</text>
+      <rect x="250" y="356" width="76" height="28" rx="14" fill="#7C4DFF"/>
+      <text x="288" y="375" font-size="12" fill="#ffffff" text-anchor="middle">받기</text>
+      <text x="66" y="400" font-size="10" fill="#8888a0">세그먼트 262144</text>
 
-      <rect x="18" y="494" width="324" height="88" rx="14" fill="#181822"/>
-      <circle cx="44" cy="522" r="10" fill="none" stroke="#55556a" stroke-width="2.2"/>
-      <text x="66" y="516" font-size="15" fill="#ffffff">품질 우선 (약 178MB)</text>
-      <text x="66" y="536" font-size="12" fill="#8888a0">긴 세그먼트 · RAM 4GB 이상</text>
-      <rect x="32" y="550" width="210" height="8" rx="4" fill="#26262f"/>
-      <rect x="32" y="550" width="134" height="8" rx="4" fill="#CFBCFF"/>
-      <text x="256" y="559" font-size="12" fill="#8888a0">64%</text>
+      <rect x="18" y="418" width="324" height="68" rx="12" fill="#181822"/>
+      <circle cx="44" cy="444" r="9" fill="none" stroke="#55556a" stroke-width="2.2"/>
+      <text x="66" y="438" font-size="14" fill="#ffffff">품질 우선 (약 178MB)</text>
+      <text x="66" y="456" font-size="11" fill="#8888a0">긴 세그먼트 · RAM 4GB 이상</text>
+      <rect x="32" y="466" width="200" height="7" rx="3.5" fill="#26262f"/>
+      <rect x="32" y="466" width="128" height="7" rx="3.5" fill="#CFBCFF"/>
+      <text x="250" y="473" font-size="11" fill="#8888a0">64%</text>
+
+      <text x="24" y="514" font-size="14" font-weight="bold" fill="#ffffff">SCNet XL IHF</text>
+      <text x="24" y="530" font-size="11" fill="#8888a0">4스템. 보컬·고역이 Demucs 4스보다 나음</text>
+
+      <rect x="18" y="540" width="324" height="68" rx="12" fill="#181822"/>
+      <circle cx="44" cy="566" r="9" fill="none" stroke="#55556a" stroke-width="2.2"/>
+      <text x="66" y="560" font-size="14" fill="#ffffff">XL IHF (약 287MB)</text>
+      <text x="66" y="578" font-size="11" fill="#8888a0">11초 세그먼트 고정 · RAM 4GB+</text>
+      <rect x="250" y="552" width="76" height="28" rx="14" fill="#7C4DFF"/>
+      <text x="288" y="571" font-size="12" fill="#ffffff" text-anchor="middle">받기</text>
+      <text x="66" y="596" font-size="10" fill="#8888a0">세그먼트 485100</text>
     </g>
 
     <text x="180" y="790" font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="bold" fill="#333346" text-anchor="middle">③ 설정 — AI 모델 다운로드 (최초 1회)</text>

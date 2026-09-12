@@ -51,7 +51,7 @@ AI OFF (WAV 캐시, 절전)
                                       └ 기타 제거: 중역대 페킹 딥 (실험적)
 
 AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ Demucs ONNX 추론(4 또는 6스템, 고정 세그먼트)
+  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ ONNX 추론(Demucs/SCNet, 4 또는 6스템, 고정 세그먼트)
              ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치/배속
 ```
 

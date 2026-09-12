@@ -73,8 +73,8 @@
     <line x1="728" y1="164" x2="750" y2="164" stroke="#E8730C" stroke-width="2" marker-end="url(#ar)"/>
 
     <rect x="754" y="128" width="186" height="72" rx="10" fill="#E8730C"/>
-    <text x="847" y="156" text-anchor="middle" fill="#ffffff" font-weight="bold">Demucs ONNX</text>
-    <text x="847" y="174" text-anchor="middle" fill="#FFE7CC" font-size="11">4 또는 6스템 · 고정 세그먼트</text>
+    <text x="847" y="156" text-anchor="middle" fill="#ffffff" font-weight="bold">ONNX 추론</text>
+    <text x="847" y="174" text-anchor="middle" fill="#FFE7CC" font-size="11">Demucs / SCNet · 고정 세그먼트</text>
 
     <!-- 스템 캐시 -->
     <line x1="847" y1="200" x2="847" y2="226" stroke="#E8730C" stroke-width="2" marker-end="url(#arg)"/>
