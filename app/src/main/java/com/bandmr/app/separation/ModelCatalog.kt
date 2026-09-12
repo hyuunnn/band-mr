@@ -26,8 +26,18 @@ enum class StemLayout(
         listOf("drums", "bass", "other", "vocals", "guitar", "piano"),
     );
 
+    /** ONNX 텐서 축 순서. 화면 목록에는 [displayStems]를 쓴다. */
     val stems: List<Stem> get() = stemOrder.map { name ->
         Stem.fromFileName(name) ?: error("알 수 없는 스템: $name")
+    }
+
+    /**
+     * 플레이어 목록. [Stem.entries]와 같이 보컬→드럼→베이스→기타→피아노→그 외.
+     * 레이아웃에 없는 스템은 뺀다. AI OFF 체크 순서와 맞춘다.
+     */
+    val displayStems: List<Stem> get() {
+        val have = stemOrder.toSet()
+        return Stem.entries.filter { it.fileName in have }
     }
 }
 
@@ -99,6 +109,7 @@ enum class Tier(
     val segmentSamples: Int get() = quality.segmentSamples
     val stemOrder: List<String> get() = layout.stemOrder
     val stems: List<Stem> get() = layout.stems
+    val displayStems: List<Stem> get() = layout.displayStems
     val fileName: String get() = if (layout == StemLayout.SIX) "model-6s.onnx" else "model-4s.onnx"
 
     companion object {

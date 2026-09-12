@@ -46,6 +46,17 @@ class ModelCatalogTest {
     }
 
     @Test
+    fun `화면 목록은 AI OFF와 같은 Stem 순서다`() {
+        assertEquals(
+            listOf(Stem.VOCAL, Stem.DRUMS, Stem.BASS, Stem.OTHER),
+            StemLayout.FOUR.displayStems,
+        )
+        assertEquals(Stem.entries, StemLayout.SIX.displayStems)
+        assertEquals(StemLayout.FOUR.displayStems, Tier.S4_QUALITY.displayStems)
+        assertEquals(Stem.entries, Tier.S6_QUALITY.displayStems)
+    }
+
+    @Test
     fun `6스템 온디스크 파일명은 기존 경로를 유지한다`() {
         assertEquals("model-6s.onnx", Tier.S6_BALANCED.fileName)
         assertEquals("model-6s.onnx", Tier.S6_QUALITY.fileName)

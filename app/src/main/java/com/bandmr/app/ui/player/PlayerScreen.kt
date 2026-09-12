@@ -163,7 +163,7 @@ fun PlayerScreen(songId: Long) {
     val separated = s.isSeparated
     val selectedTier = Tier.fromId(selectedTierId)
     val separatedTier = if (separated) Tier.fromId(s.separatedTier) else null
-    val mixerStems = separatedTier?.stems ?: Stem.entries
+    val mixerStems = separatedTier?.displayStems ?: Stem.entries
     val fourStemMixer = separatedTier?.layout == StemLayout.FOUR
     val runningSep = sepState as? SepState.Running
     val running = runningSep?.songId == songId
