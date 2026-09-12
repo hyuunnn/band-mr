@@ -6,23 +6,20 @@ import com.bandmr.app.data.Stem
 /**
  * 온디바이스 분리 모델의 스템 구성.
  *
- * 4스템은 공식 `htdemucs`, 6스템은 `htdemucs_6s`. 출력 순서는 export 로그의
- * `model.sources`와 일치해야 한다.
+ * 4스템은 공식 `htdemucs` 또는 SCNet XL/XL IHF, 6스템은 `htdemucs_6s`. 출력 순서는
+ * export 로그의 `model.sources`와 일치해야 한다.
  */
 enum class StemLayout(
     val id: String,
     val label: String,
-    val description: String,
     val stemOrder: List<String>,
 ) {
     FOUR(
         "4s", "4스템",
-        "보컬·드럼·베이스·그 외. 코어 분리가 더 깨끗합니다",
         listOf("drums", "bass", "other", "vocals"),
     ),
     SIX(
         "6s", "6스템",
-        "기타·피아노를 따로 줄일 수 있습니다",
         listOf("drums", "bass", "other", "vocals", "guitar", "piano"),
     );
 
@@ -41,7 +38,35 @@ enum class StemLayout(
     }
 }
 
-/** 세그먼트 길이로만 나눈 품질 등급. 가중치는 레이아웃마다 하나다. */
+/**
+ * 설정 화면의 모델 묶음. Demucs 4/6과 SCNet은 가중치 가족이 달라 같은 레이아웃
+ * 아래에 섞지 않는다.
+ */
+enum class ModelFamily(
+    val label: String,
+    val description: String,
+) {
+    HTDEMUCS_4(
+        "Demucs 4스템",
+        "보컬·드럼·베이스·그 외. 코어 분리가 더 깨끗합니다",
+    ),
+    HTDEMUCS_6(
+        "Demucs 6스템",
+        "기타·피아노를 따로 줄일 수 있습니다",
+    ),
+    SCNET_XL(
+        "SCNet XL",
+        "4스템. Demucs 4스보다 낫고 IHF보다 빠릅니다",
+    ),
+    SCNET_XL_IHF(
+        "SCNet XL IHF",
+        "4스템. 보컬·고역이 XL보다 낫습니다. XL보다 약 1.5~2배 느립니다",
+    );
+
+    val isScnet: Boolean get() = this == SCNET_XL || this == SCNET_XL_IHF
+}
+
+/** 세그먼트 길이로만 나눈 품질 등급. Demucs 가중치는 레이아웃마다 하나다. */
 enum class Quality(
     val id: String,
     val label: String,
@@ -63,14 +88,15 @@ enum class Quality(
 /**
  * 다운로드 가능한 온디바이스 분리 모델.
  *
- * 4스템(`htdemucs`)·6스템(`htdemucs_6s`)을 균형형/품질 세그먼트로 export해
- * GitHub Releases `model-v3`에 호스팅한다. 6스템 균형형/품질 id는 예전 `balanced`/`quality`를
+ * Demucs 4스템(`htdemucs`)·6스템(`htdemucs_6s`)·SCNet XL/XL IHF는 모두
+ * GitHub Releases `model-v3`. 6스템 균형형/품질 id는 예전 `balanced`/`quality`를
  * 그대로 써서, 이미 받은 파일과 DB `separatedTier`가 살아 있게 한다.
  *
- * 모델을 다시 올리면 SHA-256을 반드시 갱신할 것 (`tools/export_demucs_onnx.py`가 해시 출력).
+ * 모델을 다시 올리면 SHA-256을 반드시 갱신할 것 (export 스크립트가 해시 출력).
  */
 enum class Tier(
     val id: String,
+    val family: ModelFamily,
     val layout: StemLayout,
     val quality: Quality,
     val url: String,
@@ -80,37 +106,72 @@ enum class Tier(
      */
     val sha256: String,
     val approxSizeMb: Int = 178,
+    private val fileNameOverride: String? = null,
 ) {
     S4_BALANCED(
-        "4s-balanced", StemLayout.FOUR, Quality.BALANCED,
+        "4s-balanced", ModelFamily.HTDEMUCS_4, StemLayout.FOUR, Quality.BALANCED,
         "https://github.com/hyuunnn/band-mr/releases/download/model-v3/htdemucs4s-balanced-fp32.onnx",
         "46da05af0844769ff1f095a5ed473ed9987cf09ddaf425a1944af296911720a5",
         approxSizeMb = 236,
     ),
     S4_QUALITY(
-        "4s-quality", StemLayout.FOUR, Quality.QUALITY,
+        "4s-quality", ModelFamily.HTDEMUCS_4, StemLayout.FOUR, Quality.QUALITY,
         "https://github.com/hyuunnn/band-mr/releases/download/model-v3/htdemucs4s-quality-fp32.onnx",
         "a523c02ba1819986ab9b3d75508a63d3d608b47a8c6019733a1afd5e4ed22dde",
         approxSizeMb = 236,
     ),
     S6_BALANCED(
-        "balanced", StemLayout.SIX, Quality.BALANCED,
+        "balanced", ModelFamily.HTDEMUCS_6, StemLayout.SIX, Quality.BALANCED,
         "https://github.com/hyuunnn/band-mr/releases/download/model-v3/htdemucs6s-balanced-fp32.onnx",
         "d2d04ceaeaa865dd6ab35c41526baecfd7d4353e532b87fe134dc0873a66c597",
     ),
     S6_QUALITY(
-        "quality", StemLayout.SIX, Quality.QUALITY,
+        "quality", ModelFamily.HTDEMUCS_6, StemLayout.SIX, Quality.QUALITY,
         "https://github.com/hyuunnn/band-mr/releases/download/model-v3/htdemucs6s-quality-fp32.onnx",
         "f743870066a9ea71656df9acddc8988f17f97b7056994eac3aa0221d7b44c71e",
+    ),
+    /**
+     * ZFTurbo SCNet XL (MUSDB-only). 온디바이스는 IHF와 같은 6초(262144).
+     * SHA는 `tools/export_scnet_onnx.py xl`이 출력한 값을 핀한다.
+     */
+    S4_SCNET_XL(
+        "scnet-xl", ModelFamily.SCNET_XL, StemLayout.FOUR, Quality.BALANCED,
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v3/scnetxl-fp32.onnx",
+        "ee8253be97e77b649fa59e6aa8c7021a26eb1ccc372114545775bcacd19cf107",
+        approxSizeMb = 286,
+        fileNameOverride = "model-scnet-xl.onnx",
+    ),
+    /**
+     * ZFTurbo SCNet XL IHF (MUSDB-only). 학습은 11초지만 온디바이스는 6초(262144).
+     * 11초 export는 S25에서 첫 추론 스왑 7GB로 LMKD SIGKILL.
+     * SHA는 `tools/export_scnet_onnx.py xl-ihf`가 출력한 값을 핀한다.
+     */
+    S4_SCNET_XL_IHF(
+        "scnet-xl-ihf", ModelFamily.SCNET_XL_IHF, StemLayout.FOUR, Quality.BALANCED,
+        "https://github.com/hyuunnn/band-mr/releases/download/model-v3/scnetxl-ihf-fp32.onnx",
+        "e6ec76d395c73481978e4f6f0874b9e7e317e4f2f58203258c8e7261e4e3bdf5",
+        approxSizeMb = 283,
+        fileNameOverride = "model-scnet-xl-ihf.onnx",
     );
 
-    val label: String get() = "${layout.label} ${quality.label}"
-    val description: String get() = quality.description
+    val label: String get() = if (family.isScnet) family.label else "${layout.label} ${quality.label}"
+    val description: String get() = when (family) {
+        ModelFamily.SCNET_XL -> "6초 세그먼트. IHF보다 빠름"
+        ModelFamily.SCNET_XL_IHF -> "6초 세그먼트. XL보다 약 1.5~2배 느림 · RAM 4GB+"
+        else -> quality.description
+    }
+    val cardTitle: String get() = when (family) {
+        ModelFamily.SCNET_XL -> "XL"
+        ModelFamily.SCNET_XL_IHF -> "XL IHF"
+        else -> quality.label
+    }
+    /** 라이브러리 칩. Demucs는 4/6스템만, SCNet은 가족 이름. */
+    val chipLabel: String get() = if (family.isScnet) family.label else layout.label
     val segmentSamples: Int get() = quality.segmentSamples
     val stemOrder: List<String> get() = layout.stemOrder
-    val stems: List<Stem> get() = layout.stems
     val displayStems: List<Stem> get() = layout.displayStems
-    val fileName: String get() = if (layout == StemLayout.SIX) "model-6s.onnx" else "model-4s.onnx"
+    val fileName: String get() = fileNameOverride
+        ?: if (layout == StemLayout.SIX) "model-6s.onnx" else "model-4s.onnx"
 
     companion object {
         fun fromId(id: String?): Tier = when (id) {
@@ -120,8 +181,11 @@ enum class Tier(
             else -> entries.firstOrNull { it.id == id } ?: S6_BALANCED
         }
 
+        /** Demucs 레이아웃×품질. SCNet은 같은 FOUR/BALANCED를 쓰므로 제외한다. */
         fun of(layout: StemLayout, quality: Quality): Tier =
-            entries.first { it.layout == layout && it.quality == quality }
+            entries.first {
+                !it.family.isScnet && it.layout == layout && it.quality == quality
+            }
     }
 }
 

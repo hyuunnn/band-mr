@@ -12,6 +12,7 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 sealed interface ModelState {
     data object NotDownloaded : ModelState
@@ -23,7 +24,7 @@ sealed interface ModelState {
 /** 다운받은 파일 자체가 손상된 경우(부분 파일을 남기면 안 됨) */
 private class IntegrityException(message: String) : IOException(message)
 
-/** 4종(4/6스템 × 균형/품질) 모델의 다운로드·삭제·상태 관리 */
+/** 카탈로그 [Tier] 모델의 다운로드·삭제·상태 관리 */
 class ModelManager(private val context: Context) {
 
     private val _states = MutableStateFlow<Map<Tier, ModelState>>(emptyMap())
@@ -32,10 +33,15 @@ class ModelManager(private val context: Context) {
     init {
         // 경량 티어는 카탈로그에서 빠졌다. 받아 둔 파일은 고아로 남지 않게 지운다
         File(context.filesDir, "models/light").deleteRecursively()
+        // 다운로드 직후 SHA는 이미 본다. 여기 검사는 디스크에 남은 파일을 카탈로그 핀과
+        // 다시 맞추는 것. 핀이 바뀌었거나 같은 경로에 옛 파일이 있으면 지운다.
+        Tier.entries.forEach { retainPinnedModel(modelFile(it), it.sha256, shaMarker(it)) }
         _states.value = Tier.entries.associateWith { if (modelFile(it).exists()) ModelState.Ready else ModelState.NotDownloaded }
     }
 
     fun modelFile(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), tier.fileName)
+
+    private fun shaMarker(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), SHA_MARKER)
 
     fun isDownloaded(tier: Tier): Boolean = modelFile(tier).exists()
 
@@ -139,11 +145,14 @@ class ModelManager(private val context: Context) {
 
     /** 검증 끝난 임시 파일을 정식 모델 파일로 승격하고 Ready 상태로 전환 */
     private fun promoteTmp(tmp: File, tier: Tier) {
-        FilePromote.file(tmp, modelFile(tier))
+        val dest = modelFile(tier)
+        FilePromote.file(tmp, dest)
+        shaMarker(tier).writeText(tier.sha256)
         setState(tier, ModelState.Ready)
     }
 
     fun delete(tier: Tier) {
+        shaMarker(tier).delete()
         modelFile(tier).delete()
         setState(tier, ModelState.NotDownloaded)
     }
@@ -154,6 +163,38 @@ class ModelManager(private val context: Context) {
 
     companion object {
         private const val DEFAULT_BUF = 128 * 1024
+        internal const val SHA_MARKER = "sha256"
+
+        /**
+         * [file]이 [pin]과 같으면 남기고 true. 마커가 핀과 같으면 본문을 다시 해시하지 않는다
+         * (콜드스타트에서 280MB를 읽지 않기 위함). 불일치면 파일·마커를 지운다.
+         */
+        internal fun retainPinnedModel(file: File, pin: String, marker: File): Boolean {
+            if (!file.exists()) {
+                marker.delete()
+                return false
+            }
+            if (marker.exists() && marker.readText().trim().equals(pin, ignoreCase = true)) return true
+            if (sha256Hex(file).equals(pin, ignoreCase = true)) {
+                marker.writeText(pin)
+                return true
+            }
+            file.delete()
+            marker.delete()
+            return false
+        }
+
+        internal fun sha256Hex(file: File): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buf = ByteArray(DEFAULT_BUF)
+                var n: Int
+                while (input.read(buf).also { n = it } >= 0) {
+                    if (n > 0) digest.update(buf, 0, n)
+                }
+            }
+            return hex(digest.digest())
+        }
 
         private fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
     }

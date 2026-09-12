@@ -106,9 +106,9 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 
 ## AI 모델 (GitHub Releases 호스팅)
 
-- 4스템은 `htdemucs`(drums/bass/other/vocals), 6스템은 `htdemucs_6s`(+guitar/piano). `ModelConfig.stemOrder`가 해당 `Tier.stemOrder`와 일치해야 한다
-- 품질은 균형형 262144 / 품질 344064 두 개만 (경량 131072 없음). 온디스크는 6스템 `models/{balanced,quality}/model-6s.onnx`, 4스템 `models/4s-*/model-4s.onnx`
-- 4스템·6스템 URL은 모두 `model-v3`. `ModelCatalog.kt` SHA-256 핀 — **모델을 다시 올리면 해당 해시 반드시 갱신**
-- 예전 id `light`/`balanced`/`quality`는 `Tier.fromId`가 6스템으로 읽는다 (`balanced`/`quality` id는 6스템 그대로)
-- 가중치는 Meta demucs(MIT) 파생, NewPipeExtractor는 GPL-3.0 → `THIRD_PARTY_NOTICES.md` 고지 유지
+- 4스템은 `htdemucs`(drums/bass/other/vocals) 또는 `scnet-xl`/`scnet-xl-ihf`, 6스템은 `htdemucs_6s`(+guitar/piano). `ModelConfig.stemOrder`가 해당 `Tier.stemOrder`와 일치해야 한다
+- Demucs 품질은 균형형 262144 / 품질 344064 두 개만 (경량 131072 없음). SCNet XL/XL IHF는 온디바이스 262144(학습은 11초). 온디스크는 6스템 `models/{balanced,quality}/model-6s.onnx`, Demucs 4스템 `models/4s-*/model-4s.onnx`, SCNet `models/scnet-xl/model-scnet-xl.onnx` · `models/scnet-xl-ihf/model-scnet-xl-ihf.onnx`
+- URL은 모두 `model-v3`. `ModelCatalog.kt` SHA-256 핀 — **모델을 다시 올리면 해당 해시 반드시 갱신**
+- 예전 id `light`/`balanced`/`quality`는 `Tier.fromId`가 6스템으로 읽는다 (`balanced`/`quality` id는 6스템 그대로). `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이지 SCNet이 아니다
+- 가중치는 Meta demucs(MIT)·SCNet/ZFTurbo(MIT, MUSDB-only) 파생, NewPipeExtractor는 GPL-3.0 → `THIRD_PARTY_NOTICES.md` 고지 유지
 - 재export 절차·우회 목록은 `tools/README.md`

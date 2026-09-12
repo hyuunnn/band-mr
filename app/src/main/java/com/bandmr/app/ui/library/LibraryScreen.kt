@@ -312,7 +312,11 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(
                     text = formatDuration(song.durationMs) +
-                        if (song.separatedTier != null) " · AI ${Tier.fromId(song.separatedTier).layout.label}" else "",
+                        if (song.separatedTier != null) {
+                            " · AI ${Tier.fromId(song.separatedTier).chipLabel}"
+                        } else {
+                            ""
+                        },
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

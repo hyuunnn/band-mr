@@ -31,12 +31,12 @@ import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.io.CacheStorage
+import com.bandmr.app.separation.ModelFamily
 import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemFiles
-import com.bandmr.app.separation.StemLayout
 import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -63,10 +63,10 @@ fun SettingsScreen() {
             style = MaterialTheme.typography.bodySmall,
         )
 
-        StemLayout.entries.forEach { layout ->
-            Text(layout.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
-            Text(layout.description, style = MaterialTheme.typography.bodySmall)
-            Tier.entries.filter { it.layout == layout }.forEach { tier ->
+        ModelFamily.entries.forEach { family ->
+            Text(family.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+            Text(family.description, style = MaterialTheme.typography.bodySmall)
+            Tier.entries.filter { it.family == family }.forEach { tier ->
                 ModelTierCard(
                     tier = tier,
                     state = modelStates[tier],
@@ -95,7 +95,7 @@ fun SettingsScreen() {
             "참고\n" +
                 "· AI OFF: 재생 중 실시간 신호처리(중앙 마스킹/필터)로 제거 — 즉시 동작, 절전\n" +
                 "· AI ON: 곡당 1회 사전 분리 후 캐시 사용 — 정확하지만 처리에 시간이 걸림\n" +
-                "· 품질 우선 모델은 RAM 4GB 이상 기기를 권장합니다.",
+                "· 품질 우선·SCNet은 RAM 4GB 이상 기기를 권장합니다.",
             style = MaterialTheme.typography.bodySmall,
         )
 
@@ -120,7 +120,7 @@ private fun ModelTierCard(
         ) {
             RadioButton(selected = selected, onClick = onSelect)
             Column(Modifier.weight(1f)) {
-                Text("${tier.quality.label} (약 ${tier.approxSizeMb}MB)", style = MaterialTheme.typography.titleSmall)
+                Text("${tier.cardTitle} (약 ${tier.approxSizeMb}MB)", style = MaterialTheme.typography.titleSmall)
                 Text(tier.description, style = MaterialTheme.typography.bodySmall)
                 when (state) {
                     is ModelState.Downloading -> {

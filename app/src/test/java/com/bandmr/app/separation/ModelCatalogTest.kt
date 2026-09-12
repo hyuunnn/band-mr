@@ -17,16 +17,27 @@ class ModelCatalogTest {
         assertEquals(Tier.S6_QUALITY, Tier.fromId("quality"))
         assertEquals(Tier.S4_BALANCED, Tier.fromId("4s-balanced"))
         assertEquals(Tier.S4_QUALITY, Tier.fromId("4s-quality"))
+        assertEquals(Tier.S4_SCNET_XL, Tier.fromId("scnet-xl"))
+        assertEquals(Tier.S4_SCNET_XL_IHF, Tier.fromId("scnet-xl-ihf"))
     }
 
     @Test
-    fun `카탈로그는 4_6스템과 균형_품질만 갖는다`() {
-        assertEquals(4, Tier.entries.size)
+    fun `카탈로그는 Demucs 4_6과 SCNet XL_XL IHF를 갖는다`() {
+        assertEquals(6, Tier.entries.size)
         assertEquals(setOf(StemLayout.FOUR, StemLayout.SIX), Tier.entries.map { it.layout }.toSet())
         assertEquals(setOf(Quality.BALANCED, Quality.QUALITY), Tier.entries.map { it.quality }.toSet())
+        assertEquals(
+            setOf(
+                ModelFamily.HTDEMUCS_4, ModelFamily.HTDEMUCS_6,
+                ModelFamily.SCNET_XL, ModelFamily.SCNET_XL_IHF,
+            ),
+            Tier.entries.map { it.family }.toSet(),
+        )
         assertFalse(Tier.entries.any { it.id == "light" || it.segmentSamples == 131_072 })
         assertEquals(Tier.S4_BALANCED, Tier.of(StemLayout.FOUR, Quality.BALANCED))
         assertEquals(Tier.S6_QUALITY, Tier.of(StemLayout.SIX, Quality.QUALITY))
+        assertEquals(Tier.S4_SCNET_XL, Tier.entries.single { it.family == ModelFamily.SCNET_XL })
+        assertEquals(Tier.S4_SCNET_XL_IHF, Tier.entries.single { it.family == ModelFamily.SCNET_XL_IHF })
     }
 
     @Test
@@ -63,6 +74,19 @@ class ModelCatalogTest {
         assertEquals("balanced", Tier.S6_BALANCED.id)
         assertEquals("quality", Tier.S6_QUALITY.id)
         assertEquals("model-4s.onnx", Tier.S4_BALANCED.fileName)
+        assertEquals("model-scnet-xl.onnx", Tier.S4_SCNET_XL.fileName)
+        assertEquals("model-scnet-xl-ihf.onnx", Tier.S4_SCNET_XL_IHF.fileName)
+        assertEquals(Quality.BALANCED.segmentSamples, Tier.S4_SCNET_XL.segmentSamples)
+        assertEquals(Quality.BALANCED.segmentSamples, Tier.S4_SCNET_XL_IHF.segmentSamples)
+        assertEquals(StemLayout.FOUR, Tier.S4_SCNET_XL.layout)
+        assertEquals("XL", Tier.S4_SCNET_XL.cardTitle)
+        assertEquals("XL IHF", Tier.S4_SCNET_XL_IHF.cardTitle)
+        assertEquals("SCNet XL", Tier.S4_SCNET_XL.chipLabel)
+        assertEquals("SCNet XL IHF", Tier.S4_SCNET_XL_IHF.chipLabel)
+        assertEquals("4스템", Tier.S4_BALANCED.chipLabel)
+        assertTrue(Tier.S4_SCNET_XL.sha256 != "0".repeat(64))
+        assertTrue(Tier.S4_SCNET_XL_IHF.sha256 != "0".repeat(64))
+        assertTrue(Tier.entries.all { it.url.contains("/model-v3/") })
     }
 
     @Test
