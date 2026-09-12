@@ -46,21 +46,20 @@ enum class StemLayout(
  * 아래에 섞지 않는다.
  */
 enum class ModelFamily(
-    val id: String,
     val label: String,
     val description: String,
 ) {
     HTDEMUCS_4(
-        "htdemucs-4s", "Demucs 4스템",
+        "Demucs 4스템",
         "보컬·드럼·베이스·그 외. 코어 분리가 더 깨끗합니다",
     ),
     HTDEMUCS_6(
-        "htdemucs-6s", "Demucs 6스템",
+        "Demucs 6스템",
         "기타·피아노를 따로 줄일 수 있습니다",
     ),
     SCNET_XL_IHF(
-        "scnet-xl-ihf", "SCNet XL IHF",
-        "4스템. 보컬·고역이 Demucs 4스보다 낫습니다 (11초 세그먼트)",
+        "SCNet XL IHF",
+        "4스템. 보컬·고역이 Demucs 4스보다 낫습니다",
     ),
 }
 
@@ -104,6 +103,9 @@ enum class Tier(
      */
     val sha256: String,
     val approxSizeMb: Int = 178,
+    /** null이면 [quality.segmentSamples]. SCNet처럼 품질 등급과 길이가 무관할 때 지정. */
+    private val segmentOverride: Int? = null,
+    private val fileNameOverride: String? = null,
 ) {
     S4_BALANCED(
         "4s-balanced", ModelFamily.HTDEMUCS_4, StemLayout.FOUR, Quality.BALANCED,
@@ -136,6 +138,8 @@ enum class Tier(
         "https://github.com/hyuunnn/band-mr/releases/download/model-v3/scnetxl-ihf-fp32.onnx",
         "9c05acc47b908562d2792351952a13dfd1353932e108832528ac94cd3136c98c",
         approxSizeMb = 287,
+        segmentOverride = 485_100,
+        fileNameOverride = "model-scnet-xl-ihf.onnx",
     );
 
     val label: String get() = when (family) {
@@ -143,25 +147,24 @@ enum class Tier(
         else -> "${layout.label} ${quality.label}"
     }
     val description: String get() = when (family) {
-        ModelFamily.SCNET_XL_IHF -> family.description
+        ModelFamily.SCNET_XL_IHF -> "11초 세그먼트 고정. RAM 4GB 이상 권장"
         else -> quality.description
     }
     val cardTitle: String get() = when (family) {
         ModelFamily.SCNET_XL_IHF -> "XL IHF"
         else -> quality.label
     }
-    val segmentSamples: Int get() = when (family) {
-        ModelFamily.SCNET_XL_IHF -> SCNET_XL_IHF_SEGMENT
-        else -> quality.segmentSamples
+    /** 라이브러리 칩. Demucs는 4/6스템만, SCNet은 가족 이름. */
+    val chipLabel: String get() = when (family) {
+        ModelFamily.SCNET_XL_IHF -> family.label
+        else -> layout.label
     }
+    val segmentSamples: Int get() = segmentOverride ?: quality.segmentSamples
     val stemOrder: List<String> get() = layout.stemOrder
     val stems: List<Stem> get() = layout.stems
     val displayStems: List<Stem> get() = layout.displayStems
-    val fileName: String get() = when (family) {
-        ModelFamily.SCNET_XL_IHF -> "model-scnet-xl-ihf.onnx"
-        ModelFamily.HTDEMUCS_6 -> "model-6s.onnx"
-        else -> "model-4s.onnx"
-    }
+    val fileName: String get() = fileNameOverride
+        ?: if (layout == StemLayout.SIX) "model-6s.onnx" else "model-4s.onnx"
 
     companion object {
         /** SCNet XL IHF 학습·추론 청크. 44.1kHz × 11초. */

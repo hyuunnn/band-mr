@@ -74,8 +74,11 @@ class ModelCatalogTest {
         assertEquals(StemLayout.FOUR, Tier.S4_SCNET_XL_IHF.layout)
         assertEquals(StemLayout.FOUR.displayStems, Tier.S4_SCNET_XL_IHF.displayStems)
         assertEquals("XL IHF", Tier.S4_SCNET_XL_IHF.cardTitle)
-        assertEquals(Tier.S4_BALANCED, Tier.of(StemLayout.FOUR, Quality.BALANCED))
+        assertEquals("SCNet XL IHF", Tier.S4_SCNET_XL_IHF.chipLabel)
+        assertEquals("4스템", Tier.S4_BALANCED.chipLabel)
         assertTrue(Tier.S4_SCNET_XL_IHF.sha256 != "0".repeat(64))
+        assertTrue(Tier.S4_SCNET_XL_IHF.segmentSamples != Quality.BALANCED.segmentSamples)
+        assertTrue(Tier.entries.all { it.url.contains("/model-v3/") })
     }
 
     @Test
