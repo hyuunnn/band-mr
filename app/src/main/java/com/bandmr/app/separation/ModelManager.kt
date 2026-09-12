@@ -23,7 +23,7 @@ sealed interface ModelState {
 /** 다운받은 파일 자체가 손상된 경우(부분 파일을 남기면 안 됨) */
 private class IntegrityException(message: String) : IOException(message)
 
-/** 4종(4/6스템 × 균형/품질) 모델의 다운로드·삭제·상태 관리 */
+/** 카탈로그 [Tier] 모델의 다운로드·삭제·상태 관리 */
 class ModelManager(private val context: Context) {
 
     private val _states = MutableStateFlow<Map<Tier, ModelState>>(emptyMap())

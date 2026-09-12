@@ -49,6 +49,7 @@ import com.bandmr.app.Locator
 import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
+import com.bandmr.app.separation.ModelFamily
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
@@ -312,7 +313,17 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 Text(
                     text = formatDuration(song.durationMs) +
-                        if (song.separatedTier != null) " · AI ${Tier.fromId(song.separatedTier).layout.label}" else "",
+                        if (song.separatedTier != null) {
+                            val t = Tier.fromId(song.separatedTier)
+                            val chip = if (t.family == ModelFamily.SCNET_XL_IHF) {
+                                t.family.label
+                            } else {
+                                t.layout.label
+                            }
+                            " · AI $chip"
+                        } else {
+                            ""
+                        },
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

@@ -114,28 +114,30 @@
     <div class="card on">
       <h3>온디바이스 AI 분리 (고품질)</h3>
       <ul>
-        <li>Demucs(htdemucs 4스템 · htdemucs_6s 6스템)를 ONNX로 변환해 폰 안에서 추론</li>
+        <li>Demucs(htdemucs 4스템 · htdemucs_6s 6스템)와 SCNet XL IHF를 ONNX로 변환해 폰 안에서 추론</li>
         <li>재생용 MixCache WAV를 그대로 넣어 분리 — 곡당 1회 후 스템 캐시 재사용</li>
         <li>스템별 0~100% 볼륨으로 정확히 조절 (0%=제거)</li>
-        <li>4스템/6스템 × 균형형/품질 4종 선택 가능</li>
+        <li>Demucs 4스템/6스템 × 균형형/품질 + SCNet XL IHF 선택 가능</li>
       </ul>
-      <div class="tagline">최초 1회 다운로드(4스템 약 236MB · 6스템 약 178MB) · 분리에 몇십 초~수분</div>
+      <div class="tagline">최초 1회 다운로드(Demucs 4스 약 236MB · 6스 약 178MB · SCNet 약 287MB) · 분리에 몇십 초~수분</div>
     </div>
   </div>
 </section>
 
 <section>
-  <h2><span class="num">04</span>AI 분리 모델 4종</h2>
-  <p class="lead">4스템과 6스템을 고르고, 같은 가중치를 세그먼트 길이만 다르게 돌립니다. 길수록 품질↑ · 메모리/시간↑.</p>
+  <h2><span class="num">04</span>AI 분리 모델</h2>
+  <p class="lead">Demucs는 4스템·6스템을 고르고 같은 가중치를 세그먼트 길이만 다르게 돌립니다. SCNet XL IHF는 4스템 전용, 11초 청크 고정입니다.</p>
   <table>
     <tr><th>구성</th><th>스템</th><th>모델</th><th>용량</th></tr>
-    <tr><td><b>4스템</b></td><td>보컬·드럼·베이스·그 외</td><td>htdemucs</td><td>약 236MB</td></tr>
-    <tr><td><b>6스템</b></td><td>+ 기타·피아노</td><td>htdemucs_6s</td><td>약 178MB</td></tr>
+    <tr><td><b>Demucs 4스템</b></td><td>보컬·드럼·베이스·그 외</td><td>htdemucs</td><td>약 236MB</td></tr>
+    <tr><td><b>Demucs 6스템</b></td><td>+ 기타·피아노</td><td>htdemucs_6s</td><td>약 178MB</td></tr>
+    <tr><td><b>SCNet XL IHF</b></td><td>보컬·드럼·베이스·그 외</td><td>SCNet XL IHF</td><td>약 287MB</td></tr>
   </table>
   <table style="margin-top:16px;">
     <tr><th>등급</th><th>세그먼트</th><th>특징</th></tr>
-    <tr><td><b>균형형 (권장)</b></td><td>262,144 샘플 (≈6초)</td><td>속도와 품질의 균형</td></tr>
-    <tr><td><b>품질 우선</b></td><td>344,064 샘플 (≈7.8초)</td><td>최고 품질 — RAM 4GB 이상 권장</td></tr>
+    <tr><td><b>균형형 (권장)</b></td><td>262,144 샘플 (≈6초)</td><td>Demucs 속도와 품질의 균형</td></tr>
+    <tr><td><b>품질 우선</b></td><td>344,064 샘플 (≈7.8초)</td><td>Demucs 최고 품질 — RAM 4GB 이상 권장</td></tr>
+    <tr><td><b>SCNet XL IHF</b></td><td>485,100 샘플 (11초)</td><td>보컬·고역이 Demucs 4스보다 나음</td></tr>
   </table>
   <div class="note">모델은 SHA-256 무결성 검증과 함께 다운로드되며, 네트워크가 끊겨도 이어받기 됩니다. 경량(131,072)은 제공하지 않습니다.</div>
 </section>
