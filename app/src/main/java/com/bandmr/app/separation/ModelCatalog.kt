@@ -56,7 +56,7 @@ enum class ModelFamily(
     ),
     SCNET_XL(
         "SCNet XL",
-        "4스템. Demucs 4스보다 낫고 IHF보다 빠릅니다",
+        "4스템. Demucs 4스보다 보컬 제거는 조금 약하지만 악기 분리는 더 정확합니다",
     ),
     SCNET_XL_IHF(
         "SCNet XL IHF",
