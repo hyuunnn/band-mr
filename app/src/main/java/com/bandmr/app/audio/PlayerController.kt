@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.IntentFilter
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.content.BroadcastReceiver
 import android.content.Intent
@@ -79,8 +81,6 @@ class PlayerController(private val context: Context) {
      */
     val seekEpoch = MutableStateFlow(0)
 
-    private var wasAutoEnded = false
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // ---------- 오디오 포커스 / 이어폰 분리 ----------
@@ -88,6 +88,25 @@ class PlayerController(private val context: Context) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var focusRequest: AudioFocusRequest? = null
     private var noisyReceiver: BroadcastReceiver? = null
+
+    /**
+     * 포커스를 잃으면 멈춘다(다른 미디어 앱 시작·통화). 리스너가 없으면 이 앱은 남을 멈추게만 하고
+     * 자기는 안 멈춰서, 다른 앱이 켜져도 곡이 소리 없이 진행되고 알림은 "재생 중"으로 남는다.
+     * 통화 중에는 시스템이 뮤트만 하므로 그 사이 구간을 잃는다.
+     *
+     * 이어폰 분리와 같은 "멈추면 끝" 규칙이다. GAIN 자동 재개는 하지 않는다 — [pauseAll]이 포커스를
+     * 즉시 반납하므로 어차피 오지 않고, 덕킹(CAN_DUCK)은 프레임워크가 대신 처리해 통보도 안 온다.
+     * 핸들러를 명시하는 이유: 생략하면 AudioManager를 만든 스레드의 Looper에 묶이는데, 엔진 필드는
+     * 메인 스레드 전용이다.
+     */
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            pauseAll()
+            // 캐시 준비를 기다리며 포커스를 잡아둔 상태였다면, 준비가 끝났을 때 다른 앱 위로
+            // 자동 재생되지 않게 저장해 둔 재생 의도도 내린다
+            pendingResumePlay = false
+        }
+    }
 
     private fun requestFocus(): Boolean {
         val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -97,6 +116,7 @@ class PlayerController(private val context: Context) {
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
                     .build()
             )
+            .setOnAudioFocusChangeListener(focusListener, Handler(Looper.getMainLooper()))
             .build()
             .also { focusRequest = it }
         return audioManager.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
@@ -134,9 +154,16 @@ class PlayerController(private val context: Context) {
         abandonFocus()
     }
 
-    /** 곡이 끝까지 재생되어 엔진이 스스로 멈췄을 때 (양쪽 엔진 공용) */
+    /**
+     * 곡이 끝까지 재생되어 엔진이 스스로 멈췄을 때 (양쪽 엔진 공용).
+     *
+     * "끝났다"는 별도 플래그로 기억하지 않는다. [AudioTrackEngine.finish]가 `isPlaying=false`를
+     * 세운 **뒤에** 이 콜백을 post하므로, 이후 [ensureLoaded]의 `activeIsPlaying()`은 사용자가
+     * 다시 재생하지 않는 한 false다. 예전의 `wasAutoEnded` 플래그는 그래서 막는 사례가 없었고,
+     * 반대로 재생 재개 때 리셋되지 않아 "끝까지 듣고 → 다시 재생 → AI 토글"이면 새 엔진이
+     * 시작하지 않는데 화면·알림은 재생 중으로 남는 버그만 만들었다.
+     */
     private fun onAutoEnded() {
-        wasAutoEnded = true
         isPlaying.value = false
         abandonFocus()
     }
@@ -176,7 +203,10 @@ class PlayerController(private val context: Context) {
         }
         applyLoopToEngines()
         snapIntoLoopIfNeeded()
-        wasAutoEnded = false
+        // 엔진 상태가 진실이고 StateFlow는 그 사영이다 — 다른 로드 경로(beginPrepare 완료·setPlaying)와
+        // 같은 규칙. 여기만 빠져 있으면 새 엔진이 시작하지 않은 경우(스템이 비어 totalFrames==0 등)
+        // 화면·알림이 재생 중으로 남는다. 캐시 준비 중이면 엔진이 없어 false — 실제로 무음이므로 맞다
+        isPlaying.value = activeIsPlaying()
     }
 
     private fun loadMixer(song: Song, gains: FloatArray, semi: Int, speed: Float, wasPlaying: Boolean, pos: Long) {
@@ -187,7 +217,7 @@ class PlayerController(private val context: Context) {
             it.gains = gains
             durationMs.value = framesToMs(it.durationFrames)
             it.seekToFrame(msToFrames(pos))
-            if (wasPlaying && !wasAutoEnded) it.play()
+            if (wasPlaying) it.play()
         }
     }
 
@@ -198,13 +228,13 @@ class PlayerController(private val context: Context) {
         if (player == null) {
             // 준비 중 재입장 시 사용자가 저장한 재생 의도를 덮어쓰지 않는다
             if (pendingResumeSongId != song.id) {
-                pendingResume(song.id, wasPlaying && !wasAutoEnded, pos)
+                pendingResume(song.id, wasPlaying, pos)
             }
             beginPrepare(song.id, song.uri.toUri())
             durationMs.value = song.durationMs
             return
         }
-        attachSource(player, mask, semi, speed, wasPlaying && !wasAutoEnded, pos)
+        attachSource(player, mask, semi, speed, wasPlaying, pos)
         clearPendingResume(song.id)
     }
 
