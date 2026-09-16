@@ -59,6 +59,7 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemLayout
 import com.bandmr.app.separation.Tier
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -676,7 +677,7 @@ private fun PitchCard(semitones: Int, onChange: (Int) -> Unit) {
                 }
                 Slider(
                     value = semitones.toFloat(),
-                    onValueChange = { onChange(it.toInt()) },
+                    onValueChange = { onChange(it.roundToInt()) },
                     valueRange = -12f..12f,
                     steps = 23,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
