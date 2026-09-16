@@ -19,8 +19,8 @@ android {
         applicationId = "com.bandmr.app"
         minSdk = 31
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
 
         ndk {
             // ONNX Runtime 네이티브가 ABI당 23~38MB다. 4종을 다 넣으면 APK가 100MB 이상 불어나는데,
