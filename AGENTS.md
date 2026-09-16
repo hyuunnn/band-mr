@@ -66,6 +66,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **재생 종료 경로는 `release()` 하나.** 알림 지우기·최근 앱 치우기(`onTaskRemoved`)·곡 삭제가 모두 지난다. 홈으로 나가는 건 종료가 아니다(FGS는 태스크가 사라져도 살아남는다)
 - **`release()`는 `releaseEpoch`를 올려 화면이 엔진을 재준비하게 하고, 종료 절차 중에는 `PlaybackService.stopping`이 알림 재등록을 막는다.** 신호가 없으면 재생 버튼이 영구 무반응, 가드가 없으면 방금 지운 알림이 되살아난다. 화면이 열려 있는 동안 엔진 해제는 사실상 무효 — 의도된 트레이드오프다(`PlayerController.releaseEpoch` KDoc)
 - **알림·잠금화면·블루투스는 `setPlaying(Boolean)`(절대 명령)으로 받는다.** 상태를 읽어 토글하면 그 사이에 낀 자동 일시정지(포커스 상실·이어폰 분리)가 명령을 뒤집는다. 상태를 읽는 곳은 화면 버튼용 `playPause()` 한 곳뿐
+- **재생용 FGS 기동은 `setPlaying`의 재생 의도 시점에 한다.** `isPlaying`을 관찰해 띄우면(화면 이펙트) 준비 완료 자동 재생이 화면 이탈 뒤에 일어날 때 백그라운드 `startForegroundService`로 죽고(API 31+), 화면이 dispose됐으면 아예 안 떠서 무알림 재생이 된다. `PlaybackService.start`는 예외를 삼키지만 방어일 뿐 기동 지점은 `setPlaying`이다
 - **`AudioTrackEngine.release()` 이후 곡끝 통보는 막힌다(`released`).** 확인은 post 시점이 아니라 **콜백 실행 시점**. 플래그는 `stopEngine`이 아니라 `release`에서만 세울 것
 - **`StemMixPlayer.renderChunk`는 0 이하를 돌려주지 않는다.** 엔진이 `produced <= 0`을 곡 끝으로 읽는다 → 읽을 게 없으면 무음, 닫힌 리더 예외는 스템 단위로 흡수(`loop()`에 catch가 없어 오디오 스레드가 죽는다)
 - **`ensureLoaded`는 `separatedTier`/`stemsDir`가 바뀌면 믹서를 다시 연다.** 곡 id와 AI 모드만 보면 다시 분리 뒤 UI는 새 레이아웃인데 엔진은 이전 스템 fd를 붙잡는다. 게인·키·배속은 setter 경로. `PlayerLoadPositionTest`가 티어 변경 → reload를 고정

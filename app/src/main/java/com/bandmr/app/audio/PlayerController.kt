@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
+import com.bandmr.app.playback.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -379,14 +380,25 @@ class PlayerController(private val context: Context) {
         if (shouldPlay && !requestFocus()) return // 포커스 거부 시 재생하지 않음
         val engine = active
         if (engine != null) {
-            if (shouldPlay) engine.play() else engine.pause()
+            // 재생용 FGS는 "재생 의도 시점"에 띄운다(아래 pendingResume 경로도 동일).
+            // isPlaying이 켜지는 시점에 띄우면 준비 완료 자동 재생이 화면 이탈 뒤에 일어날 때
+            // 백그라운드 startForegroundService로 죽거나, 화면이 dispose돼 아예 안 뜬다
+            if (shouldPlay) {
+                PlaybackService.start(context)
+                engine.play()
+            } else engine.pause()
             isPlaying.value = engine.isPlaying
             // 이어폰 분리(pauseAll)와 동일하게 일시정지 시 포커스 반납
             if (!engine.isPlaying) abandonFocus()
             return
         }
-        // 여기부터는 엔진이 없는 경우. 멈추라는 명령이면 이미 멈춘 상태다
-        if (!shouldPlay) return
+        // 여기부터는 엔진이 없는 경우. 멈추라는 명령이면 대기 중인 자동 재생 의도도 취소한다 —
+        // 두면 캐시 준비 완료 시점에 명령을 뒤집고 재생이 시작된다. 잡아둔 포커스도 함께 반납
+        if (!shouldPlay) {
+            pendingResumePlay = false
+            abandonFocus()
+            return
+        }
         // AI ON에서 믹서가 없으면 스템 로드가 실패한 것이라 준비할 것이 없다
         if (aiMode) {
             abandonFocus()
@@ -396,6 +408,7 @@ class PlayerController(private val context: Context) {
         // 실패 후라면 beginPrepare가 재시도 진입점이 된다 (준비 중이면 no-op)
         val song = currentSong ?: run { abandonFocus(); return }
         val keepPos = if (pendingResumeSongId == song.id) pendingResumePosMs else 0L
+        PlaybackService.start(context)
         pendingResume(song.id, true, keepPos)
         beginPrepare(song.id, song.uri.toUri())
     }

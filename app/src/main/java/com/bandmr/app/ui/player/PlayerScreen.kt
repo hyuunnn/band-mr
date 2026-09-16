@@ -141,15 +141,15 @@ fun PlayerScreen(songId: Long) {
 
     val playing by ctrl.isPlaying.collectAsState()
 
-    // 백그라운드 재생: 재생 시작 시 포그라운드 서비스 기동 (알림 권한은 있으면 좋음)
+    // 알림 권한이 없으면 재생 시작 때 요청한다. FGS 기동 자체는 PlayerController가
+    // 재생 의도 시점에 한다 — 여기서 띄우면 준비 완료 자동 재생이 화면 이탈 뒤에 일어날 때
+    // 백그라운드 startForegroundService로 죽거나, 화면이 dispose돼 아예 안 뜬다
     LaunchedEffect(playing) {
         if (!playing) return@LaunchedEffect
         val granted = Build.VERSION.SDK_INT < 33 || androidx.core.content.ContextCompat.checkSelfPermission(
             Locator.context, Manifest.permission.POST_NOTIFICATIONS
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (granted) {
-            PlaybackService.start(Locator.context)
-        } else {
+        if (!granted) {
             playbackNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }

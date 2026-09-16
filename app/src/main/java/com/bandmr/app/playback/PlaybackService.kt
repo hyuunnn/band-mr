@@ -12,6 +12,7 @@ import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
+import android.util.Log
 import androidx.core.app.ServiceCompat
 import com.bandmr.app.Locator
 import com.bandmr.app.MainActivity
@@ -280,6 +281,7 @@ class PlaybackService : Service() {
     }
 
     companion object {
+        private const val TAG = "PlaybackService"
         private const val CHANNEL_ID = "playback"
         private const val NOTIF_ID = 1002
         private const val ACTION_TOGGLE = "toggle"
@@ -288,8 +290,18 @@ class PlaybackService : Service() {
         /** 재생 중 알림 진행바를 맞추는 주기 */
         private const val POSITION_SYNC_MS = 1_000L
 
+        /**
+         * FGS 기동. 백그라운드에서 호출되면(API 31+) startForegroundService가
+         * ForegroundServiceStartNotAllowedException(IllegalStateException)을 던지므로
+         * 삼켜서 크래시를 막는다. 정상 경로는 재생 의도 시점(PlayerController.setPlaying)이라
+         * 포그라운드가 보장되고, 거부되는 호출은 이미 재생이 시작된 뒤의 보조 호출이다.
+         */
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, PlaybackService::class.java))
+            try {
+                context.startForegroundService(Intent(context, PlaybackService::class.java))
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "백그라운드 FGS 기동 거부", e)
+            }
         }
     }
 }
