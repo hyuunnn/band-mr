@@ -103,9 +103,6 @@ class PlayerController(private val context: Context) {
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
             pauseAll()
-            // 캐시 준비를 기다리며 포커스를 잡아둔 상태였다면, 준비가 끝났을 때 다른 앱 위로
-            // 자동 재생되지 않게 저장해 둔 재생 의도도 내린다
-            pendingResumePlay = false
         }
     }
 
@@ -152,6 +149,9 @@ class PlayerController(private val context: Context) {
     private fun pauseAll() {
         active?.pause()
         isPlaying.value = false
+        // 캐시 준비 완료 자동 재생에 대기해 둔 의도까지 취소한다 — 두면 포커스 상실·이어폰
+        // 분리 직후 준비가 끝나는 시점에 방금 멈춘 명령을 뒤집고 스피커로 재생이 시작된다
+        pendingResumePlay = false
         abandonFocus()
     }
 
@@ -392,11 +392,9 @@ class PlayerController(private val context: Context) {
             if (!engine.isPlaying) abandonFocus()
             return
         }
-        // 여기부터는 엔진이 없는 경우. 멈추라는 명령이면 대기 중인 자동 재생 의도도 취소한다 —
-        // 두면 캐시 준비 완료 시점에 명령을 뒤집고 재생이 시작된다. 잡아둔 포커스도 함께 반납
+        // 여기부터는 엔진이 없는 경우. 멈추라는 명령이면 대기 중인 자동 재생 의도까지 멈춘다
         if (!shouldPlay) {
-            pendingResumePlay = false
-            abandonFocus()
+            pauseAll()
             return
         }
         // AI ON에서 믹서가 없으면 스템 로드가 실패한 것이라 준비할 것이 없다

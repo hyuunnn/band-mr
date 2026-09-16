@@ -293,8 +293,8 @@ class PlaybackService : Service() {
         /**
          * FGS 기동. 백그라운드에서 호출되면(API 31+) startForegroundService가
          * ForegroundServiceStartNotAllowedException(IllegalStateException)을 던지므로
-         * 삼켜서 크래시를 막는다. 정상 경로는 재생 의도 시점(PlayerController.setPlaying)이라
-         * 포그라운드가 보장되고, 거부되는 호출은 이미 재생이 시작된 뒤의 보조 호출이다.
+         * 삼켜서 크래시를 막는다. 기동 지점은 재생 의도 시점(PlayerController.setPlaying)이라
+         * 정상 경로는 포그라운드가 보장되고, 이 catch는 잔여 경로용 방어다.
          */
         fun start(context: Context) {
             try {

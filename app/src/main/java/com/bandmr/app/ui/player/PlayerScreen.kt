@@ -99,6 +99,7 @@ fun PlayerScreen(songId: Long) {
     val playbackNotifPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
+        // 허용 직후 알림을 다시 게시해 shade에 보이게 한다 (서비스는 이미 기동 상태일 수 있다)
         PlaybackService.start(Locator.context)
     }
 
