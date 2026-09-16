@@ -464,6 +464,7 @@ class PlayerController(private val context: Context) {
     }
 
     fun setSemitones(n: Int) {
+        lastSemitones = n
         eachEngine { it.semitones = n }
     }
 
