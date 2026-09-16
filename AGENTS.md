@@ -12,6 +12,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools    # local.prop
 
 ./gradlew :app:testDebugUnitTest      # 단위 테스트
 ./gradlew :app:assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleRelease        # GitHub Release에 올리는 APK는 이것 — debug는 인스펙터 코드가 dex를 ~8MB 부풀린다
 ```
 
 - `local.properties`는 커밋 금지. adb/sdkmanager는 `/opt/homebrew/bin`
