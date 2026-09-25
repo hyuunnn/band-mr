@@ -12,7 +12,9 @@ data class Song(
     val addedAt: Long = System.currentTimeMillis(),
     /**
      * 체크된(제거할) 스템 비트마스크.
-     * [stemGainsPacked]에서 파생해 저장한다 (0%만 비트 ON). AI OFF DSP가 읽는다.
+     * [stemGainsPacked]에서 파생해 같이 저장한다 (0%만 비트 ON).
+     * 재생·내보내기는 packed에서 마스크를 다시 만든다.
+     * 컬럼은 v3 muteMask를 v4 packed로 옮긴 마이그레이션 때문에 남아 있다.
      */
     val muteMask: Int = 0,
     /**
