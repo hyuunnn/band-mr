@@ -59,6 +59,32 @@ class PlaybackLoopTest {
     }
 
     @Test
+    fun `랩 목적지는 무장이고 A가 한계 앞일 때만 A다`() {
+        assertEquals(10_000L, PlaybackLoop.lapTarget(10_000, 20_000, PlaybackLoop.limitFrames(60_000, 10_000, 20_000)))
+        assertEquals(null, PlaybackLoop.lapTarget(PlaybackLoop.DISABLED_FRAME, 20_000, 60_000))
+        // B가 곡 끝 뒤여도 A가 곡 안이면 곡 끝에서 A로 돈다
+        assertEquals(500L, PlaybackLoop.lapTarget(500, 2_000, PlaybackLoop.limitFrames(1_000, 500, 2_000)))
+    }
+
+    /**
+     * 준비 중(길이 = 메타데이터)에 찍은 A가 실제 디코딩 길이 이상인 경우. [PlaybackLoop.restartFrame]만
+     * 보면 A로 되돌리는데 시크 클램프가 다시 곡 끝으로 접어 한계에 그대로 서 있게 된다 — 오디오 스레드가
+     * 쉬지 않고 랩을 되풀이했다. 랩이 flush 없이 위치만 옮기게 되면서 이 경우는 순수 CPU 스핀이 된다.
+     */
+    @Test
+    fun `A가 곡 끝 이상이면 랩하지 않고 끝낸다`() {
+        val total = 1_000L
+        val start = 1_200L
+        val end = 2_000L
+        val limit = PlaybackLoop.limitFrames(total, start, end)
+        assertEquals(total, limit)
+
+        val clampedRestart = PlaybackLoop.restartFrame(start, end)!!.coerceIn(0, total)
+        assertTrue("restartFrame으로도 한계 앞이면 이 테스트는 의미가 없다", clampedRestart >= limit)
+        assertEquals(null, PlaybackLoop.lapTarget(start, end, limit))
+    }
+
+    @Test
     fun `프레임 한계는 무장일 때만 B다`() {
         assertEquals(20_000L, PlaybackLoop.limitFrames(60_000, 10_000, 20_000))
         assertEquals(60_000L, PlaybackLoop.limitFrames(60_000, PlaybackLoop.DISABLED_FRAME, 20_000))

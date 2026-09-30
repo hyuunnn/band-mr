@@ -117,7 +117,7 @@ abstract class AudioTrackEngine(
         val limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
         // ms 양자화 때문에 "끝"이 끝보다 수십 프레임 앞일 수 있다 — PlaybackLoop.isAtLimit KDoc 참조
         if (PlaybackLoop.isAtLimit(framePos, limit, sampleRate)) {
-            seekToFrame(PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame) ?: 0)
+            seekToFrame(PlaybackLoop.lapTarget(loopStartFrame, loopEndFrame, limit) ?: 0)
         }
         synchronized(stateLock) {
             isPlaying = true
@@ -161,7 +161,9 @@ abstract class AudioTrackEngine(
 
     /**
      * [posFrames]부터 최대 [request]프레임을 [outShort]에 렌더하고 실제 프레임 수를 반환한다.
-     * <=0을 반환하면 곡 끝(또는 읽기 실패)으로 보고 랩 또는 종료 처리한다.
+     * <=0을 반환하면 읽기 실패로 보고 곡을 끝낸다. 정상적인 곡 끝·B점은 호출 전에 한계 비교로
+     * 걸러지므로 여기까지 오지 않는다. A-B 무장 중이어도 랩하지 않는다 — 랩하면 실패한 읽기를
+     * A부터 쉬지 않고 되풀이한다.
      * 내부 파이프라인 순서(피치 → 제거 DSP 등)는 서브클래스가 소유한다.
      */
     protected abstract fun renderChunk(posFrames: Long, request: Int): Int
@@ -222,9 +224,26 @@ abstract class AudioTrackEngine(
         }
     }
 
-    private fun wrapOrFinish() {
-        val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
-        if (restart != null) seekToFrame(restart) else finish()
+    /**
+     * 한계(B 또는 곡 끝)에 닿았을 때. A-B가 무장돼 있으면 A로 되돌리고, 아니면 곡을 끝낸다.
+     *
+     * 되돌리기는 [seekToFrame]을 쓰지 않는다. 시크는 트랙을 pause+flush해서 "이미 썼지만 아직
+     * 재생되지 않은" 큐(버퍼 = minBuf×4, 최소 4096프레임 ≈ 93ms)를 버린다. 랩에서 그러면 매 바퀴
+     * B 직전 오디오가 그만큼 잘려 구간이 B−A보다 짧게 들리고 박자가 당겨진다.
+     * 프로세서 리셋([processorsDirty])도 하지 않는다. 리셋하면 매 바퀴 [DspChain]의 선채움 무음이
+     * 끼고, 두면 파이프라인에 남은 B 직전 오디오가 이어진 뒤 A가 나온다.
+     *
+     * 그사이 UI 시크가 끼었으면(framePos가 [pos]가 아니면) 그쪽을 따른다 — 일반 진행과 같은 비교 규칙.
+     */
+    private fun wrapOrFinish(pos: Long, limit: Long) {
+        val restart = PlaybackLoop.lapTarget(loopStartFrame, loopEndFrame, limit)
+        if (restart == null) {
+            finish()
+            return
+        }
+        synchronized(stateLock) {
+            if (framePos == pos) framePos = restart
+        }
     }
 
     private fun loop() {
@@ -249,13 +268,14 @@ abstract class AudioTrackEngine(
                 limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
             }
             if (pos >= limit) {
-                wrapOrFinish()
+                wrapOrFinish(pos, limit)
                 continue
             }
             val request = PlaybackLoop.chunkFrames(pos, limit, CHUNK)
             val produced = renderChunk(pos, request)
             if (produced <= 0) {
-                wrapOrFinish()
+                // 읽기 실패 — 랩하지 않고 끝낸다(renderChunk KDoc)
+                finish()
                 continue
             }
             val wrote = track?.write(outShort, 0, produced * 2, AudioTrack.WRITE_BLOCKING) ?: 0
