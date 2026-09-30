@@ -98,7 +98,7 @@ class PlaybackService : Service() {
         // 곡 삭제 등으로 컨트롤러가 해제되면(제목 null) 알림을 걷고 서비스도 종료
         scope.launch {
             Locator.playerController.nowPlayingTitle.collect { title ->
-                if (title == null && !Locator.playerController.isPlaying.value) {
+                if (shouldStop(title, Locator.playerController.isPlaying.value)) {
                     promoted = false
                     ServiceCompat.stopForeground(
                         this@PlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE,
@@ -289,6 +289,13 @@ class PlaybackService : Service() {
 
         /** 재생 중 알림 진행바를 맞추는 주기 */
         private const val POSITION_SYNC_MS = 1_000L
+
+        /**
+         * 제목 수집기가 알림을 걷고 서비스를 끝낼 조건. 컨트롤러가 해제되면 제목이 null이 된다.
+         * 재생 중이면 끝내지 않으므로 [com.bandmr.app.audio.PlayerController.publishReleased]가
+         * `isPlaying`을 제목보다 먼저 내린다 — 순서가 바뀌면 이 조건을 한 번도 만족하지 못한다.
+         */
+        internal fun shouldStop(title: String?, playing: Boolean): Boolean = title == null && !playing
 
         /**
          * FGS 기동. 백그라운드에서 호출되면(API 31+) startForegroundService가

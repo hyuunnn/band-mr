@@ -300,7 +300,11 @@ class PlayerController(private val context: Context) {
         }
     }
 
-    /** 원본 WAV 캐시 생성 (중복 호출 안전). 완료 시 대기 중이던 재생을 이어간다 */
+    /**
+     * 원본 WAV 캐시 생성. 완료 시 대기 중이던 재생을 이어간다.
+     * 중복 호출은 [preparingSongId] 슬롯 하나로만 막으므로 같은 곡 준비가 두 번 돌 수 있다 —
+     * 완료 쪽이 이미 붙은 엔진을 확인한다([shouldAttachPrepared]).
+     */
     private fun beginPrepare(songId: Long, uri: android.net.Uri) {
         if (preparingSongId.value == songId) return
         preparingSongId.value = songId
@@ -317,7 +321,7 @@ class PlayerController(private val context: Context) {
                     return@withContext
                 }
                 val cur = currentSong ?: return@withContext
-                if (cur.id == songId && !aiMode) {
+                if (shouldAttachPrepared(cur.id, songId, aiMode, hasSource = source != null)) {
                     val player = openSourceOrDiscardCache(songId)
                     if (player != null) {
                         val resume = pendingResumeSongId == songId
@@ -508,9 +512,7 @@ class PlayerController(private val context: Context) {
         // 주의: scope는 취소하지 않는다. 싱글턴 컨트롤러에서 cancel하면
         // 이후 모든 캐시 준비 코루틴이 조용히 무시된다(문구만 남는 버그).
         currentSong = null
-        nowPlayingTitle.value = null
-        isPlaying.value = false
-        durationMs.value = 0L
+        publishReleased(isPlaying, durationMs, nowPlayingTitle)
         preparingSongId.value = null
         prepareFailedSongId.value = null
         lastLoopStartMs = null
@@ -568,6 +570,42 @@ class PlayerController(private val context: Context) {
             val stemsChanged = currentSeparatedTier != incoming.separatedTier ||
                 currentStemsDir != incoming.stemsDir
             return newAiMode != currentAiMode || songChanged || stemsChanged
+        }
+
+        /**
+         * 캐시 준비가 끝났을 때 원본 엔진을 붙일지.
+         *
+         * **이미 엔진이 있으면 붙이지 않는다.** 같은 곡 준비가 두 번 돌 수 있다 — 중복 방지가
+         * [preparingSongId] 슬롯 하나라서, 준비 중에 다른 곡을 열었다 돌아오거나 [release]가 슬롯을
+         * 비운 뒤 다시 들어오면 또 시작된다. 두 번째 준비는 [MixCache]의 곡 단위 락에서 기다렸다가
+         * 곧바로 성공하므로 완료가 연달아 두 번 온다. 두 번째가 엔진을 또 붙이면 첫 엔진은 참조를
+         * 잃은 채 계속 재생된다 — 일시정지·알림·release가 새 엔진에만 걸려 앱을 죽여야 멈췄다.
+         * 원본 엔진은 늘 현재 곡의 것이다(곡이 바뀌면 [ensureLoaded]가 먼저 해제한다).
+         */
+        internal fun shouldAttachPrepared(
+            currentSongId: Long,
+            preparedSongId: Long,
+            aiMode: Boolean,
+            hasSource: Boolean,
+        ): Boolean = currentSongId == preparedSongId && !aiMode && !hasSource
+
+        /**
+         * 해제 상태를 알린다. **[playing]을 [title]보다 먼저 내리는 순서가 계약이다.**
+         *
+         * [PlaybackService]는 두 값을 `Main.immediate`로 수집해 대입하는 그 자리에서 판정하고,
+         * 제목이 null이고 재생 중이 아닐 때만 알림을 걷고 끝난다([PlaybackService.shouldStop]).
+         * 제목을 먼저 내리면 그 순간엔 아직 재생 중이라 알림 갱신으로 빠지고, 이어지는
+         * `isPlaying=false`는 제목 수집기를 다시 깨우지 않는다 — 재생 중인 곡을 지우면
+         * "밴드 MR · 일시정지" 알림과 FGS가 남고 재생 버튼은 반응하지 않았다(`PlayerReleaseOrderTest`).
+         */
+        internal fun publishReleased(
+            playing: MutableStateFlow<Boolean>,
+            durationMs: MutableStateFlow<Long>,
+            title: MutableStateFlow<String?>,
+        ) {
+            playing.value = false
+            durationMs.value = 0L
+            title.value = null
         }
     }
 }
