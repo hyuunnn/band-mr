@@ -7,7 +7,7 @@
 ## 빌드 / 테스트
 
 ```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 17)                    # temurin-17. homebrew openjdk@17 경로는 없음
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home  # Homebrew openjdk@17. java_home -v 17로는 안 잡힌다(시스템 JVM 목록에 없음)
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools    # local.properties가 없으면 필수
 
 ./gradlew :app:testDebugUnitTest      # 단위 테스트
@@ -65,6 +65,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **AI OFF는 압축 원본을 스트리밍하지 않는다 — 반드시 MixCache WAV.** 일부 기기(SM-S931N/Android 16)에서 MediaCodec 스트리밍 디코딩이 무음·노이즈로 깨진다(비동기 큐잉 비활성화로도 불가). 유튜브 임포트 원본도 압축 파일일 뿐 같은 규칙
 - **`PlayerController.release()`는 코루틴 스코프를 cancel하지 않는다.** 싱글턴이라 취소하면 이후 캐시 준비가 조용히 무시되고 "준비 중"이 영구 노출된다(실제 발생)
 - **재생 종료 경로는 `release()` 하나.** 알림 지우기·최근 앱 치우기(`onTaskRemoved`)·곡 삭제가 모두 지난다. 홈으로 나가는 건 종료가 아니다(FGS는 태스크가 사라져도 살아남는다)
+- **`release()`는 `isPlaying`을 제목보다 먼저 내린다(`publishReleased`).** 서비스는 "제목 null && 재생 중 아님"일 때만 알림을 걷는데 `Main.immediate`라 대입하는 순간 판정한다 — 제목이 먼저면 무반응 알림·FGS가 남는다(`PlayerReleaseOrderTest`)
 - **`release()`는 `releaseEpoch`를 올려 화면이 엔진을 재준비하게 하고, 종료 절차 중에는 `PlaybackService.stopping`이 알림 재등록을 막는다.** 신호가 없으면 재생 버튼이 영구 무반응, 가드가 없으면 방금 지운 알림이 되살아난다. 화면이 열려 있는 동안 엔진 해제는 사실상 무효 — 의도된 트레이드오프다(`PlayerController.releaseEpoch` KDoc)
 - **알림·잠금화면·블루투스는 `setPlaying(Boolean)`(절대 명령)으로 받는다.** 상태를 읽어 토글하면 그 사이에 낀 자동 일시정지(포커스 상실·이어폰 분리)가 명령을 뒤집는다. 상태를 읽는 곳은 화면 버튼용 `playPause()` 한 곳뿐
 - **재생용 FGS 기동은 `setPlaying`의 재생 의도 시점에 한다.** `isPlaying`을 관찰해 띄우면(화면 이펙트) 준비 완료 자동 재생이 화면 이탈 뒤에 일어날 때 백그라운드 `startForegroundService`로 죽고(API 31+), 화면이 dispose됐으면 아예 안 떠서 무알림 재생이 된다. `PlaybackService.start`는 예외를 삼키지만 방어일 뿐 기동 지점은 `setPlaying`이다
@@ -72,12 +73,14 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **`StemMixPlayer.renderChunk`는 0 이하를 돌려주지 않는다.** 엔진이 `produced <= 0`을 곡 끝으로 읽는다 → 읽을 게 없으면 무음, 닫힌 리더 예외는 스템 단위로 흡수(`loop()`에 catch가 없어 오디오 스레드가 죽는다)
 - **`ensureLoaded`는 `separatedTier`/`stemsDir`가 바뀌면 믹서를 다시 연다.** 곡 id와 AI 모드만 보면 다시 분리 뒤 UI는 새 레이아웃인데 엔진은 이전 스템 fd를 붙잡는다. 게인·키·배속은 setter 경로. `PlayerLoadPositionTest`가 티어 변경 → reload를 고정
 - **A-B 랩은 오디오 스레드에서만.** UI 폴링이면 백그라운드에서 끊긴다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용(이전 곡 엔진에 먼저 걸면 안 됨)
+- **랩은 `seekToFrame`을 쓰지 않고 `framePos`만 옮긴다.** 시크의 pause+flush는 매 바퀴 B 직전 큐(≥93ms)를 버리고, 프로세서 리셋은 매 바퀴 선채움 무음을 끼운다. A가 곡 길이 이상이면(`PlaybackLoop.lapTarget` null) 랩하지 않고 끝낸다 — 안 그러면 오디오 스레드가 헛돈다
 - **write 직후 트랙 재시작 판정은 `isPlaying` 가드로 `stateLock` 안에서 pause와 직렬화한다.** pause의 flush가 막힌 write를 풀어주므로, 락 밖에서 `playState`만 보고 `track.play()`하면 사실상 매 일시정지마다 트랙이 다시 켜져 flush로 비워진 큐에 쓴 청크 하나가 pause 뒤에 새어 나온다
 - **일시정지마다 최대 버퍼(~90ms)가 스킵되는 건 pause flush 설계의 트레이드오프다.** "스킵 고친다"고 flush를 그냥 빼면 재개가 영구 무음이 된다 — `track.play()` 호출점이 `seekToFrame`과 루프 재시작뿐이라 일시정지 중 write에 매달린 스레드를 풀 방법이 없다. 없애려면 flush 제거 + 재개 시 트랙 재시작 + `stopEngine`의 flush를 join 앞으로 + 스테일 청크 flush가 한 세트다
 - 배속은 `AudioTrack.setPlaybackParams(speed, pitch=1)`만 쓴다(오프라인 타임스트레치 금지). 시크·재생 재개 때 다시 걸 것 — 일시정지 중 적용이 실패하는 기기가 있다
 
 **DSP**
-- **시크는 재할당이 아니라 제자리 리셋.** `seekToFrame`이 `processorsDirty`만 세우고 오디오 스레드가 렌더 직전에 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드 reset이면 FIFO 인덱스가 음수가 되어 죽고, 소비가 `framePos`·곡끝 판정보다 뒤면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask 변경만 객체 교체(`chain`은 `@Volatile`)
+- **시크는 재할당이 아니라 제자리 리셋.** `seekToFrame`이 `processorsDirty`만 세우고 오디오 스레드가 렌더 직전에 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드 reset이면 FIFO 인덱스가 음수가 되어 죽고, 소비가 `framePos`·곡끝 판정보다 뒤면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask가 실제로 바뀔 때만 객체 교체(같은 값 대입은 무시 — 화면에 들어올 때마다 대입된다. `chain`은 `@Volatile`)
+- **`DspChain`은 리셋 직후 1블록(1024프레임) 무음을 먼저 낸다**(스펙트럼 단계가 켜진 마스크만, `primeSamples`). 빼면 첫 청크와 512 배수가 아닌 청크(B 직전·곡 끝)가 모자라 신호 중간에 최대 11.6ms 구멍이 난다. 지연은 1블록 고정이고 내보낸 WAV 앞 23ms 무음은 정상. `DspChainPrimeTest`가 고정
 - **`SpectralStage.reset()`은 magHist까지 비운다.** `histPos/histFill`은 인스턴스 단위인데 증가는 채널마다 일어나 안 쓴 슬롯을 읽는다. `DspChainResetTest`가 "리셋 출력 == 새 체인 출력"을 고정
 - `PitchShifter`는 0반음일 때 패스스루(지연 제거) — 비율 분기 건드릴 때 주의
 - 오디오는 interleaved stereo PCM16 기본. 모노는 DspChain/SpectralStage에서 `chCount=1` 분기
