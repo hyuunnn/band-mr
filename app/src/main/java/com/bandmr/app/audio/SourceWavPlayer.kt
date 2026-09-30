@@ -23,10 +23,17 @@ class SourceWavPlayer(
 
     override val totalFrames: Long get() = reader.totalFrames
 
-    /** 제거할 스템 비트마크 (Stem.bit 조합). 변경 시 DSP 상태 초기화 */
+    /**
+     * 제거할 스템 비트마크 (Stem.bit 조합). 바뀔 때만 DSP 체인을 새로 만든다.
+     *
+     * 같은 값이면 아무것도 하지 않는다. [PlayerController.ensureLoaded]가 플레이어 화면에 들어올
+     * 때마다 저장된 마스크를 다시 대입하는데, 그때 체인을 새로 만들면 재생 중인 FIFO(약 23ms)가
+     * 버려지고 선채움 무음이 다시 끼어 목록↔플레이어를 오갈 때마다 소리가 끊겼다.
+     */
     @Volatile
     var muteMask: Int = 0
         set(value) {
+            if (field == value) return
             field = value
             rebuildChain()
         }
