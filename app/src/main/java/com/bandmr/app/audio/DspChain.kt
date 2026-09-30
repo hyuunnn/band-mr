@@ -9,7 +9,7 @@ import com.bandmr.app.data.Stem
  *  드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
  *  시간 단계: 베이스=보조 하이패스 / 기타=중역 딥
  *
- * 스펙트럼 단계 때문에 약 1블록(1024샘플 ≈ 23ms)의 지연이 있으며,
+ * 스펙트럼 단계가 켜진 마스크는 지연이 정확히 1블록(1024프레임 ≈ 23ms)이다([primeSamples]).
  * 오프라인 렌더링 시 마지막에 [drain]을 호출해 잔여분을 출력해야 한다.
  */
 class DspChain(private val sampleRate: Int, private val channels: Int) {
@@ -50,6 +50,25 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
     private var floatIn = FloatArray(BUF)
     private var floatOut = FloatArray(BUF)
 
+    /** interleaved 1프레임의 샘플 수. [SpectralStage]와 같게 3채널 이상은 스테레오로 다룬다 */
+    private val frameSamples = if (channels >= 2) 2 else 1
+
+    /**
+     * 리셋 직후 스펙트럼 출력보다 먼저 내보낼 남은 무음 샘플 수. 스펙트럼 단계가 켜진 마스크면
+     * [reset]이 1블록으로 채운다 — 지연을 1블록으로 고정하는 선채움이다.
+     *
+     * [SpectralStage]는 첫 블록(1024프레임)이 찰 때까지 아무것도 내지 않고, 그 뒤로는 hop(512프레임)
+     * 단위로만 낸다. 선채움이 없으면 리셋 직후 첫 청크가 512프레임 모자라고, 512의 배수가 아닌 청크
+     * (A-B의 B 직전·곡 끝)도 나머지만큼 모자란다. 모자란 만큼을 청크 끝에 0으로 채우면 다음 청크가
+     * 그 뒤에 이어 붙어 **신호 중간에 무음 구멍**(최대 11.6ms)이 생긴다 — 시크·점프·A-B마다 들렸고
+     * 내보낸 WAV에도 남았다. 1블록을 먼저 내면 어떤 청크 크기에서도 모자라지 않는다
+     * (입력 T프레임까지의 누적 출력 hop×(⌊(T−블록)/hop⌋+1)이 늘 T−블록보다 크다).
+     *
+     * FIFO 앞에 0을 넣은 것과 같은 출력이지만 [SpectralStage]의 무지연 재구성 계약을 건드리지
+     * 않으려고 여기서 센다. `DspChainPrimeTest`가 고정한다.
+     */
+    private var primeSamples = 0
+
     init {
         rebuild()
     }
@@ -75,6 +94,7 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
             hpL[i].reset(); hpR[i].reset(); dipL[i].reset(); dipR[i].reset()
         }
         spectral.reset()
+        primeSamples = if (spectralOn(muteMask)) SpectralStage.BLOCK * frameSamples else 0
     }
 
     /** interleaved shorts [n]개를 제자리 처리 */
@@ -86,7 +106,14 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
         for (i in 0 until n) floatIn[i] = data[i] / 32768f
         spectral.feed(floatIn, 0, n, drumsOn(mask), bassOn(mask), vocalOn(mask))
 
-        var got = spectral.read(floatOut, 0, n)
+        // 선채움 무음을 먼저 내고 나머지를 FIFO에서 읽는다([primeSamples])
+        var got = minOf(primeSamples, n)
+        if (got > 0) {
+            java.util.Arrays.fill(floatOut, 0, got, 0f)
+            primeSamples -= got
+        }
+        got += spectral.read(floatOut, got, n - got)
+        // 선채움 덕분에 모자라지 않는다(스펙트럼 단계가 꺼진 마스크는 패스스루라 지연이 없다). 방어용
         while (got < n) floatOut[got++] = 0f
 
         applyTimeDomain(floatOut, n, mask)
@@ -163,6 +190,9 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
 
     /** 모노 소스는 패닝 정보가 없어 중앙 마스킹 불가 → 스펙트럼 경로에 태우지 않는다 */
     private fun vocalOn(mask: Int) = mask and Stem.VOCAL.bit != 0 && channels >= 2
+
+    /** [SpectralStage.feed]가 패스스루가 아닌(블록 지연이 생기는) 마스크인지 */
+    private fun spectralOn(mask: Int) = drumsOn(mask) || bassOn(mask) || vocalOn(mask)
 
     private fun ensureBuffers(n: Int) {
         if (floatIn.size < n) {
