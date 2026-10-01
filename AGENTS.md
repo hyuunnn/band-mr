@@ -101,6 +101,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **`OrtSession`은 분리 1회마다 열고 닫는다(캐시 금지).** ORT 아레나가 3GB대 네이티브 힙을 세션 닫을 때까지 OS에 반환하지 않는다(실측 3.17GB → 닫으면 0.03GB). 오픈은 1초, 분리는 곡당 수 분이라 재사용 이득이 없다
 - **항상 고정 길이 세그먼트**(`Tier.segmentSamples`)로 추론, 마지막 청크는 0 패딩. ONNX가 고정 shape로 export됐다 — 동적 축 금지
 - **취소 판정은 코루틴 자신의 Job으로**(`currentCoroutineContext()[Job]`). 서비스 필드를 읽으면 대입 전 null을 취소로 오판하고, 새 작업이 필드를 덮어써 이전 작업이 안 죽는다. 새 분리는 이전 Job을 `join`한 뒤 시작(세션 수 GB가 겹치면 OOM)
+- **스템 승격과 DB 갱신은 `SeparationService.commitStems` 한 묶음.** 승격 직전에 취소를 확인하고 승격~`updateSeparation`은 `NonCancellable`. 마지막 세그먼트 중 취소는 분리가 정상 반환하므로, 갈라 두면 파일은 새 티어인데 DB는 이전 티어(첫 분리면 지워지지 않는 스템)가 된다(`SeparationCommitTest`)
 - 분리는 MixCache WAV를 입력으로 쓴다 — 별도 raw 디코딩을 다시 만들지 말 것
 - ModelManager는 Range 이어받기를 한다. 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 

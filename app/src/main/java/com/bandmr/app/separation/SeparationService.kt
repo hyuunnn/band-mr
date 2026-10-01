@@ -22,9 +22,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -105,7 +107,7 @@ class SeparationService : Service() {
 
             setState(SepState.Running(songId, "입력 준비 중…", 0f))
             // MixCache.prepare와 ONNX 추론은 둘 다 블로킹이라 IO 디스패처에서 돌린다
-            val stemsDir = withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val wav = MixCache.prepare(this@SeparationService, songId, song.uri.toUri())
 
                 partDir.deleteRecursively()
@@ -120,11 +122,12 @@ class SeparationService : Service() {
                     isCancelled = { self?.isActive != true },
                 )
                 check(stems.isNotEmpty()) { "분리 결과가 없습니다" }
-                // 완성된 결과만 정식 디렉터리로 교체한다. 중간에 취소/실패하면 이전 스템이 그대로
-                // 남아서 DB의 분리 완료 표시(stemsDir)와 파일이 어긋나지 않는다
-                promoteStems(partDir, StemFiles.songDir(this@SeparationService, songId))
             }
-            dao.updateSeparation(songId, tier.id, stemsDir.absolutePath)
+            // 완성된 결과만 정식 디렉터리로 교체한다. 중간에 취소/실패하면 이전 스템이 그대로
+            // 남아서 DB의 분리 완료 표시(stemsDir)와 파일이 어긋나지 않는다
+            commitStems(partDir, StemFiles.songDir(this, songId)) { dir ->
+                dao.updateSeparation(songId, tier.id, dir.absolutePath)
+            }
             // 완료 여부는 Song.isSeparated가 갖는다 — 버스는 진행/오류 표시 전용이라 Idle로 되돌린다
             setState(SepState.Idle)
         } catch (e: CancellationException) {
@@ -139,12 +142,6 @@ class SeparationService : Service() {
             // 뒤에 새 작업이 예약됐으면(job이 교체됨) 서비스를 멈추지 않는다 — 새 분리를 죽이지 않도록
             if (job === self) stopSelf(lastStartId)
         }
-    }
-
-    /** 완성된 임시 스템 디렉터리를 정식 위치로 교체 */
-    private fun promoteStems(part: File, dest: File): File {
-        FilePromote.directory(part, dest)
-        return dest
     }
 
     private fun setState(s: SepState) {
@@ -224,6 +221,24 @@ class SeparationService : Service() {
             context.startService(
                 Intent(context, SeparationService::class.java).setAction(ACTION_CANCEL)
             )
+        }
+
+        /**
+         * 완성된 임시 스템 디렉터리 [part]를 [dest]로 교체하고 [record](DB 갱신)까지 한 묶음으로 끝낸다.
+         *
+         * **승격 직전에 취소를 확인하고, 승격부터 기록까지는 취소되지 않는다.** 취소는 세그먼트
+         * 경계에서만 보므로 마지막 세그먼트 중에 취소하면 분리가 정상 반환한다. 그대로 승격하면
+         * 다음 중단점에서 취소가 터져 DB 갱신만 건너뛴다 — 다시 분리 중이었으면 파일은 새 티어인데
+         * DB는 이전 티어(스템 구성이 어긋난다), 첫 분리였으면 DB는 미분리인데 스템이 남는다(유효
+         * songId라 기동 시 고아 정리도 지우지 못한다). 확인을 지난 뒤 들어온 취소는 늦은 것으로 보고
+         * 결과를 남긴다 — 지켜야 하는 건 파일과 DB가 같은 상태라는 것이다. `SeparationCommitTest`가 고정한다.
+         */
+        internal suspend fun commitStems(part: File, dest: File, record: suspend (File) -> Unit) {
+            currentCoroutineContext().ensureActive()
+            withContext(NonCancellable + Dispatchers.IO) {
+                FilePromote.directory(part, dest)
+                record(dest)
+            }
         }
     }
 }
