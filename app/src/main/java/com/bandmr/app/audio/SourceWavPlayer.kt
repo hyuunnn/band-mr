@@ -28,7 +28,7 @@ class SourceWavPlayer(
      *
      * 같은 값이면 아무것도 하지 않는다. [PlayerController.ensureLoaded]가 플레이어 화면에 들어올
      * 때마다 저장된 마스크를 다시 대입하는데, 그때 체인을 새로 만들면 재생 중인 FIFO(약 23ms)가
-     * 버려지고 선채움 무음이 다시 끼어 목록↔플레이어를 오갈 때마다 소리가 끊겼다.
+     * 버려지고 선채움 무음이 다시 끼어 목록↔플레이어를 오갈 때마다 소리가 끊긴다.
      */
     @Volatile
     var muteMask: Int = 0

@@ -17,7 +17,7 @@ import org.junit.Test
  * 서비스는 `Main.immediate`로 수집해서, 메인 스레드에서 값을 대입하는 그 자리에서 수집기가 돈다.
  * 여기서는 같은 경로(`isDispatchNeeded == false` → 그 자리에서 재개)를 타는 [Dispatchers.Unconfined]로
  * 흉내 낸다. 수정 전 순서(제목 먼저)로는 종료 분기를 한 번도 타지 않아, 재생 중인 곡을 지우면
- * 무반응 알림과 FGS가 남았다.
+ * 무반응 알림과 FGS가 남는다.
  */
 class PlayerReleaseOrderTest {
 

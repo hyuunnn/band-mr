@@ -49,8 +49,8 @@ object PlaybackLoop {
      * 한계([limitFrames])에 닿았을 때 되돌아갈 위치. 무장이 아니거나 A가 한계 이상이면 null(곡 종료).
      *
      * A가 한계 이상인 경우를 걸러야 한다: 준비 중에는 길이를 메타데이터에서 가져오므로 실제 디코딩
-     * 길이보다 뒤에 A가 찍힐 수 있다. 그 A로 되돌리면 시크 클램프가 곡 끝으로 다시 접고, 오디오
-     * 스레드가 "끝 → A(=끝) → 끝"을 쉬지 않고 되풀이한다.
+     * 길이보다 뒤에 A가 찍힐 수 있다. 그 A로 되돌리면 위치가 여전히 한계 이상이라 다음 바퀴에 또
+     * 되돌리게 되고, 오디오 스레드가 write 없이 쉬지 않고 돈다.
      */
     fun lapTarget(startFrame: Long, endFrame: Long, limitFrames: Long): Long? =
         restartFrame(startFrame, endFrame)?.takeIf { it < limitFrames }

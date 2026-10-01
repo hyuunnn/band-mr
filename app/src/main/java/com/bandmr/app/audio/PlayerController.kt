@@ -579,7 +579,7 @@ class PlayerController(private val context: Context) {
          * [preparingSongId] 슬롯 하나라서, 준비 중에 다른 곡을 열었다 돌아오거나 [release]가 슬롯을
          * 비운 뒤 다시 들어오면 또 시작된다. 두 번째 준비는 [MixCache]의 곡 단위 락에서 기다렸다가
          * 곧바로 성공하므로 완료가 연달아 두 번 온다. 두 번째가 엔진을 또 붙이면 첫 엔진은 참조를
-         * 잃은 채 계속 재생된다 — 일시정지·알림·release가 새 엔진에만 걸려 앱을 죽여야 멈췄다.
+         * 잃은 채 계속 재생된다 — 일시정지·알림·release가 새 엔진에만 걸려 앱을 죽이기 전에는 멈출 방법이 없다.
          * 원본 엔진은 늘 현재 곡의 것이다(곡이 바뀌면 [ensureLoaded]가 먼저 해제한다).
          */
         internal fun shouldAttachPrepared(
@@ -596,7 +596,7 @@ class PlayerController(private val context: Context) {
          * 제목이 null이고 재생 중이 아닐 때만 알림을 걷고 끝난다([PlaybackService.shouldStop]).
          * 제목을 먼저 내리면 그 순간엔 아직 재생 중이라 알림 갱신으로 빠지고, 이어지는
          * `isPlaying=false`는 제목 수집기를 다시 깨우지 않는다 — 재생 중인 곡을 지우면
-         * "밴드 MR · 일시정지" 알림과 FGS가 남고 재생 버튼은 반응하지 않았다(`PlayerReleaseOrderTest`).
+         * "밴드 MR · 일시정지" 알림과 FGS가 남고 재생 버튼은 반응하지 않는다(`PlayerReleaseOrderTest`).
          */
         internal fun publishReleased(
             playing: MutableStateFlow<Boolean>,

@@ -80,7 +80,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 
 **DSP**
 - **시크는 재할당이 아니라 제자리 리셋.** `seekToFrame`이 `processorsDirty`만 세우고 오디오 스레드가 렌더 직전에 소비한다. SpectralStage는 스레드 안전하지 않아 UI 스레드 reset이면 FIFO 인덱스가 음수가 되어 죽고, 소비가 `framePos`·곡끝 판정보다 뒤면 방금 비운 체인에 시크 이전 오디오가 들어간다. muteMask가 실제로 바뀔 때만 객체 교체(같은 값 대입은 무시 — 화면에 들어올 때마다 대입된다. `chain`은 `@Volatile`)
-- **`DspChain`은 리셋 직후 1블록(1024프레임) 무음을 먼저 낸다**(스펙트럼 단계가 켜진 마스크만, `primeSamples`). 빼면 첫 청크와 512 배수가 아닌 청크(B 직전·곡 끝)가 모자라 신호 중간에 최대 11.6ms 구멍이 난다. 지연은 1블록 고정이고 내보낸 WAV 앞 23ms 무음은 정상. `DspChainPrimeTest`가 고정
+- **`DspChain`은 리셋 직후 1블록(1024프레임) 무음을 먼저 낸다**(스펙트럼 단계가 켜진 마스크만, `primeSamples`). 빼면 첫 청크와 512 배수가 아닌 청크(B 직전·곡 끝)가 모자라 신호 중간에 최대 11.6ms 구멍이 난다. 지연은 1블록 고정이라 시크·점프·재생 중 마스크 변경 직후 23ms 무음과 내보낸 WAV 앞 23ms 무음은 정상(선채움을 빼서 "고치지" 말 것). `DspChainPrimeTest`가 고정
 - **`SpectralStage.reset()`은 magHist까지 비운다.** `histPos/histFill`은 인스턴스 단위인데 증가는 채널마다 일어나 안 쓴 슬롯을 읽는다. `DspChainResetTest`가 "리셋 출력 == 새 체인 출력"을 고정
 - `PitchShifter`는 0반음일 때 패스스루(지연 제거) — 비율 분기 건드릴 때 주의
 - 오디오는 interleaved stereo PCM16 기본. 모노는 DspChain/SpectralStage에서 `chCount=1` 분기
