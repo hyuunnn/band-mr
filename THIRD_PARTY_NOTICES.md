@@ -102,6 +102,20 @@ Copyright © Team NewPipe — https://www.gnu.org/licenses/gpl-3.0.txt
 전이 의존성: jsoup(MIT), rhino/rhino-engine(MPL-2.0), protobuf-javalite(BSD-3-Clause),
 nanojson(Apache-2.0), jsr305(Apache-2.0).
 
+## desugar_jdk_libs_nio (java.nio desugaring)
+
+[google/desugar_jdk_libs](https://github.com/google/desugar_jdk_libs)의
+`com.android.tools:desugar_jdk_libs_nio`(OpenJDK 라이브러리 일부의 단순화본)를
+core library desugaring으로 APK에 포함합니다. NewPipeExtractor가 쓰는 `java.nio`
+확장 API를 minSdk 31에서 제공하기 위해서입니다.
+**GNU General Public License, version 2, with the Classpath Exception**.
+원문: https://github.com/google/desugar_jdk_libs/blob/master/LICENSE
+
+Classpath Exception에 따라, 이 라이브러리에서 파생되지 않은 독립 모듈을 이 라이브러리와
+링크해 만든 실행 파일은 각 독립 모듈의 라이선스 조건을 지키는 한 배포자가 정한 조건으로
+배포할 수 있습니다. GPLv2 전용인 이 라이브러리를 GPL-3.0 코드(이 앱·NewPipeExtractor)와
+한 APK에 담을 수 있는 근거가 이 예외입니다.
+
 ## JUnit
 
 단위 테스트에만 사용. Eclipse Public License 1.0.
