@@ -70,7 +70,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **알림·잠금화면·블루투스는 `setPlaying(Boolean)`(절대 명령)으로 받는다.** 상태를 읽어 토글하면 그 사이에 낀 자동 일시정지(포커스 상실·이어폰 분리)가 명령을 뒤집는다. 상태를 읽는 곳은 화면 버튼용 `playPause()` 한 곳뿐
 - **재생용 FGS 기동은 `setPlaying`의 재생 의도 시점에 한다.** `isPlaying`을 관찰해 띄우면(화면 이펙트) 준비 완료 자동 재생이 화면 이탈 뒤에 일어날 때 백그라운드 `startForegroundService`로 죽고(API 31+), 화면이 dispose됐으면 아예 안 떠서 무알림 재생이 된다. `PlaybackService.start`는 예외를 삼키지만 방어일 뿐 기동 지점은 `setPlaying`이다
 - **`AudioTrackEngine.release()` 이후 곡끝 통보는 막힌다(`released`).** 확인은 post 시점이 아니라 **콜백 실행 시점**. 플래그는 `stopEngine`이 아니라 `release`에서만 세울 것
-- **`StemMixPlayer.renderChunk`는 0 이하를 돌려주지 않는다.** 엔진이 `produced <= 0`을 곡 끝으로 읽는다 → 읽을 게 없으면 무음, 닫힌 리더 예외는 스템 단위로 흡수(`loop()`에 catch가 없어 오디오 스레드가 죽는다)
+- **`StemMixPlayer.renderChunk`는 0 이하를 돌려주지 않는다.** 엔진이 `produced <= 0`을 곡 끝으로 읽는다(A-B 중이어도 랩하지 않고 끝낸다) → 읽을 게 없으면 무음, 닫힌 리더 예외는 스템 단위로 흡수(`loop()`에 catch가 없어 오디오 스레드가 죽는다)
 - **`ensureLoaded`는 `separatedTier`/`stemsDir`가 바뀌면 믹서를 다시 연다.** 곡 id와 AI 모드만 보면 다시 분리 뒤 UI는 새 레이아웃인데 엔진은 이전 스템 fd를 붙잡는다. 게인·키·배속은 setter 경로. `PlayerLoadPositionTest`가 티어 변경 → reload를 고정
 - **A-B 랩은 오디오 스레드에서만.** UI 폴링이면 백그라운드에서 끊긴다. 곡 전환 때는 `setLoop(..., apply=false)` 후 새 엔진에 적용(이전 곡 엔진에 먼저 걸면 안 됨)
 - **랩은 `seekToFrame`을 쓰지 않고 `framePos`만 옮긴다.** 시크의 pause+flush는 매 바퀴 B 직전 큐(≥93ms)를 버리고, 프로세서 리셋은 매 바퀴 선채움 무음을 끼운다. A가 곡 길이 이상이면(`PlaybackLoop.lapTarget` null) 랩하지 않고 끝낸다 — 안 그러면 오디오 스레드가 헛돈다

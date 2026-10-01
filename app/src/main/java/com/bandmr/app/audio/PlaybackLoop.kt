@@ -41,19 +41,15 @@ object PlaybackLoop {
     fun framesArmed(startFrame: Long, endFrame: Long): Boolean =
         startFrame >= 0 && endFrame > startFrame
 
-    /** B에 도달했을 때 돌아갈 A. 무장 아니면 null (곡 종료). 엔진은 A가 한계 이상인 경우까지 거르는 [lapTarget]을 쓴다 */
-    fun restartFrame(startFrame: Long, endFrame: Long): Long? =
-        if (framesArmed(startFrame, endFrame)) startFrame else null
-
     /**
-     * 한계([limitFrames])에 닿았을 때 되돌아갈 위치. 무장이 아니거나 A가 한계 이상이면 null(곡 종료).
+     * 한계([limitFrames]: B 또는 곡 끝)에 닿았을 때 되돌아갈 A. 무장이 아니거나 A가 한계 이상이면 null(곡 종료).
      *
      * A가 한계 이상인 경우를 걸러야 한다: 준비 중에는 길이를 메타데이터에서 가져오므로 실제 디코딩
      * 길이보다 뒤에 A가 찍힐 수 있다. 그 A로 되돌리면 위치가 여전히 한계 이상이라 다음 바퀴에 또
      * 되돌리게 되고, 오디오 스레드가 write 없이 쉬지 않고 돈다.
      */
     fun lapTarget(startFrame: Long, endFrame: Long, limitFrames: Long): Long? =
-        restartFrame(startFrame, endFrame)?.takeIf { it < limitFrames }
+        if (framesArmed(startFrame, endFrame) && startFrame < limitFrames) startFrame else null
 
     /**
      * 외부에서 들어온 위치가 **사실상** 한계([limitFrames]: 곡 끝 또는 B점)인지.
