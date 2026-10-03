@@ -7,7 +7,7 @@
 ## 빌드 / 테스트
 
 ```bash
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home  # Homebrew openjdk@17. java_home -v 17로는 안 잡힌다(시스템 JVM 목록에 없음)
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools    # local.properties가 없으면 필수
 
 ./gradlew :app:testDebugUnitTest      # 단위 테스트
