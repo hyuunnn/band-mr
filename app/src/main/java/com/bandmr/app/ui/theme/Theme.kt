@@ -79,8 +79,8 @@ private val BlueScheme = lightColorScheme(
 )
 
 fun designIsDark(design: AppDesign, systemDark: Boolean): Boolean = when (design) {
-    AppDesign.AMP -> true
-    AppDesign.STUDIO -> systemDark
+    AppDesign.AMP, AppDesign.MIXDECK, AppDesign.AURORA -> true
+    AppDesign.STUDIO, AppDesign.ALBUM -> systemDark
     else -> false
 }
 
@@ -89,7 +89,136 @@ fun designColors(design: AppDesign, systemDark: Boolean = false): ColorScheme = 
     AppDesign.AMP -> AmpScheme
     AppDesign.BLUE -> BlueScheme
     AppDesign.STUDIO -> if (systemDark) DarkScheme else LightScheme
+    AppDesign.MIXDECK -> MixdeckScheme
+    AppDesign.ALBUM -> if (systemDark) AlbumDarkScheme else AlbumScheme
+    AppDesign.GRID -> GridScheme
+    AppDesign.CONSOLE -> ConsoleScheme
+    AppDesign.AURORA -> AuroraScheme
 }
+
+/** DAW 채널 스트립 컬러 — 믹스덱 디자인의 스템 아이콘·슬라이더에 쓰는 표시 전용 팔레트 */
+val StemChannelColors = listOf(
+    Color(0xFFFF5C8A), // 보컬
+    Color(0xFFFF9A3D), // 드럼
+    Color(0xFFA78BFA), // 베이스
+    Color(0xFF4ADE80), // 기타
+    Color(0xFF38BDF8), // 피아노
+    Color(0xFFFACC15), // 그 외
+)
+
+private val MixdeckScheme = darkColorScheme(
+    primary = Color(0xFFF4F4F7), onPrimary = Color(0xFF0B0B0F),
+    primaryContainer = Color(0xFF26262E), onPrimaryContainer = Color(0xFFF4F4F7),
+    secondary = Color(0xFFB9B9C4), onSecondary = Color(0xFF0B0B0F),
+    secondaryContainer = Color(0xFF20202A), onSecondaryContainer = Color(0xFFDDDDE5),
+    tertiary = Color(0xFFFF5C8A), onTertiary = Color(0xFF3D0A1D),
+    tertiaryContainer = Color(0xFF3D1826), onTertiaryContainer = Color(0xFFFFB8CC),
+    background = Color(0xFF0B0B0F), onBackground = Color(0xFFF4F4F7),
+    surface = Color(0xFF16161C), onSurface = Color(0xFFF4F4F7),
+    surfaceVariant = Color(0xFF20202A), onSurfaceVariant = Color(0xFF8B8B99),
+    surfaceTint = Color(0xFFF4F4F7),
+    surfaceContainerLowest = Color(0xFF0E0E13), surfaceContainerLow = Color(0xFF1A1A21),
+    surfaceContainer = Color(0xFF20202A), surfaceContainerHigh = Color(0xFF26262F),
+    surfaceContainerHighest = Color(0xFF2E2E38),
+    outline = Color(0xFF55555F), outlineVariant = Color(0xFF26262E),
+    error = Color(0xFFFF6B6B), onError = Color(0xFF3D0A0A),
+    errorContainer = Color(0xFF471818), onErrorContainer = Color(0xFFFFD2D2),
+)
+
+private val AlbumScheme = lightColorScheme(
+    primary = Color(0xFF3D2E26), onPrimary = Color(0xFFFBF3EC),
+    primaryContainer = Color(0xFFEAD9CB), onPrimaryContainer = Color(0xFF3A2A20),
+    secondary = Color(0xFF7A655A), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF0E4DA), onSecondaryContainer = Color(0xFF43322A),
+    tertiary = Color(0xFFC96F4A), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFF5DCCE), onTertiaryContainer = Color(0xFF6E3A22),
+    background = Color(0xFFF3ECE4), onBackground = Color(0xFF2C241F),
+    surface = Color(0xFFFAF4EC), onSurface = Color(0xFF2C241F),
+    surfaceVariant = Color(0xFFEAE0D5), onSurfaceVariant = Color(0xFF8A7B6F),
+    surfaceTint = Color(0xFF3D2E26),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF4EDE4),
+    surfaceContainer = Color(0xFFEFE6DA), surfaceContainerHigh = Color(0xFFE9DED0),
+    surfaceContainerHighest = Color(0xFFE2D5C5),
+    outline = Color(0xFFAA9C8E), outlineVariant = Color(0xFFDDD0C1),
+    error = Color(0xFFB43E3E), onError = Color.White,
+    errorContainer = Color(0xFFFCE8E5), onErrorContainer = Color(0xFF792D2D),
+)
+
+private val AlbumDarkScheme = darkColorScheme(
+    primary = Color(0xFFEACEB6), onPrimary = Color(0xFF3A2718),
+    primaryContainer = Color(0xFF4A3A30), onPrimaryContainer = Color(0xFFF0DCC9),
+    secondary = Color(0xFFC9B5A6), onSecondary = Color(0xFF2E241D),
+    secondaryContainer = Color(0xFF3D322B), onSecondaryContainer = Color(0xFFE5D5C5),
+    tertiary = Color(0xFFE3A383), onTertiary = Color(0xFF4A2413),
+    tertiaryContainer = Color(0xFF4E3022), onTertiaryContainer = Color(0xFFF5D9C2),
+    background = Color(0xFF171210), onBackground = Color(0xFFEFE6DC),
+    surface = Color(0xFF221B17), onSurface = Color(0xFFEFE6DC),
+    surfaceVariant = Color(0xFF352B24), onSurfaceVariant = Color(0xFFB3A292),
+    surfaceTint = Color(0xFFEACEB6),
+    surfaceContainerLowest = Color(0xFF120E0B), surfaceContainerLow = Color(0xFF251E19),
+    surfaceContainer = Color(0xFF2B2320), surfaceContainerHigh = Color(0xFF322924),
+    surfaceContainerHighest = Color(0xFF3C312A),
+    outline = Color(0xFF7E7064), outlineVariant = Color(0xFF3A302A),
+    error = Color(0xFFFFB4A9), onError = Color(0xFF680F13),
+    errorContainer = Color(0xFF512B2A), onErrorContainer = Color(0xFFFFDAD4),
+)
+
+private val GridScheme = lightColorScheme(
+    primary = Color(0xFFFF3B1E), onPrimary = Color(0xFFFFF3EE),
+    primaryContainer = Color(0xFFF7DCD5), onPrimaryContainer = Color(0xFFC22610),
+    secondary = Color(0xFF5A5750), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE4E3DA), onSecondaryContainer = Color(0xFF36342F),
+    tertiary = Color(0xFF141410), onTertiary = Color(0xFFE7E6E0),
+    tertiaryContainer = Color(0xFFDFDED5), onTertiaryContainer = Color(0xFF141410),
+    background = Color(0xFFE7E6E0), onBackground = Color(0xFF141410),
+    surface = Color(0xFFEEEDE7), onSurface = Color(0xFF141410),
+    surfaceVariant = Color(0xFFE1E0D8), onSurfaceVariant = Color(0xFF75726A),
+    surfaceTint = Color(0xFFFF3B1E),
+    surfaceContainerLowest = Color(0xFFF4F3EC), surfaceContainerLow = Color(0xFFE9E8E0),
+    surfaceContainer = Color(0xFFE3E2D9), surfaceContainerHigh = Color(0xFFDCDAD0),
+    surfaceContainerHighest = Color(0xFFD4D2C7),
+    outline = Color(0xFFA9A79A), outlineVariant = Color(0xFFC9C7BB),
+    error = Color(0xFFC22610), onError = Color.White,
+    errorContainer = Color(0xFFF7DCD5), onErrorContainer = Color(0xFF8A1A0A),
+)
+
+private val ConsoleScheme = lightColorScheme(
+    primary = Color(0xFFB3492E), onPrimary = Color(0xFFFBF3E6),
+    primaryContainer = Color(0xFFEFDCC8), onPrimaryContainer = Color(0xFF7A3018),
+    secondary = Color(0xFF8C6D3F), onSecondary = Color(0xFFFBF3E6),
+    secondaryContainer = Color(0xFFEBDFC5), onSecondaryContainer = Color(0xFF4D3A1D),
+    tertiary = Color(0xFF5E5B40), onTertiary = Color(0xFFFBF3E6),
+    tertiaryContainer = Color(0xFFE8E2C9), onTertiaryContainer = Color(0xFF3E3C26),
+    background = Color(0xFFE9E1D0), onBackground = Color(0xFF2B241B),
+    surface = Color(0xFFF4EEDF), onSurface = Color(0xFF2B241B),
+    surfaceVariant = Color(0xFFE3D9C3), onSurfaceVariant = Color(0xFF8C7F68),
+    surfaceTint = Color(0xFFB3492E),
+    surfaceContainerLowest = Color(0xFFFAF5E9), surfaceContainerLow = Color(0xFFEFE7D5),
+    surfaceContainer = Color(0xFFEAE0CB), surfaceContainerHigh = Color(0xFFE4D8BF),
+    surfaceContainerHighest = Color(0xFFDCCFB2),
+    outline = Color(0xFFB3A78C), outlineVariant = Color(0xFFD4C9AE),
+    error = Color(0xFFAF3131), onError = Color.White,
+    errorContainer = Color(0xFFFFE8E3), onErrorContainer = Color(0xFF782A20),
+)
+
+private val AuroraScheme = darkColorScheme(
+    primary = Color(0xFF6EE7D8), onPrimary = Color(0xFF052E28),
+    primaryContainer = Color(0xFF143F3A), onPrimaryContainer = Color(0xFF6EE7D8),
+    secondary = Color(0xFFA8ADEB), onSecondary = Color(0xFF1B1F4A),
+    secondaryContainer = Color(0xFF262B55), onSecondaryContainer = Color(0xFFD3D6FF),
+    tertiary = Color(0xFFC4A5F5), onTertiary = Color(0xFF2E1A55),
+    tertiaryContainer = Color(0xFF352C60), onTertiaryContainer = Color(0xFFE2D3FF),
+    background = Color(0xFF0B0E1E), onBackground = Color(0xFFEDEFF5),
+    surface = Color(0xFF161B36), onSurface = Color(0xFFEDEFF5),
+    surfaceVariant = Color(0xFF1E2440), onSurfaceVariant = Color(0xFF8F93B5),
+    surfaceTint = Color(0xFF6EE7D8),
+    surfaceContainerLowest = Color(0xFF0E1228), surfaceContainerLow = Color(0xFF1A1F3C),
+    surfaceContainer = Color(0xFF212747), surfaceContainerHigh = Color(0xFF272E52),
+    surfaceContainerHighest = Color(0xFF30385E),
+    outline = Color(0xFF3A4066), outlineVariant = Color(0xFF252B4A),
+    error = Color(0xFFFF8BA7), onError = Color(0xFF4A0E26),
+    errorContainer = Color(0xFF45203A), onErrorContainer = Color(0xFFFFC4D4),
+)
 
 private val LightScheme = lightColorScheme(
     primary = Color(0xFF176B5B),
@@ -188,6 +317,11 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.AMP -> 10
         AppDesign.BLUE -> 28
         AppDesign.STUDIO -> 24
+        AppDesign.MIXDECK -> 12
+        AppDesign.ALBUM -> 24
+        AppDesign.GRID -> 4
+        AppDesign.CONSOLE -> 12
+        AppDesign.AURORA -> 20
     }
     val typography = when (design) {
         AppDesign.MONO -> BandTypography.copy(
@@ -197,6 +331,23 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.AMP -> BandTypography.copy(
             headlineLarge = type(32, 42, FontWeight.Bold),
             labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
+        )
+        AppDesign.MIXDECK -> BandTypography.copy(
+            labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
+            labelMedium = type(12, 18, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
+        )
+        AppDesign.GRID -> BandTypography.copy(
+            headlineLarge = type(30, 38, FontWeight.Bold).copy(fontFamily = FontFamily.Monospace, letterSpacing = (-1).sp),
+            labelSmall = type(11, 16, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.5.sp),
+            labelMedium = type(12, 18, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
+        )
+        AppDesign.CONSOLE -> BandTypography.copy(
+            headlineLarge = type(30, 40, FontWeight.Bold).copy(fontFamily = FontFamily.Serif),
+            headlineMedium = type(25, 34, FontWeight.Bold).copy(fontFamily = FontFamily.Serif),
+            labelSmall = type(10, 16, FontWeight.Bold).copy(letterSpacing = 2.sp),
+        )
+        AppDesign.AURORA -> BandTypography.copy(
+            labelSmall = type(11, 16, FontWeight.Medium).copy(letterSpacing = 2.sp),
         )
         else -> BandTypography
     }

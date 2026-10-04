@@ -65,6 +65,31 @@ fun LibraryHeading(songCount: Int) {
             Text("좋아하는 곡을, 나만의 반주로.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
         }
+        AppDesign.MIXDECK -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("BAND MR // LIBRARY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("세션에 올릴 곡.", style = MaterialTheme.typography.headlineLarge)
+            Text("QUEUE · %02d TRACKS".format(songCount), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        AppDesign.ALBUM -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("MY PRACTICE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("좋아하는 곡에\n나의 연주를.", style = MaterialTheme.typography.headlineLarge)
+            Text("연습할 곡 $songCount 개", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+        }
+        AppDesign.GRID -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("BAND MR // LIBRARY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("PRACTICE QUEUE_%02d".format(songCount), style = MaterialTheme.typography.headlineLarge)
+        }
+        AppDesign.CONSOLE -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("BAND MR · MASTER DECK", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Text("연습 세션,\n채널에 올려.", style = MaterialTheme.typography.headlineLarge)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+        AppDesign.AURORA -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("YOUR STUDIO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Text("소리를\n겹겹이 나눠.", style = MaterialTheme.typography.headlineLarge)
+            Text("연습할 곡 $songCount 개", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -100,6 +125,52 @@ fun PlayerHeading(songId: Long, title: String, subtitle: String) {
                 Text("지금 연습할 곡", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        AppDesign.MIXDECK -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("SESSION ▸ TRK %02d".format(songId), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                TrackArtwork(seed = songId, size = 56.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        AppDesign.ALBUM -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            TrackArtwork(seed = songId, size = 148.dp)
+            Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        AppDesign.GRID -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("SYS/PRACTICE — TRK·%02d".format(songId), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TrackArtwork(seed = songId, size = 52.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        AppDesign.CONSOLE -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("CH·%02d".format(songId), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                TrackArtwork(seed = songId, size = 56.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+        AppDesign.AURORA -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("SESSION %02d · LIVE".format(songId), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                TrackArtwork(seed = songId, size = 56.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
