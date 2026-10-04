@@ -34,6 +34,7 @@ private val StudioCovers = listOf(
     Color(0xFF635A70) to Color(0xFFE3D9EF),
 )
 private val MeterHeights = intArrayOf(3, 6, 8, 5, 4)
+private val MonoMarkHeights = floatArrayOf(0.24f, 0.42f, 0.58f, 0.38f, 0.20f)
 
 /** Shared flat panel: spacing and outlines stay consistent across all three screens. */
 @Composable
@@ -46,8 +47,8 @@ fun StudioPanel(
     if (design == AppDesign.MONO) {
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             HorizontalDivider(
-                thickness = if (highlighted) 2.dp else 1.dp,
-                color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
             )
             Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
         }
@@ -131,13 +132,18 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp) {
     Canvas(modifier.size(size).clip(MaterialTheme.shapes.medium)) {
         drawRect(background)
         if (design == AppDesign.MONO) {
-            // Offset record grooves give every track an editorial, monochrome sleeve.
-            val origin = Offset(this.size.width * 0.6f, this.size.height * 0.45f)
-            for (ring in 1..9) {
-                drawCircle(ink.copy(alpha = 0.7f), this.size.width * ring * 0.075f, origin, style = Stroke(this.size.width * 0.012f))
+            // Small, quiet audio mark with enough negative space to read at thumbnail size.
+            MonoMarkHeights.forEachIndexed { index, height ->
+                val x = this.size.width * (0.26f + index * 0.12f)
+                val half = this.size.height * height / 2f
+                drawLine(
+                    color = ink,
+                    start = Offset(x, center.y - half),
+                    end = Offset(x, center.y + half),
+                    strokeWidth = this.size.width * 0.055f,
+                    cap = StrokeCap.Round,
+                )
             }
-            drawCircle(background, this.size.width * 0.1f, origin)
-            drawCircle(ink, this.size.width * 0.035f, origin)
             return@Canvas
         }
         if (design == AppDesign.AMP) {

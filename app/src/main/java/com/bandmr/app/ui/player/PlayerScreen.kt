@@ -577,8 +577,8 @@ private fun PlayerTabs(selected: Int, exporting: Boolean, onSelect: (Int) -> Uni
                     },
                 )
                 if (design == AppDesign.MONO) HorizontalDivider(
-                    thickness = 2.dp,
-                    color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
                 )
             }
         }
