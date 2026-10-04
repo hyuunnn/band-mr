@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 어답티브 아이콘 배경: 근거리 블랙 + 픽 뒤로 은은한 바이올렛 라디얼 글로우 -->
+<!-- 어답티브 아이콘 배경: 근거리 블랙 + 픽 뒤로 은은한 청록 라디얼 글로우 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -8,7 +8,7 @@
     android:viewportHeight="108">
     <path
         android:pathData="M0,0h108v108h-108z"
-        android:fillColor="#101018" />
+        android:fillColor="#111714" />
     <path
         android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
@@ -17,9 +17,9 @@
                 android:centerX="54"
                 android:centerY="47"
                 android:gradientRadius="42">
-                <item android:offset="0.0" android:color="#557C4DFF" />
-                <item android:offset="0.55" android:color="#267C4DFF" />
-                <item android:offset="1.0" android:color="#007C4DFF" />
+                <item android:offset="0.0" android:color="#5523483D" />
+                <item android:offset="0.55" android:color="#2623483D" />
+                <item android:offset="1.0" android:color="#0023483D" />
             </gradient>
         </aapt:attr>
     </path>

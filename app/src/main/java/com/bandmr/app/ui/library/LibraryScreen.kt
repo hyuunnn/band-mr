@@ -5,31 +5,45 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,10 +53,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.bandmr.app.Locator
@@ -53,14 +70,16 @@ import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.StatusBadge
+import com.bandmr.app.ui.components.TrackArtwork
 import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 private const val TAG = "Library"
 
@@ -73,6 +92,11 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     var showLinkDialog by remember { mutableStateOf(false) }
     var linkUrl by remember { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
+    var query by rememberSaveable { mutableStateOf("") }
+    var separatedOnly by rememberSaveable { mutableStateOf(false) }
+    val visibleSongs = remember(songs, query, separatedOnly) {
+        songs.filter { (!separatedOnly || it.isSeparated) && it.title.contains(query.trim(), ignoreCase = true) }
+    }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -110,50 +134,130 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        linkUrl = ""
-                        YouTubeImport.dismiss() // 이전 성공/실패 메시지 잔존 방지
-                        showLinkDialog = true
-                    },
-                    icon = { Icon(painterResource(R.drawable.ic_link), contentDescription = null) },
-                    text = { Text("링크로 추가") },
-                )
-                ExtendedFloatingActionButton(
-                    onClick = { picker.launch(arrayOf("audio/*")) },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("곡 추가") },
-                )
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            linkUrl = ""
+                            YouTubeImport.dismiss()
+                            showLinkDialog = true
+                        },
+                        modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_link), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("링크로 추가", Modifier.padding(start = 8.dp))
+                    }
+                    Button(
+                        onClick = { picker.launch(arrayOf("audio/*")) },
+                        modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Text("곡 추가", Modifier.padding(start = 8.dp))
+                    }
+                }
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("나의 연습실", style = MaterialTheme.typography.headlineLarge)
+                    Text(
+                        "좋아하는 곡을, 나만의 반주로.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
             if (songs.isEmpty()) {
-                Column(
-                    Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(painterResource(R.drawable.ic_music_note), contentDescription = null)
-                    Text("하단 버튼으로 연습할 곡을 추가하세요", style = MaterialTheme.typography.bodyMedium)
+                item {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 44.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            TrackArtwork(seed = 0, size = 112.dp)
+                            Spacer(Modifier.height(4.dp))
+                            Text("첫 곡으로 시작해 볼까요", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+                            Text(
+                                "음악 파일이나 유튜브 링크를 추가하고\n연습할 악기의 소리를 조절해 보세요.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                            StatusBadge("보컬부터 드럼, 기타까지", active = true)
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        "곡을 추가한 뒤 바로 연습하거나, AI 분리로 악기별 볼륨을 더 세밀하게 조절할 수 있어요.",
+                        Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             } else {
-                LazyColumn(
-                    Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(songs, key = { it.id }) { song ->
-                        SongRow(
-                            song = song,
-                            onClick = { onOpenSong(song.id) },
-                            onDelete = { pendingDelete = song },
+                item {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("연습할 곡 찾기") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "검색어 지우기")
+                            }
+                        },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    )
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !separatedOnly, onClick = { separatedOnly = false }, label = { Text("전체 ${songs.size}") })
+                        FilterChip(selected = separatedOnly, onClick = { separatedOnly = true }, label = { Text("AI 분리 완료 ${songs.count { it.isSeparated }}") })
+                    }
+                }
+                if (visibleSongs.isEmpty()) {
+                    item {
+                        Text(
+                            if (query.isNotBlank()) "검색 결과가 없어요. 다른 곡 이름을 입력해 주세요."
+                            else "아직 분리한 곡이 없어요. 곡을 열어 AI 분리를 시작해 보세요.",
+                            Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
                         )
                     }
+                }
+                items(visibleSongs, key = { it.id }) { song ->
+                    SongRow(song = song, onClick = { onOpenSong(song.id) }, onDelete = { pendingDelete = song })
                 }
             }
         }
@@ -302,26 +406,35 @@ private fun StatusRow(text: String) {
 
 @Composable
 private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(painterResource(R.drawable.ic_music_note), contentDescription = null)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+    var menuOpen by remember { mutableStateOf(false) }
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            TrackArtwork(seed = song.id)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = formatDuration(song.durationMs) +
-                        if (song.separatedTier != null) {
-                            " · AI ${Tier.fromId(song.separatedTier).chipLabel}"
-                        } else {
-                            ""
-                        },
-                    style = MaterialTheme.typography.bodySmall,
+                    formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (song.isSeparated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "삭제")
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "${song.title} 더보기", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("곡 삭제", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { menuOpen = false; onDelete() },
+                    )
+                }
             }
         }
     }

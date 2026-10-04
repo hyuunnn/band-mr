@@ -4,16 +4,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,8 +35,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
+import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.io.CacheStorage
 import com.bandmr.app.separation.ModelFamily
@@ -38,6 +49,9 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemFiles
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.SectionHeading
+import com.bandmr.app.ui.components.StatusBadge
+import com.bandmr.app.ui.components.StudioPanel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,51 +67,56 @@ fun SettingsScreen() {
         Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("AI 분리 모델", style = MaterialTheme.typography.titleLarge)
+        Text("나에게 맞는 사운드", style = MaterialTheme.typography.headlineMedium)
         Text(
-            "AI를 켠 곡을 분리할 때 사용할 모델입니다. " +
-                "한 번만 다운로드하면 오프라인에서도 사용할 수 있습니다.",
-            style = MaterialTheme.typography.bodySmall,
+            "분리 모델을 선택하고 저장공간을 관리하세요.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        StudioPanel {
+            StatusBadge("기기에서 처리하는 AI", active = true)
+            SectionHeading("한 번 받으면, 오프라인에서도", "원하는 모델을 다운로드한 뒤 선택해 주세요. 다음에 분리할 곡부터 적용돼요.")
+        }
 
         ModelFamily.entries.forEach { family ->
-            Text(family.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
-            Text(family.description, style = MaterialTheme.typography.bodySmall)
-            Tier.entries.filter { it.family == family }.forEach { tier ->
-                ModelTierCard(
-                    tier = tier,
-                    state = modelStates[tier],
-                    selected = currentTier == tier.id,
-                    busy = busyTier != null,
-                    onSelect = {
-                        if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
-                            scope.launch { Locator.settings.setModelTier(tier.id) }
-                        }
-                    },
-                    onDownload = {
-                        busyTier = tier.id
-                        // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
-                        Locator.appScope.launch {
-                            runCatching { Locator.modelManager.download(tier) }
-                                .onSuccess { Locator.settings.setModelTier(tier.id) }
-                            busyTier = null
-                        }
-                    },
-                    onDelete = { Locator.modelManager.delete(tier) },
-                )
+            SectionHeading(family.label, familySummary(family), Modifier.padding(top = 12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.selectableGroup()) {
+                Tier.entries.filter { it.family == family }.forEach { tier ->
+                    ModelTierCard(
+                        tier = tier,
+                        state = modelStates[tier],
+                        selected = currentTier == tier.id,
+                        busy = busyTier != null,
+                        onSelect = {
+                            if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
+                                scope.launch { Locator.settings.setModelTier(tier.id) }
+                            }
+                        },
+                        onDownload = {
+                            busyTier = tier.id
+                            // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
+                            Locator.appScope.launch {
+                                runCatching { Locator.modelManager.download(tier) }
+                                    .onSuccess { Locator.settings.setModelTier(tier.id) }
+                                busyTier = null
+                            }
+                        },
+                        onDelete = { Locator.modelManager.delete(tier) },
+                    )
+                }
             }
         }
 
-        Text(
-            "참고\n" +
-                "· AI OFF: 재생 중 실시간 신호처리(중앙 마스킹/필터)로 제거 — 즉시 동작, 절전\n" +
-                "· AI ON: 곡당 1회 사전 분리 후 캐시 사용 — 정확하지만 처리에 시간이 걸림\n" +
-                "· 품질 우선·SCNet은 RAM 4GB 이상 기기를 권장합니다.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("어떤 모드를 사용할까요?", style = MaterialTheme.typography.titleSmall)
+                Text("빠른 제거는 바로 재생하며 소리를 줄여요. AI 분리는 처음에 시간이 걸리지만 악기별 볼륨을 세밀하게 조절할 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("품질 우선·SCNet 모델은 메모리 4GB 이상 기기를 권장해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
 
         StorageSection()
     }
@@ -113,45 +132,64 @@ private fun ModelTierCard(
     onDownload: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    val ready = state is ModelState.Ready
+    StudioPanel(highlighted = selected) {
         Row(
-            Modifier.padding(12.dp),
+            Modifier.fillMaxWidth().selectable(selected = selected, enabled = ready, role = Role.RadioButton, onClick = onSelect),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RadioButton(selected = selected, onClick = onSelect)
-            Column(Modifier.weight(1f)) {
-                Text("${tier.cardTitle} (약 ${tier.approxSizeMb}MB)", style = MaterialTheme.typography.titleSmall)
-                Text(tier.description, style = MaterialTheme.typography.bodySmall)
-                when (state) {
-                    is ModelState.Downloading -> {
-                        LinearProgressIndicator(
-                            progress = { state.progress },
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        )
+            RadioButton(selected = selected, onClick = null, enabled = ready)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(tier.cardTitle, style = MaterialTheme.typography.titleMedium)
+                Text("약 ${tier.approxSizeMb} MB", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (selected) StatusBadge(if (ready) "사용 중" else "선택됨", active = true)
+        }
+        Text(
+            when {
+                tier.family == ModelFamily.SCNET_XL -> "악기 분리에 집중한 모델이에요. Demucs보다 처리 시간이 길어요."
+                tier.family == ModelFamily.SCNET_XL_IHF -> "보컬과 높은 음역을 더 정교하게 분리해요. XL보다 약 1.5~2배 느려요."
+                tier.quality == com.bandmr.app.separation.Quality.BALANCED -> "처리 속도와 분리 품질의 균형을 맞췄어요."
+                else -> "더 정교하게 분리해요. 시간과 메모리가 더 필요해요."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when (state) {
+            is ModelState.Downloading -> {
+                LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+                Text("다운로드 중 · ${(state.progress * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            ModelState.Ready -> {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("다운로드 완료", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "${tier.label} 모델 삭제", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                     }
-                    is ModelState.Failed -> Text(
-                        "다운로드 실패: ${state.message}",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    ModelState.Ready -> Text(
-                        "다운로드됨",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    else -> {}
                 }
             }
-            when {
-                state is ModelState.Downloading -> {}
-                state is ModelState.Ready -> OutlinedButton(onClick = onDelete) { Text("삭제") }
-                else -> Button(
+            else -> {
+                if (state is ModelState.Failed) Text("다운로드 실패: ${state.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
                     enabled = !busy,
                     onClick = onDownload,
-                ) { Text(if (state is ModelState.Failed) "재시도" else "받기") }
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Icon(painterResource(R.drawable.ic_download), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(if (state is ModelState.Failed) "다시 다운로드" else "모델 다운로드", Modifier.padding(start = 8.dp))
+                }
             }
         }
     }
+}
+
+private fun familySummary(family: ModelFamily): String = when (family) {
+    ModelFamily.HTDEMUCS_4 -> "보컬 · 드럼 · 베이스 · 그 외 반주"
+    ModelFamily.HTDEMUCS_6 -> "4개 파트에 기타와 피아노를 더 세밀하게"
+    ModelFamily.SCNET_XL -> "악기 분리에 집중한 4파트 모델"
+    ModelFamily.SCNET_XL_IHF -> "보컬과 고음역을 개선한 4파트 모델"
 }
 
 /**
@@ -182,45 +220,33 @@ private fun StorageSection() {
         }
     }
 
-    Text("저장공간", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
-    Text(
-        "원본 캐시와 분리된 스템은 무압축 WAV(44.1kHz 스테레오)로 저장됩니다. " +
-            "4분 곡 기준 원본 약 40MB, 스템 4개 약 161MB · 6개 약 242MB입니다.",
-        style = MaterialTheme.typography.bodySmall,
-    )
+    SectionHeading("저장공간", "연습할 곡은 남겨 두고, 임시 파일만 정리하세요.", Modifier.padding(top = 20.dp))
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            StorageRow("원본 캐시", usage?.mixCache)
-            StorageRow("분리된 스템", usage?.stems)
-            StorageRow("합계", usage?.total, emphasize = true)
-
-            lastFreed?.let {
-                Text(
-                    "${it}를 비웠습니다.",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    enabled = !busy && (usage?.mixCache ?: 0L) > 0L,
-                    onClick = { runCleanup { clearMixCache() } },
-                ) { Text("원본 캐시 비우기") }
-
-                OutlinedButton(
-                    enabled = !busy && (usage?.stems ?: 0L) > 0L,
-                    onClick = { confirmStems = true },
-                ) { Text("분리 결과 삭제") }
-            }
-
-            Text(
-                "원본 캐시는 다시 재생할 때 자동으로 만들어집니다(앱을 다시 켤 때 미리 만들어 두기도 합니다). " +
-                    "분리 결과는 삭제하면 곡마다 AI 분리를 처음부터 다시 해야 합니다.",
-                style = MaterialTheme.typography.labelSmall,
-            )
+    StudioPanel {
+        Text("정리할 수 있는 공간", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(usage?.total?.let { CacheStorage.formatBytes(it) } ?: "계산 중…", style = MaterialTheme.typography.headlineLarge)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        StorageRow("재생 캐시", usage?.mixCache)
+        StorageRow("AI 분리 파일", usage?.stems)
+        lastFreed?.let {
+            StatusBadge("${it}를 비웠어요", active = true)
         }
+        OutlinedButton(
+            enabled = !busy && (usage?.mixCache ?: 0L) > 0L,
+            onClick = { runCleanup { clearMixCache() } },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            shape = MaterialTheme.shapes.small,
+        ) { Text("재생 캐시 비우기") }
+        TextButton(
+            enabled = !busy && (usage?.stems ?: 0L) > 0L,
+            onClick = { confirmStems = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("AI 분리 파일 삭제") }
+        Text(
+            "재생 캐시는 필요할 때 자동으로 다시 만들어져요. AI 분리 파일을 지우면 곡을 다시 분리해야 해요.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 
     if (confirmStems) {

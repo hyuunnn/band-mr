@@ -5,32 +5,41 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Alignment
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -38,10 +47,17 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
 import com.bandmr.app.R
@@ -59,6 +75,10 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemLayout
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.SectionHeading
+import com.bandmr.app.ui.components.StatusBadge
+import com.bandmr.app.ui.components.StudioPanel
+import com.bandmr.app.ui.components.TrackArtwork
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -89,6 +109,7 @@ fun PlayerScreen(songId: Long) {
     var waveformPeaks by remember(songId) { mutableStateOf<FloatArray?>(null) }
     var exporting by remember { mutableStateOf(false) }
     var exportMsg by remember { mutableStateOf<String?>(null) }
+    var selectedTab by rememberSaveable(songId) { mutableIntStateOf(0) }
 
     val notifPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -189,14 +210,25 @@ fun PlayerScreen(songId: Long) {
         Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Text(s.title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            TrackArtwork(seed = s.id, size = 72.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("지금 연습할 곡", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(
+                    formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel}" else " · 원본 오디오",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         if (preparingSongId == songId && !separated) {
             Text(
-                "원본을 기기에 맞게 준비하는 중… (수 초 소요)",
+                "재생을 준비하고 있어요. 잠시만 기다려 주세요.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -267,85 +299,92 @@ fun PlayerScreen(songId: Long) {
             },
         )
 
-        ModeCard(
-            aiOn = aiOn,
-            separated = separated,
-            separatedLabel = separatedTier?.label,
-            selectedLabel = selectedTier.label,
-            canReseparate = separated && selectedTier.id != s.separatedTier,
-            running = running,
-            otherRunning = otherRunning,
-            stage = sepProgress?.stage,
-            progress = sepProgress?.progress,
-            error = (sepState as? SepState.Error)?.takeIf { it.songId == songId }?.message,
-            onToggleAi = { enabled -> scope.launch { Locator.settings.setAiEnabled(enabled) } },
-            onStartSeparation = {
-                if (separated) Locator.playerController.release()
-                if (Build.VERSION.SDK_INT >= 33) {
-                    notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    SeparationService.start(Locator.context, songId)
-                }
-            },
-            onCancelSeparation = { SeparationService.cancel(Locator.context) },
-        )
+        PlayerTabs(selected = selectedTab, exporting = exporting, onSelect = { selectedTab = it })
 
-        StemCard(
-            separated = separated && aiOn,
-            stems = mixerStems,
-            fourStem = fourStemMixer,
-            stemGainsPacked = stemGainsPacked,
-            vocalStrength = vocalStrength,
-            onVocalStrengthChange = { v ->
-                vocalStrength = v
-                ctrl.setVocalStrength(v) // 재생 중 즉시 반영
-            },
-            onVocalStrengthDone = {
-                scope.launch { Locator.settings.setVocalStrength(vocalStrength) }
-            },
-            onToggle = { stem, checked ->
-                applyStemLevels(
-                    Stem.withPercent(stemGainsPacked, stem, if (checked) 0 else Stem.GAIN_FULL),
-                )
-            },
-            onLevel = { stem, percent ->
-                if (percent != Stem.percentOf(stemGainsPacked, stem)) {
-                    applyStemLevels(Stem.withPercent(stemGainsPacked, stem, percent), persist = false)
-                }
-            },
-            onLevelDone = { persistStemLevels() },
-            onResetLevels = { applyStemLevels(Stem.DEFAULT_PACKED) },
-        )
-
-        PitchCard(
-            semitones = semitones,
-            onChange = { v ->
-                if (v != semitones) {
-                    semitones = v
-                    ctrl.setSemitones(v)
-                    scope.launch {
-                        Locator.songDao.updateSemitones(songId, v)
+        if (selectedTab == 0) {
+            ModeCard(
+                aiOn = aiOn,
+                separated = separated,
+                separatedLabel = separatedTier?.label,
+                selectedLabel = selectedTier.label,
+                canReseparate = separated && selectedTier.id != s.separatedTier,
+                running = running,
+                otherRunning = otherRunning,
+                stage = sepProgress?.stage,
+                progress = sepProgress?.progress,
+                error = (sepState as? SepState.Error)?.takeIf { it.songId == songId }?.message,
+                onToggleAi = { enabled -> scope.launch { Locator.settings.setAiEnabled(enabled) } },
+                onStartSeparation = {
+                    if (separated) Locator.playerController.release()
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        SeparationService.start(Locator.context, songId)
                     }
-                }
-            },
-        )
+                },
+                onCancelSeparation = { SeparationService.cancel(Locator.context) },
+            )
 
-        SpeedCard(
-            speed = speed,
-            onChange = { v ->
-                val snapped = PlaybackSpeed.snap(v)
-                // 슬라이더 드래그는 이벤트가 잦으므로 스냅 값이 실제로 바뀔 때만 반영/저장
-                if (snapped != speed) {
-                    speed = snapped
-                    ctrl.setSpeed(snapped)
-                    scope.launch {
-                        Locator.songDao.updateSpeed(songId, snapped)
+            StemCard(
+                separated = separated && aiOn,
+                stems = mixerStems,
+                fourStem = fourStemMixer,
+                stemGainsPacked = stemGainsPacked,
+                vocalStrength = vocalStrength,
+                onVocalStrengthChange = { v ->
+                    vocalStrength = v
+                    ctrl.setVocalStrength(v) // 재생 중 즉시 반영
+                },
+                onVocalStrengthDone = {
+                    scope.launch { Locator.settings.setVocalStrength(vocalStrength) }
+                },
+                onToggle = { stem, checked ->
+                    applyStemLevels(
+                        Stem.withPercent(stemGainsPacked, stem, if (checked) 0 else Stem.GAIN_FULL),
+                    )
+                },
+                onLevel = { stem, percent ->
+                    if (percent != Stem.percentOf(stemGainsPacked, stem)) {
+                        applyStemLevels(Stem.withPercent(stemGainsPacked, stem, percent), persist = false)
                     }
-                }
-            },
-        )
+                },
+                onLevelDone = { persistStemLevels() },
+                onResetLevels = { applyStemLevels(Stem.DEFAULT_PACKED) },
+            )
+        }
+        if (selectedTab == 1) {
+            PitchCard(
+                semitones = semitones,
+                onChange = { v ->
+                    if (v != semitones) {
+                        semitones = v
+                        ctrl.setSemitones(v)
+                        scope.launch {
+                            Locator.songDao.updateSemitones(songId, v)
+                        }
+                    }
+                },
+            )
 
+            SpeedCard(
+                speed = speed,
+                onChange = { v ->
+                    val snapped = PlaybackSpeed.snap(v)
+                    // 슬라이더 드래그는 이벤트가 잦으므로 스냅 값이 실제로 바뀔 때만 반영/저장
+                    if (snapped != speed) {
+                        speed = snapped
+                        ctrl.setSpeed(snapped)
+                        scope.launch {
+                            Locator.songDao.updateSpeed(songId, snapped)
+                        }
+                    }
+                },
+            )
+        }
+
+        // Keep the launchers and export scope composed while switching tabs.
         ExportCard(
+            visible = selectedTab == 2,
             song = s,
             aiOn = aiOn,
             separated = separated,
@@ -378,23 +417,28 @@ private fun TransportCard(
     onClearLoop: () -> Unit,
 ) {
     val isPlaying by ctrl.isPlaying.collectAsState()
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            val peaks = waveformPeaks
-            if (peaks != null && peaks.isNotEmpty()) {
-                WaveformBar(
-                    peaks = peaks,
-                    durationMs = durationMs,
-                    posMs = posMs,
-                    dragging = dragging,
-                    dragPosMs = dragPosMs,
-                    loopStartMs = loopStartMs,
-                    loopEndMs = loopEndMs,
-                    onDraggingChange = onDraggingChange,
-                    onDrag = onDrag,
-                    onDragEnd = onDragEnd,
-                )
-            } else {
+    StudioPanel {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("플레이어", style = MaterialTheme.typography.labelLarge)
+            StatusBadge(if (isPlaying) "재생 중" else "일시정지", active = isPlaying)
+        }
+        val peaks = waveformPeaks
+        if (peaks != null && peaks.isNotEmpty()) {
+            WaveformBar(
+                peaks = peaks,
+                durationMs = durationMs,
+                posMs = posMs,
+                dragging = dragging,
+                dragPosMs = dragPosMs,
+                loopStartMs = loopStartMs,
+                loopEndMs = loopEndMs,
+                onDraggingChange = onDraggingChange,
+                onDrag = onDrag,
+                onDragEnd = onDragEnd,
+                onSeek = { ctrl.seekTo(it) },
+            )
+        } else {
+            Box(Modifier.fillMaxWidth().height(112.dp), contentAlignment = Alignment.Center) {
                 Slider(
                     value = when {
                         dragging -> dragPosMs
@@ -407,83 +451,121 @@ private fun TransportCard(
                     },
                     onValueChangeFinished = onDragEnd,
                     valueRange = 0f..maxOf(1f, durationMs.toFloat()),
+                    modifier = Modifier.semantics { contentDescription = "재생 위치" },
                 )
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    formatTime(if (dragging) dragPosMs.toLong() else posMs),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(formatTime(durationMs), style = MaterialTheme.typography.labelMedium)
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { onSkip(-PlaybackSkip.LARGE_MS) }) {
-                    Icon(painterResource(R.drawable.ic_replay_10), contentDescription = "10초 뒤로")
-                }
-                IconButton(onClick = { onSkip(-PlaybackSkip.SMALL_MS) }) {
-                    Icon(painterResource(R.drawable.ic_replay_5), contentDescription = "5초 뒤로")
-                }
-                FilledIconButton(onClick = { ctrl.playPause() }) {
-                    if (isPlaying) {
-                        Icon(painterResource(R.drawable.ic_pause), contentDescription = "일시정지")
-                    } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "재생")
-                    }
-                }
-                IconButton(onClick = { onSkip(PlaybackSkip.SMALL_MS) }) {
-                    Icon(painterResource(R.drawable.ic_forward_5), contentDescription = "5초 앞으로")
-                }
-                IconButton(onClick = { onSkip(PlaybackSkip.LARGE_MS) }) {
-                    Icon(painterResource(R.drawable.ic_forward_10), contentDescription = "10초 앞으로")
-                }
-            }
-            val start = loopStartMs
-            val end = loopEndMs
-            val armed = PlaybackLoop.isArmed(start, end)
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedButton(
-                    onClick = { onSetLoopPoint(true) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(if (start != null) "A ${formatTime(start)}" else "A 시작")
-                }
-                OutlinedButton(
-                    onClick = { onSetLoopPoint(false) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(if (end != null) "B ${formatTime(end)}" else "B 끝")
-                }
-                TextButton(
-                    onClick = onClearLoop,
-                    enabled = start != null || end != null,
-                ) { Text("해제") }
-            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                when {
-                    armed && start != null && end != null ->
-                        "${formatTime(start)} ~ ${formatTime(end)} 반복 중"
-                    start != null && end != null ->
-                        "구간은 ${PlaybackLoop.MIN_GAP_MS / 1000.0}초 이상이어야 합니다"
-                    start != null -> "끝을 지정하면 이 구간을 반복합니다"
-                    end != null -> "시작을 지정하면 이 구간을 반복합니다"
-                    else -> "현재 위치(또는 슬라이더)에 시작과 끝을 지정하세요"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (start != null && end != null && !armed)
-                    MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                formatTime(if (dragging) dragPosMs.toLong() else posMs),
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
             )
+            Text(formatTime(durationMs), style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val compact = maxWidth < 264.dp
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (compact) {
+                    Column {
+                        SkipControl(R.drawable.ic_replay_10, "10초 뒤로") { onSkip(-PlaybackSkip.LARGE_MS) }
+                        SkipControl(R.drawable.ic_replay_5, "5초 뒤로") { onSkip(-PlaybackSkip.SMALL_MS) }
+                    }
+                } else {
+                    SkipControl(R.drawable.ic_replay_10, "10초 뒤로") { onSkip(-PlaybackSkip.LARGE_MS) }
+                    SkipControl(R.drawable.ic_replay_5, "5초 뒤로") { onSkip(-PlaybackSkip.SMALL_MS) }
+                }
+                FilledIconButton(onClick = { ctrl.playPause() }, modifier = Modifier.size(72.dp), shape = CircleShape) {
+                    Icon(
+                        painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
+                        contentDescription = if (isPlaying) "일시정지" else "재생",
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+                if (compact) {
+                    Column {
+                        SkipControl(R.drawable.ic_forward_10, "10초 앞으로") { onSkip(PlaybackSkip.LARGE_MS) }
+                        SkipControl(R.drawable.ic_forward_5, "5초 앞으로") { onSkip(PlaybackSkip.SMALL_MS) }
+                    }
+                } else {
+                    SkipControl(R.drawable.ic_forward_5, "5초 앞으로") { onSkip(PlaybackSkip.SMALL_MS) }
+                    SkipControl(R.drawable.ic_forward_10, "10초 앞으로") { onSkip(PlaybackSkip.LARGE_MS) }
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        val start = loopStartMs
+        val end = loopEndMs
+        val armed = PlaybackLoop.isArmed(start, end)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("구간 반복", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+            TextButton(onClick = onClearLoop, enabled = start != null || end != null) { Text("해제") }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LoopPointButton("A", start, "시작 지점", Modifier.weight(1f)) { onSetLoopPoint(true) }
+            LoopPointButton("B", end, "끝 지점", Modifier.weight(1f)) { onSetLoopPoint(false) }
+        }
+        Text(
+            when {
+                armed && start != null && end != null -> "${formatTime(start)} – ${formatTime(end)} 구간을 반복해요"
+                start != null && end != null -> "구간은 ${PlaybackLoop.MIN_GAP_MS / 1000.0}초 이상이어야 해요"
+                start != null -> "끝 지점을 지정하면 반복이 시작돼요"
+                end != null -> "시작 지점을 지정하면 반복이 시작돼요"
+                else -> "반복할 위치에서 A와 B를 눌러 주세요"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (start != null && end != null && !armed) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SkipControl(@androidx.annotation.DrawableRes icon: Int, description: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(painterResource(icon), contentDescription = description)
+    }
+}
+
+@Composable
+private fun LoopPointButton(label: String, timeMs: Long?, hint: String, modifier: Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = MaterialTheme.shapes.small,
+        color = if (timeMs != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (timeMs != null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+    ) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(label, style = MaterialTheme.typography.titleSmall)
+            Text(timeMs?.let { formatTime(it) } ?: hint, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun PlayerTabs(selected: Int, exporting: Boolean, onSelect: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(4.dp).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        listOf("믹서", "연습 도구", if (exporting) "저장 중…" else "저장").forEachIndexed { index, label ->
+            val active = selected == index
+            Box(
+                Modifier.weight(1f).clip(MaterialTheme.shapes.small)
+                    .background(if (active) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent)
+                    .selectable(selected = active, role = Role.Tab, onClick = { onSelect(index) })
+                    .heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -512,50 +594,39 @@ private fun ModeCard(
     onStartSeparation: () -> Unit,
     onCancelSeparation: () -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("AI 고음질 분리", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (aiOn) "온디바이스 AI로 정확하게 분리 (배터리 많이 사용)"
-                        else "실시간 신호처리만 사용 · 절전 모드",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Switch(checked = aiOn, onCheckedChange = onToggleAi, enabled = !running)
-            }
-
-            if (aiOn && running) {
-                LinearProgressIndicator(
-                    progress = { progress ?: 0f },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(stage ?: "준비 중…", style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = onCancelSeparation) { Text("취소") }
-            } else if (aiOn && !separated) {
-                // 분리 서비스는 1곡씩만 처리하므로 다른 곡 진행 중인 요청은 무시된다 —
-                // 조용히 무시되지 않도록 버튼을 막고 이유를 보여준다
-                Button(onClick = onStartSeparation, enabled = !otherRunning) {
-                    Text(if (otherRunning) "다른 곡 분리 중…" else "이 곡 분리하기")
-                }
-                error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-            } else if (aiOn && separated) {
+    StudioPanel(highlighted = aiOn) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("AI 악기 분리", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "✓ 분리 완료 (${separatedLabel ?: ""}) — 스템별 볼륨으로 정확히 조절됩니다",
+                    if (aiOn) "악기별 소리를 더 정교하게 조절해요" else "켜면 악기별 볼륨을 조절할 수 있어요",
                     style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (canReseparate) {
-                    Button(onClick = onStartSeparation, enabled = !otherRunning) {
-                        Text(if (otherRunning) "다른 곡 분리 중…" else "$selectedLabel 로 다시 분리")
-                    }
-                }
-                error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = aiOn, onCheckedChange = onToggleAi, enabled = !running, modifier = Modifier.semantics { contentDescription = "AI 악기 분리" })
+        }
+        if (aiOn && running) {
+            LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stage ?: "분리를 준비하고 있어요…", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onCancelSeparation) { Text("취소") }
+            }
+        } else if (aiOn && !separated) {
+            Text("$selectedLabel · 처음 한 번만 분리하면 돼요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onStartSeparation, enabled = !otherRunning, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.small) {
+                Text(if (otherRunning) "다른 곡 분리 중…" else "이 곡 분리하기")
+            }
+        } else if (aiOn && separated) {
+            StatusBadge("분리 완료 · ${separatedLabel.orEmpty()}", active = true)
+            if (canReseparate) {
+                OutlinedButton(onClick = onStartSeparation, enabled = !otherRunning, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
+                    Text(if (otherRunning) "다른 곡 분리 중…" else "$selectedLabel 모델로 다시 분리")
                 }
             }
+        }
+        if (aiOn) error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -574,170 +645,180 @@ private fun StemCard(
     onLevelDone: () -> Unit,
     onResetLevels: () -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (separated) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("악기별 볼륨", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onResetLevels) { Text("초기화") }
+    StudioPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionHeading(
+                if (separated) "나만의 믹스" else "제거할 소리",
+                if (separated) "0%는 음소거, 100%는 원래 볼륨이에요" else "선택한 소리를 실시간으로 줄여요",
+                Modifier.weight(1f),
+            )
+            if (separated) TextButton(onClick = onResetLevels) { Text("초기화") }
+        }
+        if (separated) {
+            stems.forEachIndexed { index, stem ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+                val percent = Stem.percentOf(stemGainsPacked, stem)
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StemIcon(stem, active = percent > 0)
+                        Text(Stem.labelFor(stem, fourStem), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        StatusBadge(if (percent == 0) "음소거" else "$percent%", active = percent > 0)
+                    }
+                    Slider(
+                        value = percent.toFloat(),
+                        onValueChange = { onLevel(stem, it.toInt()) },
+                        onValueChangeFinished = onLevelDone,
+                        valueRange = 0f..Stem.GAIN_FULL.toFloat(),
+                        modifier = Modifier.semantics { contentDescription = "${stem.label} 볼륨" },
+                    )
                 }
-                Text(
-                    "0%면 제거, 100%면 원음량입니다",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                stems.forEach { stem ->
-                    val percent = Stem.percentOf(stemGainsPacked, stem)
-                    Column(Modifier.padding(top = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                Stem.labelFor(stem, fourStem),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text("$percent%", style = MaterialTheme.typography.labelMedium)
-                        }
-                        Slider(
-                            value = percent.toFloat(),
-                            onValueChange = { onLevel(stem, it.toInt()) },
-                            onValueChangeFinished = onLevelDone,
-                            valueRange = 0f..Stem.GAIN_FULL.toFloat(),
+            }
+        } else {
+            val muteMask = Stem.muteMaskFromPacked(stemGainsPacked)
+            Stem.entries.forEachIndexed { index, stem ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+                val enabled = !stem.aiOnly
+                val checked = muteMask and stem.bit != 0
+                Row(
+                    Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+                        .toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle(stem, it) })
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    StemIcon(stem, active = checked && enabled)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(stem.label, style = MaterialTheme.typography.titleSmall, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            when (stem) {
+                                Stem.VOCAL -> "목소리를 줄이고 반주에 집중해요"
+                                Stem.DRUMS -> "드럼과 타악기 소리를 줄여요"
+                                Stem.BASS -> "낮은 음역의 소리를 줄여요"
+                                Stem.GUITAR -> "기타가 있는 중음역을 줄여요"
+                                else -> "AI 분리 후 조절할 수 있어요"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
                 }
-            } else {
-                val muteMask = Stem.muteMaskFromPacked(stemGainsPacked)
-                Text("제거할 소리", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "체크하면 해당 소리가 제거됩니다 (실시간 근사 처리)",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Stem.entries.forEach { stem ->
-                    val enabled = !stem.aiOnly
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = muteMask and stem.bit != 0,
-                            onCheckedChange = { onToggle(stem, it) },
-                            enabled = enabled,
-                        )
-                        Column {
-                            Text(
-                                stem.label,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (enabled) MaterialTheme.colorScheme.onSurface
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(stem.dspHint, style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    if (stem == Stem.VOCAL && muteMask and stem.bit != 0) {
-                        Column(Modifier.padding(start = 48.dp, end = 8.dp)) {
+                if (stem == Stem.VOCAL && checked) {
+                    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Column(Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "제거 강도",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    "${(vocalStrength * 100).toInt()}%",
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
+                                Text("보컬 제거 강도", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                                Text("${(vocalStrength * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                             }
                             Slider(
                                 value = vocalStrength,
                                 onValueChange = onVocalStrengthChange,
                                 onValueChangeFinished = onVocalStrengthDone,
                                 valueRange = 0f..1f,
+                                modifier = Modifier.semantics { contentDescription = "보컬 제거 강도" },
                             )
-                            Text(
-                                "낮음 = 반주 손상 적음 · 높음 = 보컬 최대 제거",
-                                style = MaterialTheme.typography.labelSmall,
-                            )
+                            Text("낮게 설정할수록 반주 손상이 적어요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
+            Text("빠른 제거는 주변 악기 소리에도 영향을 줄 수 있어요. 정교한 조절이 필요하면 AI 분리를 사용해 주세요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
+private fun StemIcon(stem: Stem, active: Boolean) {
+    val icon = when (stem) {
+        Stem.VOCAL -> R.drawable.ic_stem_vocal
+        Stem.DRUMS -> R.drawable.ic_stem_drums
+        Stem.BASS -> R.drawable.ic_stem_bass
+        Stem.GUITAR -> R.drawable.ic_stem_guitar
+        Stem.PIANO -> R.drawable.ic_stem_piano
+        Stem.OTHER -> R.drawable.ic_stem_other
+    }
+    Surface(
+        modifier = Modifier.size(38.dp),
+        shape = MaterialTheme.shapes.small,
+        color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+    ) {
+        Box(contentAlignment = Alignment.Center) { Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp)) }
+    }
+}
+
+@Composable
 private fun PitchCard(semitones: Int, onChange: (Int) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("키 조절", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onChange(0) }) { Text("초기화") }
-            }
-            Text(
-                if (semitones == 0) "원곡 키" else "${if (semitones > 0) "+" else ""}$semitones 반음",
-                style = MaterialTheme.typography.headlineSmall,
+    StudioPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionHeading("키 조절", "나에게 편한 음역으로 연습해요", Modifier.weight(1f))
+            TextButton(onClick = { onChange(0) }, enabled = semitones != 0) { Text("초기화") }
+        }
+        Text(
+            if (semitones == 0) "원곡 키" else "${if (semitones > 0) "+" else ""}$semitones 반음",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AdjustButton("−", "키 한 반음 낮추기", semitones > -12) { onChange((semitones - 1).coerceIn(-12, 12)) }
+            Slider(
+                value = semitones.toFloat(),
+                onValueChange = { onChange(it.roundToInt()) },
+                valueRange = -12f..12f,
+                steps = 23,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp).semantics { contentDescription = "키 조절" },
+                colors = SliderDefaults.colors(inactiveTickColor = MaterialTheme.colorScheme.outlineVariant),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { onChange((semitones - 1).coerceIn(-12, 12)) }) {
-                    Text("-1")
-                }
-                Slider(
-                    value = semitones.toFloat(),
-                    onValueChange = { onChange(it.roundToInt()) },
-                    valueRange = -12f..12f,
-                    steps = 23,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                )
-                OutlinedButton(onClick = { onChange((semitones + 1).coerceIn(-12, 12)) }) {
-                    Text("+1")
-                }
-            }
+            AdjustButton("+", "키 한 반음 높이기", semitones < 12) { onChange((semitones + 1).coerceIn(-12, 12)) }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("−12 반음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("+12 반음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
 private fun SpeedCard(speed: Float, onChange: (Float) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("속도 조절", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onChange(PlaybackSpeed.DEFAULT) }) { Text("초기화") }
-            }
-            Text(
-                PlaybackSpeed.formatLabel(speed),
-                style = MaterialTheme.typography.headlineSmall,
+    StudioPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionHeading("재생 속도", "어려운 구간은 천천히 익혀 보세요", Modifier.weight(1f))
+            TextButton(onClick = { onChange(PlaybackSpeed.DEFAULT) }, enabled = speed != PlaybackSpeed.DEFAULT) { Text("초기화") }
+        }
+        Text(PlaybackSpeed.formatLabel(speed), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AdjustButton("−", "재생 속도 낮추기", speed > PlaybackSpeed.MIN) { onChange(PlaybackSpeed.step(speed, -1)) }
+            Slider(
+                value = speed,
+                onValueChange = onChange,
+                valueRange = PlaybackSpeed.MIN..PlaybackSpeed.MAX,
+                steps = PlaybackSpeed.sliderSteps,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp).semantics { contentDescription = "재생 속도" },
+                colors = SliderDefaults.colors(inactiveTickColor = MaterialTheme.colorScheme.outlineVariant),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { onChange(PlaybackSpeed.step(speed, -1)) }) {
-                    Text("−")
-                }
-                Slider(
-                    value = speed,
-                    onValueChange = onChange,
-                    valueRange = PlaybackSpeed.MIN..PlaybackSpeed.MAX,
-                    steps = PlaybackSpeed.sliderSteps,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                )
-                OutlinedButton(onClick = { onChange(PlaybackSpeed.step(speed, 1)) }) {
-                    Text("+")
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                TextButton(onClick = { onChange(PlaybackSpeed.MIN) }) {
-                    Text("0.25×", style = MaterialTheme.typography.labelSmall)
-                }
-                TextButton(onClick = { onChange(PlaybackSpeed.DEFAULT) }) {
-                    Text("1×", style = MaterialTheme.typography.labelSmall)
-                }
-                TextButton(onClick = { onChange(PlaybackSpeed.MAX) }) {
-                    Text("2×", style = MaterialTheme.typography.labelSmall)
-                }
-            }
+            AdjustButton("+", "재생 속도 높이기", speed < PlaybackSpeed.MAX) { onChange(PlaybackSpeed.step(speed, 1)) }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = { onChange(PlaybackSpeed.MIN) }) { Text("0.25×") }
+            TextButton(onClick = { onChange(PlaybackSpeed.DEFAULT) }) { Text("1× 원속도") }
+            TextButton(onClick = { onChange(PlaybackSpeed.MAX) }) { Text("2×") }
+        }
+        Text("음정은 유지돼요. 저장할 때는 원래 속도로 내보내요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AdjustButton(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = description }) {
+            Text(label, style = MaterialTheme.typography.titleLarge)
         }
     }
 }
 
 @Composable
 private fun ExportCard(
+    visible: Boolean,
     song: com.bandmr.app.data.Song,
     aiOn: Boolean,
     separated: Boolean,
@@ -785,21 +866,31 @@ private fun ExportCard(
         }
     }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("내보내기", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { mixLauncher.launch("${Exporter.safeName(song.title)}_edited.wav") },
-                    enabled = !exporting,
-                ) { Text("현재 설정으로 저장") }
-                OutlinedButton(
-                    onClick = { stemsLauncher.launch(null) },
-                    enabled = !exporting && separated,
-                ) { Text("스템 개별 저장") }
-            }
-            if (exporting) LinearProgressIndicator(Modifier.fillMaxWidth())
-            exportMsg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+    if (!visible) return
+
+    StudioPanel {
+        SectionHeading("연습한 사운드 그대로", "악기 볼륨과 키 조절을 반영한 WAV 파일로 저장해요")
+        Button(
+            onClick = { mixLauncher.launch("${Exporter.safeName(song.title)}_edited.wav") },
+            enabled = !exporting,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+            shape = MaterialTheme.shapes.small,
+        ) {
+            Icon(painterResource(R.drawable.ic_download), contentDescription = null, modifier = Modifier.size(20.dp))
+            Text("현재 믹스 저장", Modifier.padding(start = 8.dp))
         }
+        OutlinedButton(
+            onClick = { stemsLauncher.launch(null) },
+            enabled = !exporting && separated,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+            shape = MaterialTheme.shapes.small,
+        ) { Text("악기별 파일 저장") }
+        if (!separated) {
+            Text("악기별 파일은 AI 분리 후 저장할 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Text("전체 곡을 원래 속도로 저장해요. 구간 반복과 연습용 재생 속도는 저장 파일에 적용되지 않아요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (exporting) LinearProgressIndicator(Modifier.fillMaxWidth())
+        exportMsg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
 }
