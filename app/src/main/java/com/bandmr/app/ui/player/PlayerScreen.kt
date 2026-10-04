@@ -22,7 +22,9 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -194,6 +196,19 @@ fun PlayerScreen(songId: Long) {
     val otherRunning = runningSep != null && runningSep.songId != songId
     val sepProgress = runningSep
     val loadedDurationMs by ctrl.durationMs.collectAsState()
+    var confirmReseparation by remember(songId, selectedTier, separatedTier, aiOn, running, otherRunning) {
+        mutableStateOf(false)
+    }
+
+    fun startSeparation() {
+        if (running || otherRunning) return
+        if (separated) ctrl.release()
+        if (Build.VERSION.SDK_INT >= 33) {
+            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            SeparationService.start(Locator.context, songId)
+        }
+    }
 
     fun persistStemLevels(packed: Long = stemGainsPacked) {
         scope.launch {
@@ -309,12 +324,7 @@ fun PlayerScreen(songId: Long) {
                 error = (sepState as? SepState.Error)?.takeIf { it.songId == songId }?.message,
                 onToggleAi = { enabled -> scope.launch { Locator.settings.setAiEnabled(enabled) } },
                 onStartSeparation = {
-                    if (separated) Locator.playerController.release()
-                    if (Build.VERSION.SDK_INT >= 33) {
-                        notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        SeparationService.start(Locator.context, songId)
-                    }
+                    if (separated) confirmReseparation = true else startSeparation()
                 },
                 onCancelSeparation = { SeparationService.cancel(Locator.context) },
             )
@@ -389,6 +399,18 @@ fun PlayerScreen(songId: Long) {
             exportMsg = exportMsg,
             setExporting = { exporting = it },
             setExportMsg = { exportMsg = it },
+        )
+    }
+
+    if (confirmReseparation && separatedTier != null) {
+        ConfirmReseparationDialog(
+            currentLabel = separatedTier.label,
+            selectedLabel = selectedTier.label,
+            onDismiss = { confirmReseparation = false },
+            onConfirm = {
+                confirmReseparation = false
+                startSeparation()
+            },
         )
     }
 }
@@ -635,15 +657,55 @@ private fun ModeCard(
         } else if (aiOn && separated) {
             StatusBadge("분리 완료 · ${separatedLabel.orEmpty()}", active = true)
             if (canReseparate) {
-                OutlinedButton(onClick = onStartSeparation, enabled = !otherRunning, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
+                OutlinedButton(
+                    onClick = onStartSeparation,
+                    enabled = !otherRunning,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
                     Text(if (otherRunning) "다른 곡 분리 중…" else "$selectedLabel 모델로 다시 분리")
                 }
+                Text(
+                    "분리가 완료되면 기존 분리 결과가 교체됩니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
         if (aiOn) error?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+@Composable
+private fun ConfirmReseparationDialog(
+    currentLabel: String,
+    selectedLabel: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("다시 분리할까요?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("현재 모델: $currentLabel\n새 모델: $selectedLabel")
+                Text(
+                    "분리가 완료되면 기존 분리 결과가 새 결과로 교체되며, 이전 결과로 되돌릴 수 없습니다.",
+                )
+                Text("원본 음원은 유지됩니다.")
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text("다시 분리") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
 }
 
 @Composable
