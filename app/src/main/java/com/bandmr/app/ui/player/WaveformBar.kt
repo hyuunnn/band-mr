@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -15,8 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.audio.PlaybackLoop
 
@@ -35,31 +40,42 @@ fun WaveformBar(
     onDraggingChange: (Boolean) -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val played = MaterialTheme.colorScheme.primary
-    val idle = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-    val loopFill = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-    val playhead = MaterialTheme.colorScheme.secondary
+    val idle = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+    val loopFill = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
+    val playhead = MaterialTheme.colorScheme.primary
     val duration = durationMs.coerceAtLeast(1L)
     val playMs = if (dragging) dragPosMs else posMs.toFloat()
     val armed = PlaybackLoop.isArmed(loopStartMs, loopEndMs)
+    val latestDraggingChange by rememberUpdatedState(onDraggingChange)
+    val latestDrag by rememberUpdatedState(onDrag)
+    val latestDragEnd by rememberUpdatedState(onDragEnd)
 
     Canvas(
         modifier
             .fillMaxWidth()
-            .height(176.dp)
-            .semantics { contentDescription = "파형 시크바" }
+            .height(112.dp)
+            .semantics {
+                contentDescription = "재생 위치"
+                progressBarRangeInfo = ProgressBarRangeInfo(playMs.coerceIn(0f, duration.toFloat()), 0f..duration.toFloat())
+                setProgress { target ->
+                    onSeek(target.toLong().coerceIn(0L, duration))
+                    true
+                }
+            }
             .pointerInput(duration) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    onDraggingChange(true)
-                    onDrag(xToMs(down.position.x, size.width, duration))
+                    latestDraggingChange(true)
+                    latestDrag(xToMs(down.position.x, size.width, duration))
                     drag(down.id) { change ->
-                        onDrag(xToMs(change.position.x, size.width, duration))
+                        latestDrag(xToMs(change.position.x, size.width, duration))
                         change.consume()
                     }
-                    onDragEnd()
+                    latestDragEnd()
                 }
             },
     ) {
@@ -76,12 +92,18 @@ fun WaveformBar(
                 size = Size((x1 - x0).coerceAtLeast(1f), h),
             )
         }
-        val barW = w / peaks.size
-        val stroke = (barW * 0.72f).coerceIn(1f, 3f)
+        // Group the display peaks so bars stay legible at different screen densities.
+        val barCount = (w / 4.dp.toPx()).toInt().coerceIn(1, peaks.size)
+        val barW = w / barCount
+        val stroke = 2.dp.toPx()
         val playX = ((playMs / duration) * w).coerceIn(0f, w)
-        peaks.forEachIndexed { i, p ->
+        repeat(barCount) { i ->
+            var p = 0f
+            for (index in (i * peaks.size / barCount) until ((i + 1) * peaks.size / barCount)) {
+                p = maxOf(p, peaks[index])
+            }
             val x = (i + 0.5f) * barW
-            val amp = (p.coerceIn(0f, 1f) * mid * 0.92f).coerceAtLeast(1f)
+            val amp = (p.coerceIn(0f, 1f) * mid * 0.82f).coerceAtLeast(2.dp.toPx())
             drawLine(
                 color = if (x <= playX) played else idle,
                 start = Offset(x, mid - amp),
@@ -94,7 +116,7 @@ fun WaveformBar(
             color = playhead,
             start = Offset(playX, 4f),
             end = Offset(playX, h - 4f),
-            strokeWidth = 3f,
+            strokeWidth = 1.5.dp.toPx(),
             cap = StrokeCap.Round,
         )
         if (loopStartMs != null) {

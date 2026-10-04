@@ -17,6 +17,13 @@ class SettingsStore(private val context: Context) {
     private val aiKey = booleanPreferencesKey("ai_enabled")
     private val tierKey = stringPreferencesKey("model_tier")
     private val vocalStrengthKey = floatPreferencesKey("vocal_strength")
+    private val designKey = stringPreferencesKey("app_design")
+
+    val design: Flow<AppDesign> = context.dataStore.data.map { AppDesign.fromId(it[designKey]) }
+
+    suspend fun setDesign(design: AppDesign) {
+        context.dataStore.edit { it[designKey] = design.id }
+    }
 
     val aiEnabled: Flow<Boolean> = context.dataStore.data.map { it[aiKey] ?: false }
 
