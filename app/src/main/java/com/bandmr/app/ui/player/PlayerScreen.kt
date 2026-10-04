@@ -598,10 +598,14 @@ private fun PlayerTabs(selected: Int, exporting: Boolean, onSelect: (Int) -> Uni
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
-                if (design == AppDesign.MONO) HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
+                if (design == AppDesign.MONO) {
+                    Box(Modifier.fillMaxWidth().height(3.dp), contentAlignment = Alignment.BottomCenter) {
+                        HorizontalDivider(
+                            thickness = if (active) 3.dp else 1.dp,
+                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                        )
+                    }
+                }
             }
         }
     }

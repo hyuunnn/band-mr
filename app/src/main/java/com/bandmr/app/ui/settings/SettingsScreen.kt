@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,18 +53,17 @@ import com.bandmr.app.separation.Tier
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
-import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun SettingsScreen(onChooseDesign: () -> Unit) {
-    val design = LocalAppDesign.current
+fun SettingsScreen() {
     val scope = rememberCoroutineScope()
     val currentTier by Locator.settings.modelTier.collectAsState(initial = Tier.S6_BALANCED.id)
     val modelStates by Locator.modelManager.states.collectAsState()
     var busyTier by remember { mutableStateOf<String?>(null) }
+    var pendingDelete by remember { mutableStateOf<Tier?>(null) }
 
     Column(
         Modifier
@@ -78,14 +78,6 @@ fun SettingsScreen(onChooseDesign: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        StudioPanel {
-            SectionHeading("화면 디자인 · ${design.label}", design.description)
-            OutlinedButton(
-                onClick = onChooseDesign,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                shape = MaterialTheme.shapes.small,
-            ) { Text("다른 디자인 둘러보기") }
-        }
         StudioPanel {
             StatusBadge("기기에서 처리하는 AI", active = true)
             SectionHeading("한 번 받으면, 오프라인에서도", "원하는 모델을 다운로드한 뒤 선택해 주세요. 다음에 분리할 곡부터 적용돼요.")
@@ -114,7 +106,7 @@ fun SettingsScreen(onChooseDesign: () -> Unit) {
                                 busyTier = null
                             }
                         },
-                        onDelete = { Locator.modelManager.delete(tier) },
+                        onDelete = { pendingDelete = tier },
                     )
                 }
             }
@@ -130,6 +122,39 @@ fun SettingsScreen(onChooseDesign: () -> Unit) {
 
         StorageSection()
     }
+
+    pendingDelete?.let { tier ->
+        ConfirmModelDeleteDialog(
+            tier = tier,
+            onDismiss = { pendingDelete = null },
+            onConfirm = {
+                pendingDelete = null
+                Locator.modelManager.delete(tier)
+            },
+        )
+    }
+}
+
+@Composable
+private fun ConfirmModelDeleteDialog(tier: Tier, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("모델을 삭제할까요?") },
+        text = {
+            Text(
+                "'${tier.label}' 모델을 삭제합니다.\n\n" +
+                    "이 모델로 다시 분리하려면 약 ${tier.approxSizeMb} MB를 다시 다운로드해야 합니다. " +
+                    "원본 음원과 이미 분리한 결과는 유지됩니다.",
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text("삭제") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
 }
 
 @Composable
@@ -241,7 +266,8 @@ private fun StorageSection() {
             modifier = Modifier.fillMaxWidth(),
         ) { Text("AI 분리 파일 삭제") }
         Text(
-            "재생 캐시는 필요할 때 자동으로 다시 만들어져요. AI 분리 파일을 지우면 곡을 다시 분리해야 해요.",
+            "재생 캐시를 비우면 재생이 멈추며, 다음 재생 때 캐시를 다시 만드는 데 시간이 걸릴 수 있어요. " +
+                "AI 분리 파일을 지우면 곡을 다시 분리해야 해요.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

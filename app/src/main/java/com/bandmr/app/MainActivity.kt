@@ -130,7 +130,7 @@ private fun BandMrNav() {
                 PlayerScreen(songId = songId)
             }
             composable("settings") {
-                SettingsScreen(onChooseDesign = { showDesigns = true })
+                SettingsScreen()
             }
         }
     }
