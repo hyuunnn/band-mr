@@ -66,7 +66,6 @@ fun StudioPanel(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
         shadowElevation = if (design == AppDesign.SNOW) 2.dp else 0.dp,
         border = if (openCard && !highlighted) null else BorderStroke(
             1.dp,

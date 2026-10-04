@@ -86,7 +86,7 @@ fun designIsDark(design: AppDesign, systemDark: Boolean): Boolean = when (design
 
 /** 주홍 시안에서 재생 버튼, 음소거, 표지에만 쓰는 포인트 색. */
 val HongPop = Color(0xFFD84A2A)
-val HongPopSoft = Color(0xFFF8E4DE)
+private val HongPopSoft = Color(0xFFF8E4DE)
 
 private val SnowScheme = lightColorScheme(
     primary = Color(0xFF141414), onPrimary = Color.White,

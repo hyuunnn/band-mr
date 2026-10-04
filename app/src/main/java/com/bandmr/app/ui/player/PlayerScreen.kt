@@ -84,7 +84,6 @@ import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
 import com.bandmr.app.ui.theme.HongPop
-import com.bandmr.app.ui.theme.HongPopSoft
 import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -756,8 +755,8 @@ private fun StemCard(
                         StatusBadge(
                             if (percent == 0) "음소거" else "$percent%",
                             active = percent > 0,
-                            containerColor = if (hongMute) HongPopSoft else null,
-                            contentColor = if (hongMute) HongPop else null,
+                            containerColor = if (hongMute) MaterialTheme.colorScheme.tertiaryContainer else null,
+                            contentColor = if (hongMute) MaterialTheme.colorScheme.onTertiaryContainer else null,
                         )
                     }
                     Slider(

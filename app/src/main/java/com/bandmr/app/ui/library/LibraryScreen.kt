@@ -167,9 +167,6 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
 
     Scaffold(
         modifier = Modifier.imePadding(),
-        containerColor = if (
-            design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS
-        ) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -446,7 +443,6 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
         shadowElevation = if (design == AppDesign.SNOW) 2.dp else 0.dp,
         border = if (openRow) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {

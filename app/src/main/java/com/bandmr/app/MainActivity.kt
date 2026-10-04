@@ -87,10 +87,6 @@ private fun BandMrNav() {
     }
 
     Scaffold(
-        containerColor = when (design) {
-            AppDesign.SNOW, AppDesign.INK, AppDesign.HONG, AppDesign.MOSS -> MaterialTheme.colorScheme.background
-            else -> MaterialTheme.colorScheme.surface
-        },
         topBar = {
             TopAppBar(
                 title = {
