@@ -11,12 +11,12 @@ enum class Stem(
     val dspHint: String,
     val aiOnly: Boolean = false,
 ) {
-    VOCAL("vocals", "보컬", "중앙 성분 마스킹 (저역 보존)"),
-    DRUMS("drums", "드럼", "HPSS 타악 억제"),
-    BASS("bass", "베이스", "f0 배음 노칭 + 하이패스"),
-    GUITAR("guitar", "기타", "중역대 손실 (실험적)"),
-    PIANO("piano", "피아노/키보드", "AI 분리 전용", aiOnly = true),
-    OTHER("other", "그 외 반주 (신스 등)", "AI 분리 전용", aiOnly = true);
+    VOCAL("vocals", "보컬", "목소리를 줄이고 반주에 집중해요"),
+    DRUMS("drums", "드럼", "드럼과 타악기 소리를 줄여요"),
+    BASS("bass", "베이스", "낮은 음역의 소리를 줄여요"),
+    GUITAR("guitar", "기타", "기타가 있는 중음역을 줄여요"),
+    PIANO("piano", "피아노/키보드", "AI 분리 후 조절할 수 있어요", aiOnly = true),
+    OTHER("other", "그 외 반주 (신스 등)", "AI 분리 후 조절할 수 있어요", aiOnly = true);
 
     val bit: Int get() = 1 shl ordinal
 

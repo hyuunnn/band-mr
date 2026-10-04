@@ -690,13 +690,7 @@ private fun StemCard(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(stem.label, style = MaterialTheme.typography.titleSmall, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            when (stem) {
-                                Stem.VOCAL -> "목소리를 줄이고 반주에 집중해요"
-                                Stem.DRUMS -> "드럼과 타악기 소리를 줄여요"
-                                Stem.BASS -> "낮은 음역의 소리를 줄여요"
-                                Stem.GUITAR -> "기타가 있는 중음역을 줄여요"
-                                else -> "AI 분리 후 조절할 수 있어요"
-                            },
+                            stem.dspHint,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

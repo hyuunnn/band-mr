@@ -48,19 +48,19 @@ enum class ModelFamily(
 ) {
     HTDEMUCS_4(
         "Demucs 4스템",
-        "보컬·드럼·베이스·그 외. 코어 분리가 더 깨끗합니다",
+        "보컬 · 드럼 · 베이스 · 그 외 반주",
     ),
     HTDEMUCS_6(
         "Demucs 6스템",
-        "기타·피아노를 따로 줄일 수 있습니다",
+        "4개 파트에 기타와 피아노를 더 세밀하게",
     ),
     SCNET_XL(
         "SCNet XL",
-        "4스템. Demucs 4스보다 보컬 제거는 조금 약하지만 악기 분리는 더 정확합니다. Demucs보다 느립니다",
+        "악기 분리에 집중한 4파트 모델",
     ),
     SCNET_XL_IHF(
         "SCNet XL IHF",
-        "4스템. 보컬·고역이 XL보다 낫습니다. XL보다 약 1.5~2배 느립니다",
+        "보컬과 고음역을 개선한 4파트 모델",
     );
 
     val isScnet: Boolean get() = this == SCNET_XL || this == SCNET_XL_IHF
@@ -75,12 +75,12 @@ enum class Quality(
 ) {
     BALANCED(
         "balanced", "균형형",
-        "속도와 품질의 균형 (권장)",
+        "처리 속도와 분리 품질의 균형을 맞췄어요.",
         262_144,
     ),
     QUALITY(
         "quality", "품질 우선",
-        "긴 세그먼트로 최고 품질. 시간·메모리 많이 사용",
+        "더 정교하게 분리해요. 시간과 메모리가 더 필요해요.",
         344_064,
     ),
 }
@@ -156,8 +156,8 @@ enum class Tier(
 
     val label: String get() = if (family.isScnet) family.label else "${layout.label} ${quality.label}"
     val description: String get() = when (family) {
-        ModelFamily.SCNET_XL -> "6초 세그먼트. IHF보다 빠름"
-        ModelFamily.SCNET_XL_IHF -> "6초 세그먼트. XL보다 약 1.5~2배 느림 · RAM 4GB+"
+        ModelFamily.SCNET_XL -> "악기 분리에 집중한 모델이에요. Demucs보다 처리 시간이 길어요."
+        ModelFamily.SCNET_XL_IHF -> "보컬과 높은 음역을 더 정교하게 분리해요. XL보다 약 1.5~2배 느려요."
         else -> quality.description
     }
     val cardTitle: String get() = when (family) {

@@ -82,7 +82,7 @@ fun SettingsScreen() {
         }
 
         ModelFamily.entries.forEach { family ->
-            SectionHeading(family.label, familySummary(family), Modifier.padding(top = 12.dp))
+            SectionHeading(family.label, family.description, Modifier.padding(top = 12.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.selectableGroup()) {
                 Tier.entries.filter { it.family == family }.forEach { tier ->
                     ModelTierCard(
@@ -147,12 +147,7 @@ private fun ModelTierCard(
             if (selected) StatusBadge(if (ready) "사용 중" else "선택됨", active = true)
         }
         Text(
-            when {
-                tier.family == ModelFamily.SCNET_XL -> "악기 분리에 집중한 모델이에요. Demucs보다 처리 시간이 길어요."
-                tier.family == ModelFamily.SCNET_XL_IHF -> "보컬과 높은 음역을 더 정교하게 분리해요. XL보다 약 1.5~2배 느려요."
-                tier.quality == com.bandmr.app.separation.Quality.BALANCED -> "처리 속도와 분리 품질의 균형을 맞췄어요."
-                else -> "더 정교하게 분리해요. 시간과 메모리가 더 필요해요."
-            },
+            tier.description,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -183,13 +178,6 @@ private fun ModelTierCard(
             }
         }
     }
-}
-
-private fun familySummary(family: ModelFamily): String = when (family) {
-    ModelFamily.HTDEMUCS_4 -> "보컬 · 드럼 · 베이스 · 그 외 반주"
-    ModelFamily.HTDEMUCS_6 -> "4개 파트에 기타와 피아노를 더 세밀하게"
-    ModelFamily.SCNET_XL -> "악기 분리에 집중한 4파트 모델"
-    ModelFamily.SCNET_XL_IHF -> "보컬과 고음역을 개선한 4파트 모델"
 }
 
 /**
@@ -322,9 +310,8 @@ private fun readUsage(): StorageUsage = StorageUsage(
 )
 
 @Composable
-private fun StorageRow(label: String, bytes: Long?, emphasize: Boolean = false) {
-    val style = if (emphasize) MaterialTheme.typography.titleSmall
-    else MaterialTheme.typography.bodyMedium
+private fun StorageRow(label: String, bytes: Long?) {
+    val style = MaterialTheme.typography.bodyMedium
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.weight(1f), style = style)
         Text(bytes?.let { CacheStorage.formatBytes(it) } ?: "계산 중…", style = style)

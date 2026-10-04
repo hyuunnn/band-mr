@@ -17,10 +17,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -57,7 +61,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,8 +100,27 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     var query by rememberSaveable { mutableStateOf("") }
     var separatedOnly by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
     val visibleSongs = remember(songs, query, separatedOnly) {
         songs.filter { (!separatedOnly || it.isSeparated) && it.title.contains(query.trim(), ignoreCase = true) }
+    }
+
+    fun revealAddedSong() {
+        query = ""
+        separatedOnly = false
+        focusManager.clearFocus()
+        scope.launch { listState.scrollToItem(0) }
+    }
+
+    // 다이얼로그를 닫고 기다렸어도 새 곡이 검색·분리 필터에 가려지지 않게 한다.
+    LaunchedEffect(importState) {
+        if (importState is ImportState.Done) {
+            revealAddedSong()
+            if (showLinkDialog) delay(600)
+            showLinkDialog = false
+            YouTubeImport.dismiss()
+        }
     }
 
     val picker = rememberLauncherForActivityResult(
@@ -121,6 +146,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     snackbar.showSnackbar("곡을 추가하지 못했습니다: ${t.message ?: "알 수 없는 오류"}")
                     return@launch
                 }
+                revealAddedSong()
                 // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환.
                 // 캐시 실패는 재생 시점 prepareFailedSongId로 노출되므로 여기선 로그만 남긴다
                 withContext(Dispatchers.IO) {
@@ -134,6 +160,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     }
 
     Scaffold(
+        modifier = Modifier.imePadding(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -168,6 +195,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
+            state = listState,
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -230,6 +258,8 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                             }
                         },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                         shape = MaterialTheme.shapes.medium,
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -265,13 +295,6 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
 
     if (showLinkDialog) {
         val busy = YouTubeImport.isRunning()
-        LaunchedEffect(importState) {
-            if (importState is ImportState.Done) {
-                delay(600)
-                showLinkDialog = false
-                YouTubeImport.dismiss()
-            }
-        }
         AlertDialog(
             onDismissRequest = {
                 // 진행 중이어도 다이얼로그만 닫으면 백그라운드(appScope)에서 계속 진행된다
