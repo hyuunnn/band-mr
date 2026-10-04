@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,7 +26,8 @@ import com.bandmr.app.ui.theme.LocalAppDesign
 
 @Composable
 fun LibraryHeading(songCount: Int) {
-    when (LocalAppDesign.current) {
+    val design = LocalAppDesign.current
+    when (design) {
         AppDesign.MONO -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("THE PRACTICE COLLECTION", style = MaterialTheme.typography.labelSmall)
             Row(verticalAlignment = Alignment.Bottom) {
@@ -65,6 +67,19 @@ fun LibraryHeading(songCount: Int) {
             Text("좋아하는 곡을, 나만의 반주로.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
         }
+        AppDesign.SNOW, AppDesign.INK, AppDesign.HONG, AppDesign.MOSS -> Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                "연습할 곡",
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineLarge,
+                color = if (design == AppDesign.MOSS) MaterialTheme.colorScheme.primary else Color.Unspecified,
+            )
+            Text(
+                songCount.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -98,6 +113,16 @@ fun PlayerHeading(songId: Long, title: String, subtitle: String) {
             TrackArtwork(seed = songId, size = 72.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("지금 연습할 곡", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        AppDesign.SNOW, AppDesign.INK, AppDesign.HONG, AppDesign.MOSS -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            TrackArtwork(seed = songId, size = 64.dp, label = title)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

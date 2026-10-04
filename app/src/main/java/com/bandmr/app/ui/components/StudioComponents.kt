@@ -2,9 +2,12 @@ package com.bandmr.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -13,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -20,8 +24,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.bandmr.app.ui.theme.HongPop
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.PI
@@ -54,11 +61,14 @@ fun StudioPanel(
         }
         return
     }
+    val openCard = design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        border = if (design == AppDesign.BLUE && !highlighted) null else BorderStroke(
+        tonalElevation = 0.dp,
+        shadowElevation = if (design == AppDesign.SNOW) 2.dp else 0.dp,
+        border = if (openCard && !highlighted) null else BorderStroke(
             1.dp,
             if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             else MaterialTheme.colorScheme.outlineVariant,
@@ -73,13 +83,19 @@ fun StudioPanel(
 }
 
 @Composable
-fun StatusBadge(text: String, modifier: Modifier = Modifier, active: Boolean = false) {
+fun StatusBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+    active: Boolean = false,
+    containerColor: Color? = null,
+    contentColor: Color? = null,
+) {
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraSmall,
-        color = if (active) MaterialTheme.colorScheme.primaryContainer
+        color = containerColor ?: if (active) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainerLow,
-        contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+        contentColor = contentColor ?: if (active) MaterialTheme.colorScheme.onPrimaryContainer
         else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Text(text, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall)
@@ -109,7 +125,7 @@ fun BrandMark(modifier: Modifier = Modifier) {
 
 /** Decorative record sleeves, not a representation of the song's actual waveform. */
 @Composable
-fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp) {
+fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, label: String? = null) {
     val design = LocalAppDesign.current
     val variant = Math.floorMod(seed, 4L).toInt()
     val background = when (design) {
@@ -122,12 +138,53 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp) {
             else -> Color(0xFF81AAB6)
         }
         AppDesign.STUDIO -> StudioCovers[variant].first
+        AppDesign.SNOW -> when (variant) {
+            1 -> Color(0xFFE6E6E8)
+            3 -> Color(0xFFCFCFD2)
+            else -> Color(0xFF161616)
+        }
+        AppDesign.INK -> Color(0xFF2A2D36)
+        AppDesign.HONG -> when (variant) {
+            1 -> HongPop
+            2 -> Color(0xFFF3D2C6)
+            else -> Color(0xFF1A1A1A)
+        }
+        AppDesign.MOSS -> when (variant) {
+            1 -> Color(0xFFC5D9C4)
+            3 -> Color(0xFF8FB196)
+            else -> Color(0xFF145C38)
+        }
     }
     val ink = when (design) {
         AppDesign.MONO -> if (variant % 2 == 0) Color(0xFFECEBE6) else Color(0xFF30302D)
         AppDesign.AMP -> Color(0xFFFFBE63)
         AppDesign.BLUE -> Color(0xFFFFF9EC)
         AppDesign.STUDIO -> StudioCovers[variant].second
+        AppDesign.SNOW -> if (variant == 1 || variant == 3) Color(0xFF161616) else Color.White
+        AppDesign.INK -> Color(0xFFF3F0E8)
+        AppDesign.HONG -> if (variant == 2) Color(0xFF1A1A1A) else Color.White
+        AppDesign.MOSS -> if (variant == 1 || variant == 3) Color(0xFF142117) else Color(0xFFF4FFF8)
+    }
+    if (design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS) {
+        val mark = label?.trim()?.firstOrNull()?.toString()
+        Box(
+            modifier.size(size).clip(MaterialTheme.shapes.medium).background(background),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (mark != null) {
+                Text(mark, color = ink, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.36f).sp)
+            } else {
+                Canvas(Modifier.fillMaxSize()) {
+                    val heights = floatArrayOf(0.28f, 0.55f, 0.82f, 0.55f, 0.28f)
+                    heights.forEachIndexed { index, height ->
+                        val x = this.size.width * (0.28f + index * 0.11f)
+                        val half = this.size.height * height * 0.22f
+                        drawLine(ink, Offset(x, center.y - half), Offset(x, center.y + half), this.size.width * 0.045f, StrokeCap.Round)
+                    }
+                }
+            }
+        }
+        return
     }
     Canvas(modifier.size(size).clip(MaterialTheme.shapes.medium)) {
         drawRect(background)

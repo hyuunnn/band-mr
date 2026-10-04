@@ -37,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -96,6 +97,7 @@ private const val TAG = "Library"
 @Composable
 fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     val songs by Locator.songDao.observeAll().collectAsState(initial = emptyList())
+    val design = LocalAppDesign.current
     val scope = rememberCoroutineScope()
     var pendingDelete by remember { mutableStateOf<Song?>(null) }
     val importState by YouTubeImport.state.collectAsState()
@@ -165,6 +167,9 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
 
     Scaffold(
         modifier = Modifier.imePadding(),
+        containerColor = if (
+            design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS
+        ) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -263,9 +268,19 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     )
                 }
                 item {
+                    val chipColors = if (
+                        design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS
+                    ) {
+                        FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        FilterChipDefaults.filterChipColors()
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !separatedOnly, onClick = { separatedOnly = false }, label = { Text("전체 ${songs.size}") })
-                        FilterChip(selected = separatedOnly, onClick = { separatedOnly = true }, label = { Text("AI 분리 완료 ${songs.count { it.isSeparated }}") })
+                        FilterChip(selected = !separatedOnly, onClick = { separatedOnly = false }, label = { Text("전체 ${songs.size}") }, colors = chipColors)
+                        FilterChip(selected = separatedOnly, onClick = { separatedOnly = true }, label = { Text("AI 분리 완료 ${songs.count { it.isSeparated }}") }, colors = chipColors)
                     }
                 }
                 if (visibleSongs.isEmpty()) {
@@ -425,12 +440,15 @@ private fun StatusRow(text: String) {
 private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     val design = LocalAppDesign.current
+    val openRow = design == AppDesign.MONO || design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        border = if (design == AppDesign.MONO || design == AppDesign.BLUE) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 0.dp,
+        shadowElevation = if (design == AppDesign.SNOW) 2.dp else 0.dp,
+        border = if (openRow) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
             Row(
@@ -442,11 +460,17 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TrackArtwork(seed = song.id, size = when (design) {
-                    AppDesign.MONO -> 48.dp
-                    AppDesign.BLUE -> 72.dp
-                    else -> 56.dp
-                })
+                TrackArtwork(
+                    seed = song.id,
+                    size = when (design) {
+                        AppDesign.MONO, AppDesign.SNOW, AppDesign.INK, AppDesign.HONG -> 48.dp
+                        AppDesign.BLUE -> 72.dp
+                        else -> 56.dp
+                    },
+                    label = if (
+                        design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS
+                    ) song.title else null,
+                )
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(

@@ -30,6 +30,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -81,6 +83,8 @@ import com.bandmr.app.ui.components.PlayerHeading
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
+import com.bandmr.app.ui.theme.HongPop
+import com.bandmr.app.ui.theme.HongPopSoft
 import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -501,6 +505,11 @@ private fun TransportCard(
                     onClick = { ctrl.playPause() },
                     modifier = Modifier.size(72.dp),
                     shape = if (design == AppDesign.AMP) MaterialTheme.shapes.small else CircleShape,
+                    colors = if (design == AppDesign.HONG) {
+                        IconButtonDefaults.filledIconButtonColors(containerColor = HongPop, contentColor = Color.White)
+                    } else {
+                        IconButtonDefaults.filledIconButtonColors()
+                    },
                 ) {
                     Icon(
                         painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
@@ -743,7 +752,13 @@ private fun StemCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StemIcon(stem, active = percent > 0)
                         Text(Stem.labelFor(stem, fourStem), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                        StatusBadge(if (percent == 0) "음소거" else "$percent%", active = percent > 0)
+                        val hongMute = percent == 0 && LocalAppDesign.current == AppDesign.HONG
+                        StatusBadge(
+                            if (percent == 0) "음소거" else "$percent%",
+                            active = percent > 0,
+                            containerColor = if (hongMute) HongPopSoft else null,
+                            contentColor = if (hongMute) HongPop else null,
+                        )
                     }
                     Slider(
                         value = percent.toFloat(),
