@@ -57,7 +57,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bandmr.app.Locator
 import com.bandmr.app.R
@@ -67,6 +66,7 @@ import com.bandmr.app.audio.PlaybackSkip
 import com.bandmr.app.audio.PlaybackSpeed
 import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.audio.WaveformPeaks
+import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Stem
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.playback.PlaybackService
@@ -75,10 +75,11 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemLayout
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.PlayerHeading
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
-import com.bandmr.app.ui.components.TrackArtwork
+import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -213,18 +214,11 @@ fun PlayerScreen(songId: Long) {
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TrackArtwork(seed = s.id, size = 72.dp)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("지금 연습할 곡", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Text(s.title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                Text(
-                    formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel}" else " · 원본 오디오",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        PlayerHeading(
+            songId = s.id,
+            title = s.title,
+            subtitle = formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel}" else " · 원본 오디오",
+        )
 
         if (preparingSongId == songId && !separated) {
             Text(
@@ -417,6 +411,7 @@ private fun TransportCard(
     onClearLoop: () -> Unit,
 ) {
     val isPlaying by ctrl.isPlaying.collectAsState()
+    val design = LocalAppDesign.current
     StudioPanel {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("플레이어", style = MaterialTheme.typography.labelLarge)
@@ -480,7 +475,11 @@ private fun TransportCard(
                     SkipControl(R.drawable.ic_replay_10, "10초 뒤로") { onSkip(-PlaybackSkip.LARGE_MS) }
                     SkipControl(R.drawable.ic_replay_5, "5초 뒤로") { onSkip(-PlaybackSkip.SMALL_MS) }
                 }
-                FilledIconButton(onClick = { ctrl.playPause() }, modifier = Modifier.size(72.dp), shape = CircleShape) {
+                FilledIconButton(
+                    onClick = { ctrl.playPause() },
+                    modifier = Modifier.size(72.dp),
+                    shape = if (design == AppDesign.AMP) MaterialTheme.shapes.small else CircleShape,
+                ) {
                     Icon(
                         painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
                         contentDescription = if (isPlaying) "일시정지" else "재생",
@@ -550,21 +549,37 @@ private fun LoopPointButton(label: String, timeMs: Long?, hint: String, modifier
 
 @Composable
 private fun PlayerTabs(selected: Int, exporting: Boolean, onSelect: (Int) -> Unit) {
+    val design = LocalAppDesign.current
     Row(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow).padding(4.dp).selectableGroup(),
+            .background(if (design == AppDesign.MONO) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(if (design == AppDesign.MONO) 0.dp else 4.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         listOf("믹서", "연습 도구", if (exporting) "저장 중…" else "저장").forEachIndexed { index, label ->
             val active = selected == index
-            Box(
+            Column(
                 Modifier.weight(1f).clip(MaterialTheme.shapes.small)
-                    .background(if (active) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent)
+                    .background(if (active && design != AppDesign.MONO) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
                     .selectable(selected = active, role = Role.Tab, onClick = { onSelect(index) })
-                    .heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center,
+                    .heightIn(min = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
-                Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    label,
+                    Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = when {
+                        active && design != AppDesign.MONO -> MaterialTheme.colorScheme.onPrimary
+                        active -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                if (design == AppDesign.MONO) HorizontalDivider(
+                    thickness = 2.dp,
+                    color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                )
             }
         }
     }

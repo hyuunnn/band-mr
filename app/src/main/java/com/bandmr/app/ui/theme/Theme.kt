@@ -2,18 +2,94 @@ package com.bandmr.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bandmr.app.data.AppDesign
+
+val LocalAppDesign = staticCompositionLocalOf { AppDesign.MONO }
+
+private val MonoScheme = lightColorScheme(
+    primary = Color(0xFF202020), onPrimary = Color.White,
+    primaryContainer = Color(0xFFE8E8E5), onPrimaryContainer = Color(0xFF202020),
+    secondary = Color(0xFF525252), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFEDEDEA), onSecondaryContainer = Color(0xFF303030),
+    tertiary = Color(0xFF626257), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFF0EFE6), onTertiaryContainer = Color(0xFF414137),
+    background = Color(0xFFFAFAF8), onBackground = Color(0xFF1B1B1B),
+    surface = Color(0xFFFAFAF8), onSurface = Color(0xFF1B1B1B),
+    surfaceVariant = Color(0xFFECECE8), onSurfaceVariant = Color(0xFF64645F),
+    surfaceTint = Color(0xFF202020),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF0F0EC),
+    surfaceContainer = Color(0xFFEAEAE6), surfaceContainerHigh = Color(0xFFE4E4E0),
+    surfaceContainerHighest = Color(0xFFDEDEDA),
+    outline = Color(0xFF85857D), outlineVariant = Color(0xFFD9D9D2),
+    error = Color(0xFFAF3131), onError = Color.White,
+    errorContainer = Color(0xFFFFE8E3), onErrorContainer = Color(0xFF782A20),
+)
+
+private val AmpScheme = darkColorScheme(
+    primary = Color(0xFFFFBE63), onPrimary = Color(0xFF251A0C),
+    primaryContainer = Color(0xFF42301A), onPrimaryContainer = Color(0xFFFFD69E),
+    secondary = Color(0xFFC9C3B9), onSecondary = Color(0xFF26231E),
+    secondaryContainer = Color(0xFF35322D), onSecondaryContainer = Color(0xFFEAE3D8),
+    tertiary = Color(0xFFE4A289), onTertiary = Color(0xFF47271A),
+    tertiaryContainer = Color(0xFF4C3227), onTertiaryContainer = Color(0xFFFFD8C7),
+    background = Color(0xFF141414), onBackground = Color(0xFFF3EFE8),
+    surface = Color(0xFF1E1E1C), onSurface = Color(0xFFF3EFE8),
+    surfaceVariant = Color(0xFF34332E), onSurfaceVariant = Color(0xFFB3AEA3),
+    surfaceTint = Color(0xFFFFBE63),
+    surfaceContainerLowest = Color(0xFF10100F), surfaceContainerLow = Color(0xFF242421),
+    surfaceContainer = Color(0xFF2B2B26), surfaceContainerHigh = Color(0xFF32322C),
+    surfaceContainerHighest = Color(0xFF3B3A34),
+    outline = Color(0xFF8B8477), outlineVariant = Color(0xFF3D3B34),
+    error = Color(0xFFFFB4A9), onError = Color(0xFF680F13),
+    errorContainer = Color(0xFF512B2A), onErrorContainer = Color(0xFFFFDAD4),
+)
+
+private val BlueScheme = lightColorScheme(
+    primary = Color(0xFF3157D5), onPrimary = Color.White,
+    primaryContainer = Color(0xFFE0E8FF), onPrimaryContainer = Color(0xFF263D89),
+    secondary = Color(0xFF62658A), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE9E8F8), onSecondaryContainer = Color(0xFF414466),
+    tertiary = Color(0xFF89613D), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFEDD8), onTertiaryContainer = Color(0xFF624122),
+    background = Color(0xFFF1F4FC), onBackground = Color(0xFF202B43),
+    surface = Color.White, onSurface = Color(0xFF202B43),
+    surfaceVariant = Color(0xFFE5EAF6), onSurfaceVariant = Color(0xFF64708B),
+    surfaceTint = Color(0xFF3157D5),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFEBEFFA),
+    surfaceContainer = Color(0xFFE6EBF9), surfaceContainerHigh = Color(0xFFDDE5F5),
+    surfaceContainerHighest = Color(0xFFD6E0F2),
+    outline = Color(0xFF7A87A2), outlineVariant = Color(0xFFDAE2F1),
+    error = Color(0xFFB43E3E), onError = Color.White,
+    errorContainer = Color(0xFFFCE8E5), onErrorContainer = Color(0xFF792D2D),
+)
+
+fun designIsDark(design: AppDesign, systemDark: Boolean): Boolean = when (design) {
+    AppDesign.AMP -> true
+    AppDesign.STUDIO -> systemDark
+    else -> false
+}
+
+fun designColors(design: AppDesign, systemDark: Boolean = false): ColorScheme = when (design) {
+    AppDesign.MONO -> MonoScheme
+    AppDesign.AMP -> AmpScheme
+    AppDesign.BLUE -> BlueScheme
+    AppDesign.STUDIO -> if (systemDark) DarkScheme else LightScheme
+}
 
 private val LightScheme = lightColorScheme(
     primary = Color(0xFF176B5B),
@@ -106,17 +182,36 @@ private val BandTypography = Typography(
 )
 
 @Composable
-fun BandMrTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkScheme else LightScheme,
-        typography = BandTypography,
-        shapes = Shapes(
-            extraSmall = RoundedCornerShape(8.dp),
-            small = RoundedCornerShape(12.dp),
-            medium = RoundedCornerShape(16.dp),
-            large = RoundedCornerShape(24.dp),
-            extraLarge = RoundedCornerShape(28.dp),
-        ),
-        content = content,
-    )
+fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> Unit) {
+    val corner = when (design) {
+        AppDesign.MONO -> 4
+        AppDesign.AMP -> 10
+        AppDesign.BLUE -> 28
+        AppDesign.STUDIO -> 24
+    }
+    val typography = when (design) {
+        AppDesign.MONO -> BandTypography.copy(
+            headlineLarge = type(36, 46, FontWeight.Bold).copy(letterSpacing = (-1).sp),
+            labelSmall = type(11, 16, FontWeight.Medium).copy(letterSpacing = 1.sp),
+        )
+        AppDesign.AMP -> BandTypography.copy(
+            headlineLarge = type(32, 42, FontWeight.Bold),
+            labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
+        )
+        else -> BandTypography
+    }
+    CompositionLocalProvider(LocalAppDesign provides design) {
+        MaterialTheme(
+            colorScheme = designColors(design, isSystemInDarkTheme()),
+            typography = typography,
+            shapes = Shapes(
+                extraSmall = RoundedCornerShape((corner / 3).dp),
+                small = RoundedCornerShape((corner / 2).dp),
+                medium = RoundedCornerShape((corner * 2 / 3).dp),
+                large = RoundedCornerShape(corner.dp),
+                extraLarge = RoundedCornerShape((corner + 4).dp),
+            ),
+            content = content,
+        )
+    }
 }

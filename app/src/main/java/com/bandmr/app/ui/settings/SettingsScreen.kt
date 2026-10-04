@@ -52,12 +52,14 @@ import com.bandmr.app.separation.Tier
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
+import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onChooseDesign: () -> Unit) {
+    val design = LocalAppDesign.current
     val scope = rememberCoroutineScope()
     val currentTier by Locator.settings.modelTier.collectAsState(initial = Tier.S6_BALANCED.id)
     val modelStates by Locator.modelManager.states.collectAsState()
@@ -76,6 +78,14 @@ fun SettingsScreen() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        StudioPanel {
+            SectionHeading("화면 디자인 · ${design.label}", design.description)
+            OutlinedButton(
+                onClick = onChooseDesign,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = MaterialTheme.shapes.small,
+            ) { Text("다른 디자인 둘러보기") }
+        }
         StudioPanel {
             StatusBadge("기기에서 처리하는 AI", active = true)
             SectionHeading("한 번 받으면, 오프라인에서도", "원하는 모델을 다운로드한 뒤 선택해 주세요. 다음에 분리할 곡부터 적용돼요.")

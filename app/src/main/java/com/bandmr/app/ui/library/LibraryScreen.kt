@@ -37,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,13 +72,16 @@ import androidx.core.net.toUri
 import com.bandmr.app.Locator
 import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
+import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Song
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.LibraryHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.TrackArtwork
+import com.bandmr.app.ui.theme.LocalAppDesign
 import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
 import java.io.File
@@ -199,17 +203,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("나의 연습실", style = MaterialTheme.typography.headlineLarge)
-                    Text(
-                        "좋아하는 곡을, 나만의 반주로.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
+            item { LibraryHeading(songCount = songs.size) }
             if (songs.isEmpty()) {
                 item {
                     Surface(
@@ -430,35 +424,51 @@ private fun StatusRow(text: String) {
 @Composable
 private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
+    val design = LocalAppDesign.current
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = if (design == AppDesign.MONO || design == AppDesign.BLUE) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Row(Modifier.padding(start = 14.dp, end = 4.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            TrackArtwork(seed = song.id)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(
-                    formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (song.isSeparated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "${song.title} 더보기", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("곡 삭제", color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                        onClick = { menuOpen = false; onDelete() },
+        Column {
+            Row(
+                Modifier.padding(
+                    start = if (design == AppDesign.MONO) 0.dp else 14.dp,
+                    end = 4.dp,
+                    top = if (design == AppDesign.BLUE) 18.dp else 14.dp,
+                    bottom = if (design == AppDesign.BLUE) 18.dp else 14.dp,
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TrackArtwork(seed = song.id, size = when (design) {
+                    AppDesign.MONO -> 48.dp
+                    AppDesign.BLUE -> 72.dp
+                    else -> 56.dp
+                })
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (song.isSeparated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "${song.title} 더보기", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("곡 삭제", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            onClick = { menuOpen = false; onDelete() },
+                        )
+                    }
+                }
             }
+            if (design == AppDesign.MONO) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
