@@ -441,13 +441,17 @@ private fun StatusRow(text: String) {
 private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     val design = LocalAppDesign.current
-    val openRow = design == AppDesign.MONO || design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS
+    val openRow = design == AppDesign.MONO || design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS || design == AppDesign.ALBUM
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = if (design == AppDesign.SNOW) 2.dp else 0.dp,
+        shadowElevation = when (design) {
+            AppDesign.SNOW -> 2.dp
+            AppDesign.ALBUM -> 3.dp
+            else -> 0.dp
+        },
         border = if (openRow) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
