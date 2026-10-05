@@ -743,7 +743,10 @@ private fun StemCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StemIcon(stem, active = percent > 0)
                         Text(Stem.labelFor(stem, fourStem), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                        StatusBadge(if (percent == 0) "음소거" else "$percent%", active = percent > 0)
+                        StatusBadge(
+                            if (percent == 0) "음소거" else "$percent%",
+                            active = percent > 0,
+                        )
                     }
                     Slider(
                         value = percent.toFloat(),
