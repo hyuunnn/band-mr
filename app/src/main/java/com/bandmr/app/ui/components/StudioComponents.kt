@@ -81,20 +81,12 @@ fun StudioPanel(
 }
 
 @Composable
-fun StatusBadge(
-    text: String,
-    modifier: Modifier = Modifier,
-    active: Boolean = false,
-    containerColor: Color? = null,
-    contentColor: Color? = null,
-) {
+fun StatusBadge(text: String, modifier: Modifier = Modifier, active: Boolean = false) {
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraSmall,
-        color = containerColor ?: if (active) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerLow,
-        contentColor = contentColor ?: if (active) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Text(text, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall)
     }

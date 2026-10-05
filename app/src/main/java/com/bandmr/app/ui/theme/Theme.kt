@@ -261,11 +261,7 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
             headlineLarge = type(32, 42, FontWeight.Bold),
             labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
         )
-        AppDesign.SNOW -> BandTypography.copy(
-            headlineLarge = type(32, 42, FontWeight.Bold).copy(letterSpacing = (-0.6).sp),
-        )
         AppDesign.INK -> BandTypography.copy(
-            headlineLarge = type(34, 44, FontWeight.Medium),
             titleLarge = type(22, 30, FontWeight.Medium),
         )
         else -> BandTypography
