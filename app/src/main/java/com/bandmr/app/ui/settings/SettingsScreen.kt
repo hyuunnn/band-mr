@@ -120,8 +120,8 @@ fun SettingsScreen() {
         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("어떤 모드를 사용할까요?", style = MaterialTheme.typography.titleSmall)
-                Text("빠른 제거는 재생하면서 바로 소리를 줄일 수 있어요. AI 분리는 처음 한 번 시간이 걸리지만, 악기별 볼륨을 더 세밀하게 맞출 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("품질 우선과 SCNet은 메모리가 4GB 이상인 기기에서 쓰는 것을 권장해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("AI OFF는 재생하면서 바로 소리를 줄일 수 있어요. AI ON은 처음 한 번 시간이 걸리지만, 악기별 볼륨을 더 세밀하게 맞출 수 있어요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("SCNet 모델은 메모리가 4GB 이상인 기기에서 사용하는 것을 권장해요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
