@@ -74,7 +74,7 @@ AI ON (사전 분리 후 캐시, 고품질)
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-minSdk 31 (Android 12+) / targetSdk 36
+minSdk 33 (Android 13+) / targetSdk 36
 
 ## 🤖 AI 모델
 

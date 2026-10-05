@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         applicationId = "com.bandmr.app"
-        minSdk = 31
+        minSdk = 33
         targetSdk = 36
         versionCode = 5
         versionName = "0.1.4"
@@ -25,7 +25,7 @@ android {
         ndk {
             // ONNX Runtime 네이티브가 ABI당 23~38MB다. 4종을 다 넣으면 APK가 100MB 이상 불어나는데,
             // armeabi-v7a(32비트)는 분리 추론이 잡는 3GB대 네이티브 힙을 담을 수 없고
-            // x86/x86_64는 에뮬레이터 전용이다. minSdk 31 실기기는 전부 arm64-v8a.
+            // x86/x86_64는 에뮬레이터 전용이다. minSdk 33 실기기는 전부 arm64-v8a.
             // (Apple Silicon 에뮬레이터도 arm64-v8a라 개발에 지장 없음)
             abiFilters += "arm64-v8a"
         }
@@ -55,8 +55,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // NewPipeExtractor(minSdk 33 미만 요구사항): java.nio 확장 API desugaring
-        isCoreLibraryDesugaringEnabled = true
     }
     // 빌트인 Kotlin: jvmTarget은 compileOptions.targetCompatibility(17)를 따른다
     buildFeatures {
@@ -99,8 +97,6 @@ dependencies {
     // JitPack 태그 빌드: https://jitpack.io/#TeamNewPipe/NewPipeExtractor
     // minifyEnabled=false라 ProGuard keep 규칙(rhino)은 불필요
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
-
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     testImplementation("junit:junit:4.13.2")
 }

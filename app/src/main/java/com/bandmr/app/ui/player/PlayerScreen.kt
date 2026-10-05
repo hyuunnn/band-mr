@@ -1,7 +1,6 @@
 package com.bandmr.app.ui.player
 
 import android.Manifest
-import android.os.Build
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -173,7 +172,7 @@ fun PlayerScreen(songId: Long) {
     // 백그라운드 startForegroundService로 죽거나, 화면이 dispose돼 아예 안 뜬다
     LaunchedEffect(playing) {
         if (!playing) return@LaunchedEffect
-        val granted = Build.VERSION.SDK_INT < 33 || androidx.core.content.ContextCompat.checkSelfPermission(
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
             Locator.context, Manifest.permission.POST_NOTIFICATIONS
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (!granted) {
@@ -213,11 +212,7 @@ fun PlayerScreen(songId: Long) {
             return
         }
         if (separated) ctrl.release()
-        if (Build.VERSION.SDK_INT >= 33) {
-            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            SeparationService.start(Locator.context, songId)
-        }
+        notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     fun persistStemLevels(packed: Long = stemGainsPacked) {
