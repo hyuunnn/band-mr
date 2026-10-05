@@ -61,6 +61,12 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **`material-icons-extended`를 다시 넣지 말 것.** AAR 34MB인데 쓰는 아이콘은 13개, `isMinifyEnabled=false`라 R8이 못 걷어낸다. core에 없는 글리프는 `res/drawable` 벡터를 `painterResource`로 — 알림이 쓰는 것과 같은 파일이다
 - 현재 debug APK 약 71MB. 더 줄이려면 R8을 켜야 하고 NewPipeExtractor/rhino keep 규칙이 필요하다
 
+**화면**
+- **저장된 테마는 첫 프레임 전에 `startupDesign()`으로 읽는다.** `collectAsState(initial = MONO)`로 두면 기본 테마가 먼저 보였다가 저장값으로 바뀐다
+- **다음 콜드 스타트 시작 화면은 `setSplashScreenTheme`(`Theme.BandMR.*`)다.** 프로세스가 뜨기 전에 시스템이 그 스타일 이름으로 그린다. `setTheme`은 이미 떠 있는 시작 화면을 다시 칠하지 않는다. 스타일 이름을 바꾸면 다음 실행이 매니페스트 검정으로 돌아간다. 배경색은 `Theme.kt`와 같아야 하고 `DesignBackgroundTest`가 고정한다. 아이콘은 지정하지 않는다(런처 아이콘=앱 로고). 투명 아이콘은 이 기기에서 흰 화면이 된다
+- **라이브러리 첫 프레임의 곡 목록은 `librarySongs()`다.** `emptyList()`로 시작하면 「첫 곡으로 시작해 볼까요」가 떴다가 실제 목록으로 바뀐다
+- **상태 표시줄·내비게이션 아이콘은 `SideEffect`에서 테마 기준으로 다시 넣는다.** `enableEdgeToEdge`는 회전처럼 설정이 바뀔 때마다 시스템 밤낮으로 아이콘을 다시 깐다. `configChanges`에 `orientation|screenSize`가 있어 그때 액티비티는 재생성되지 않는다
+
 **재생**
 - **AI OFF는 압축 원본을 스트리밍하지 않는다 — 반드시 MixCache WAV.** 일부 기기(SM-S931N/Android 16)에서 MediaCodec 스트리밍 디코딩이 무음·노이즈로 깨진다(비동기 큐잉 비활성화로도 불가). 유튜브 임포트 원본도 압축 파일일 뿐 같은 규칙
 - **`PlayerController.release()`는 코루틴 스코프를 cancel하지 않는다.** 싱글턴이라 취소하면 이후 캐시 준비가 조용히 무시되고 "준비 중"이 영구 노출된다(실제 발생)
