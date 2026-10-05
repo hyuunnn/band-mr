@@ -63,6 +63,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
@@ -79,6 +80,7 @@ import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.TrackArtwork
 import com.bandmr.app.ui.theme.LocalAppDesign
@@ -164,8 +166,11 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
         }
     }
 
-    Scaffold(
+    Box(Modifier.fillMaxSize()) {
+        DesignBackdrop()
+        Scaffold(
         modifier = Modifier.imePadding(),
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -295,6 +300,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                 }
             }
         }
+    }
     }
 
     if (showLinkDialog) {
@@ -435,13 +441,17 @@ private fun StatusRow(text: String) {
 private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     val design = LocalAppDesign.current
-    val openRow = design == AppDesign.MONO || design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS
+    val openRow = design == AppDesign.MONO || design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS || design == AppDesign.ALBUM
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = if (design == AppDesign.SNOW) 2.dp else 0.dp,
+        shadowElevation = when (design) {
+            AppDesign.SNOW -> 2.dp
+            AppDesign.ALBUM -> 3.dp
+            else -> 0.dp
+        },
         border = if (openRow) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {

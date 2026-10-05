@@ -1,8 +1,10 @@
 package com.bandmr.app.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -50,6 +52,7 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemFiles
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
@@ -65,13 +68,15 @@ fun SettingsScreen() {
     var busyTier by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<Tier?>(null) }
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        DesignBackdrop()
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
         Text("나에게 맞는 사운드", style = MaterialTheme.typography.headlineMedium)
         Text(
             "분리 모델을 선택하고 저장공간을 관리하세요.",
@@ -121,6 +126,7 @@ fun SettingsScreen() {
         }
 
         StorageSection()
+        }
     }
 
     pendingDelete?.let { tier ->

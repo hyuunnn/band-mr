@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -77,6 +78,7 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemLayout
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.PlayerHeading
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
@@ -222,13 +224,15 @@ fun PlayerScreen(songId: Long) {
         if (persist) persistStemLevels(packed)
     }
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        DesignBackdrop(seed = s.id)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
         PlayerHeading(
             songId = s.id,
             title = s.title,
@@ -400,6 +404,7 @@ fun PlayerScreen(songId: Long) {
             setExporting = { exporting = it },
             setExportMsg = { exportMsg = it },
         )
+        }
     }
 
     if (confirmReseparation && separatedTier != null) {
@@ -500,7 +505,11 @@ private fun TransportCard(
                 FilledIconButton(
                     onClick = { ctrl.playPause() },
                     modifier = Modifier.size(72.dp),
-                    shape = if (design == AppDesign.AMP) MaterialTheme.shapes.small else CircleShape,
+                    shape = when (design) {
+                        AppDesign.AMP -> MaterialTheme.shapes.small
+                        AppDesign.AURORA -> MaterialTheme.shapes.large
+                        else -> CircleShape
+                    },
                 ) {
                     Icon(
                         painterResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
