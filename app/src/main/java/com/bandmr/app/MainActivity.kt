@@ -1,6 +1,5 @@
 package com.bandmr.app
 
-import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -60,7 +59,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         splashScreen.setSplashScreenTheme(initialDesign.startingTheme())
-        applySystemBarIcons(designIsDark(initialDesign, isNightMode()))
         Locator.librarySongs()
         setContent {
             val design by Locator.settings.design.collectAsState(initial = initialDesign)
@@ -86,10 +84,6 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = !dark
         }
     }
-
-    private fun isNightMode(): Boolean =
-        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
