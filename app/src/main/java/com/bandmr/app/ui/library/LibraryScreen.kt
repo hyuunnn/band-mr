@@ -79,7 +79,6 @@ import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.Tier
-import com.bandmr.app.ui.components.LibraryHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.TrackArtwork
 import com.bandmr.app.ui.theme.LocalAppDesign
@@ -205,7 +204,6 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { LibraryHeading(songCount = songs.size) }
             if (songs.isEmpty()) {
                 item {
                     Surface(
@@ -266,7 +264,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                 }
                 item {
                     val chipColors = if (
-                        design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS
+                        design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.MOSS
                     ) {
                         FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -459,12 +457,12 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 TrackArtwork(
                     seed = song.id,
                     size = when (design) {
-                        AppDesign.MONO, AppDesign.SNOW, AppDesign.INK, AppDesign.HONG -> 48.dp
+                        AppDesign.MONO, AppDesign.SNOW, AppDesign.INK -> 48.dp
                         AppDesign.BLUE -> 72.dp
                         else -> 56.dp
                     },
                     label = if (
-                        design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS
+                        design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.MOSS
                     ) song.title else null,
                 )
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {

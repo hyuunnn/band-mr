@@ -28,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bandmr.app.ui.theme.HongPop
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.PI
@@ -143,11 +142,6 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, la
             else -> Color(0xFF161616)
         }
         AppDesign.INK -> Color(0xFF2A2D36)
-        AppDesign.HONG -> when (variant) {
-            1 -> HongPop
-            2 -> Color(0xFFF3D2C6)
-            else -> Color(0xFF1A1A1A)
-        }
         AppDesign.MOSS -> when (variant) {
             1 -> Color(0xFFC5D9C4)
             3 -> Color(0xFF8FB196)
@@ -161,10 +155,9 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, la
         AppDesign.STUDIO -> StudioCovers[variant].second
         AppDesign.SNOW -> if (variant == 1 || variant == 3) Color(0xFF161616) else Color.White
         AppDesign.INK -> Color(0xFFF3F0E8)
-        AppDesign.HONG -> if (variant == 2) Color(0xFF1A1A1A) else Color.White
         AppDesign.MOSS -> if (variant == 1 || variant == 3) Color(0xFF142117) else Color(0xFFF4FFF8)
     }
-    if (design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.HONG || design == AppDesign.MOSS) {
+    if (design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.MOSS) {
         val mark = label?.trim()?.firstOrNull()?.toString()
         Box(
             modifier.size(size).clip(MaterialTheme.shapes.medium).background(background),

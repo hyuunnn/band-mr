@@ -84,10 +84,6 @@ fun designIsDark(design: AppDesign, systemDark: Boolean): Boolean = when (design
     else -> false
 }
 
-/** 주홍 시안에서 재생 버튼, 음소거, 표지에만 쓰는 포인트 색. */
-val HongPop = Color(0xFFD84A2A)
-private val HongPopSoft = Color(0xFFF8E4DE)
-
 private val SnowScheme = lightColorScheme(
     primary = Color(0xFF141414), onPrimary = Color.White,
     primaryContainer = Color(0xFFE8E8EA), onPrimaryContainer = Color(0xFF141414),
@@ -126,25 +122,6 @@ private val InkScheme = darkColorScheme(
     errorContainer = Color(0xFF512B2A), onErrorContainer = Color(0xFFFFDAD4),
 )
 
-private val HongScheme = lightColorScheme(
-    primary = Color(0xFF1A1A1A), onPrimary = Color.White,
-    primaryContainer = Color(0xFFECE7E1), onPrimaryContainer = Color(0xFF1A1A1A),
-    secondary = Color(0xFF6F675F), onSecondary = Color.White,
-    secondaryContainer = Color(0xFFECE7E1), onSecondaryContainer = Color(0xFF1A1A1A),
-    tertiary = HongPop, onTertiary = Color.White,
-    tertiaryContainer = HongPopSoft, onTertiaryContainer = Color(0xFF6E2414),
-    background = Color(0xFFF6F5F2), onBackground = Color(0xFF1A1A1A),
-    surface = Color.White, onSurface = Color(0xFF1A1A1A),
-    surfaceVariant = Color(0xFFECE7E1), onSurfaceVariant = Color(0xFF6F675F),
-    surfaceTint = Color(0xFF1A1A1A),
-    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF8F6F3),
-    surfaceContainer = Color(0xFFF1EEE9), surfaceContainerHigh = Color(0xFFE8E4DE),
-    surfaceContainerHighest = Color(0xFFE0DBD4),
-    outline = Color(0xFF8A827A), outlineVariant = Color(0xFFE6E1DA),
-    error = Color(0xFFB43E3E), onError = Color.White,
-    errorContainer = Color(0xFFFCE8E5), onErrorContainer = Color(0xFF792D2D),
-)
-
 private val MossScheme = lightColorScheme(
     primary = Color(0xFF145C38), onPrimary = Color(0xFFF4FFF8),
     primaryContainer = Color(0xFFD3E8DA), onPrimaryContainer = Color(0xFF0E3B24),
@@ -171,7 +148,6 @@ fun designColors(design: AppDesign, systemDark: Boolean = false): ColorScheme = 
     AppDesign.STUDIO -> if (systemDark) DarkScheme else LightScheme
     AppDesign.SNOW -> SnowScheme
     AppDesign.INK -> InkScheme
-    AppDesign.HONG -> HongScheme
     AppDesign.MOSS -> MossScheme
 }
 
@@ -274,7 +250,6 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.STUDIO -> 24
         AppDesign.SNOW -> 18
         AppDesign.INK -> 14
-        AppDesign.HONG -> 8
         AppDesign.MOSS -> 22
     }
     val typography = when (design) {
@@ -292,10 +267,6 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.INK -> BandTypography.copy(
             headlineLarge = type(34, 44, FontWeight.Medium),
             titleLarge = type(22, 30, FontWeight.Medium),
-        )
-        AppDesign.HONG -> BandTypography.copy(
-            headlineLarge = type(32, 40, FontWeight.ExtraBold).copy(letterSpacing = (-0.5).sp),
-            titleLarge = type(20, 28, FontWeight.ExtraBold),
         )
         else -> BandTypography
     }

@@ -39,7 +39,7 @@ fun DesignPicker(selectedDesign: AppDesign, onSelect: (AppDesign) -> Unit, onDis
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("내 연습실의 분위기", style = MaterialTheme.typography.headlineSmall)
-            Text("디자인을 선택하면 바로 적용돼요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("테마를 선택하면 바로 적용돼요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             AppDesign.entries.forEach { design ->
                 BandMrTheme(design) {
                     val active = design == selectedDesign
