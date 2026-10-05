@@ -44,44 +44,38 @@
     <rect width="360" height="740" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
     <use href="#brand" x="22" y="22"/>
     <text x="52" y="40" font-size="16" font-weight="650" fill="#1B1B1B">밴드 MR</text>
-    <text x="286" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">디자인</text>
+    <text x="286" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">테마</text>
     <use href="#gear" x="322" y="34"/>
 
-    <text x="22" y="78" font-size="10" letter-spacing="1.2" fill="#64645F">THE PRACTICE COLLECTION</text>
-    <text x="22" y="108" font-size="26" font-weight="650" fill="#1B1B1B">연습할 곡들.</text>
-    <text x="338" y="108" font-size="22" fill="#64645F" text-anchor="end">04</text>
-    <text x="22" y="132" font-size="13" fill="#64645F">한 파트는 비워 두고, 나의 연주로 채우기.</text>
-    <line x1="22" y1="150" x2="338" y2="150" stroke="#1B1B1B" stroke-width="2"/>
+    <rect x="22" y="78" width="316" height="42" rx="12" fill="#FFFFFF" stroke="#D9D9D2"/>
+    <circle cx="42" cy="99" r="6" fill="none" stroke="#64645F" stroke-width="1.6"/>
+    <line x1="46.5" y1="103.5" x2="51" y2="108" stroke="#64645F" stroke-width="1.6" stroke-linecap="round"/>
+    <text x="60" y="104" font-size="14" fill="#8A8A84">연습할 곡 찾기</text>
 
-    <rect x="22" y="168" width="316" height="42" rx="12" fill="#FFFFFF" stroke="#D9D9D2"/>
-    <circle cx="42" cy="189" r="6" fill="none" stroke="#64645F" stroke-width="1.6"/>
-    <line x1="46.5" y1="193.5" x2="51" y2="198" stroke="#64645F" stroke-width="1.6" stroke-linecap="round"/>
-    <text x="60" y="194" font-size="14" fill="#8A8A84">연습할 곡 찾기</text>
+    <rect x="22" y="132" width="64" height="30" rx="15" fill="#E8E8E5"/>
+    <text x="54" y="152" font-size="12" fill="#202020" text-anchor="middle">전체 4</text>
+    <rect x="94" y="132" width="118" height="30" rx="15" fill="#FAFAF8" stroke="#D9D9D2"/>
+    <text x="153" y="152" font-size="12" fill="#64645F" text-anchor="middle">AI 분리 완료 2</text>
 
-    <rect x="22" y="222" width="64" height="30" rx="15" fill="#E8E8E5"/>
-    <text x="54" y="242" font-size="12" fill="#202020" text-anchor="middle">전체 4</text>
-    <rect x="94" y="222" width="118" height="30" rx="15" fill="#FAFAF8" stroke="#D9D9D2"/>
-    <text x="153" y="242" font-size="12" fill="#64645F" text-anchor="middle">AI 분리 완료 2</text>
+    <use href="#art-dark" x="22" y="180"/>
+    <text x="82" y="200" font-size="15" font-weight="600" fill="#1B1B1B">Wonderwall</text>
+    <text x="82" y="220" font-size="12" fill="#202020">3:42 · AI 6스템</text>
+    <line x1="22" y1="240" x2="338" y2="240" stroke="#D9D9D2"/>
 
-    <use href="#art-dark" x="22" y="270"/>
-    <text x="82" y="290" font-size="15" font-weight="600" fill="#1B1B1B">Wonderwall</text>
-    <text x="82" y="310" font-size="12" fill="#202020">3:42 · AI 6스템</text>
-    <line x1="22" y1="330" x2="338" y2="330" stroke="#D9D9D2"/>
+    <use href="#art-light" x="22" y="252"/>
+    <text x="82" y="272" font-size="15" font-weight="600" fill="#1B1B1B">Don't Look Back in Anger</text>
+    <text x="82" y="292" font-size="12" fill="#64645F">4:47 · 원본 오디오</text>
+    <line x1="22" y1="312" x2="338" y2="312" stroke="#D9D9D2"/>
 
-    <use href="#art-light" x="22" y="342"/>
-    <text x="82" y="362" font-size="15" font-weight="600" fill="#1B1B1B">Don't Look Back in Anger</text>
-    <text x="82" y="382" font-size="12" fill="#64645F">4:47 · 원본 오디오</text>
-    <line x1="22" y1="402" x2="338" y2="402" stroke="#D9D9D2"/>
+    <use href="#art-dark" x="22" y="324"/>
+    <text x="82" y="344" font-size="15" font-weight="600" fill="#1B1B1B">Champagne Supernova</text>
+    <text x="82" y="364" font-size="12" fill="#202020">7:27 · AI SCNet XL</text>
+    <line x1="22" y1="384" x2="338" y2="384" stroke="#D9D9D2"/>
 
-    <use href="#art-dark" x="22" y="414"/>
-    <text x="82" y="434" font-size="15" font-weight="600" fill="#1B1B1B">Champagne Supernova</text>
-    <text x="82" y="454" font-size="12" fill="#202020">7:27 · AI SCNet XL</text>
-    <line x1="22" y1="474" x2="338" y2="474" stroke="#D9D9D2"/>
-
-    <use href="#art-light" x="22" y="486"/>
-    <text x="82" y="506" font-size="15" font-weight="600" fill="#1B1B1B">Live Forever</text>
-    <text x="82" y="526" font-size="12" fill="#64645F">4:36 · 원본 오디오</text>
-    <line x1="22" y1="546" x2="338" y2="546" stroke="#D9D9D2"/>
+    <use href="#art-light" x="22" y="396"/>
+    <text x="82" y="416" font-size="15" font-weight="600" fill="#1B1B1B">Live Forever</text>
+    <text x="82" y="436" font-size="12" fill="#64645F">4:36 · 원본 오디오</text>
+    <line x1="22" y1="456" x2="338" y2="456" stroke="#D9D9D2"/>
 
     <line x1="0" y1="648" x2="360" y2="648" stroke="#F0F0EC"/>
     <rect x="20" y="666" width="154" height="50" rx="14" fill="#FAFAF8" stroke="#85857D"/>
@@ -97,7 +91,8 @@
     <rect width="360" height="740" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
     <use href="#back" x="22" y="26"/>
     <text x="48" y="40" font-size="16" font-weight="650" fill="#1B1B1B">연습 스튜디오</text>
-    <text x="338" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">디자인</text>
+    <text x="286" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">테마</text>
+    <use href="#gear" x="322" y="34"/>
 
     <text x="22" y="78" font-size="11" letter-spacing="1" fill="#64645F">NOW IN SESSION</text>
     <text x="22" y="108" font-size="24" font-weight="650" fill="#1B1B1B">Wonderwall</text>
@@ -195,7 +190,7 @@
     <rect width="360" height="740" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
     <use href="#back" x="22" y="26"/>
     <text x="48" y="40" font-size="16" font-weight="650" fill="#1B1B1B">설정</text>
-    <text x="338" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">디자인</text>
+    <text x="338" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">테마</text>
 
     <text x="22" y="84" font-size="24" font-weight="650" fill="#1B1B1B">나에게 맞는 사운드</text>
     <text x="22" y="110" font-size="13" fill="#64645F">분리 모델을 선택하고 저장공간을 관리하세요.</text>
@@ -232,7 +227,7 @@
     <text x="180" y="637" font-size="14" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
 
     <text x="22" y="684" font-size="16" font-weight="650" fill="#1B1B1B">저장공간</text>
-    <text x="22" y="706" font-size="12" fill="#64645F">재생 캐시를 비우면 재생이 멈춰요.</text>
+    <text x="22" y="706" font-size="12" fill="#64645F">재생 캐시나 AI 분리 파일을 정리해요.</text>
 
     <text x="180" y="790" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">③ 설정 — 모델 받기와 저장공간</text>
   </g>
