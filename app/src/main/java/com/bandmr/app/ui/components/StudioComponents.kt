@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
@@ -33,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.ui.theme.LocalAppDesign
-import com.bandmr.app.ui.theme.StemChannelColors
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -60,8 +58,6 @@ private val AuroraBlobs = listOf(
     Color(0xFF4F9CFA) to Color(0xFF8FD9C0),
     Color(0xFF6B4FFA) to Color(0xFF5CC8E8),
 )
-private val MixdeckBars = floatArrayOf(0.30f, 0.62f, 0.42f, 0.74f, 0.50f, 0.34f)
-private val GridDotRows = intArrayOf(1, 3, 4, 5, 3)
 private val VuNeedleDegrees = floatArrayOf(-62f, -30f, 8f, 44f)
 
 /** Shared flat panel: spacing and outlines stay consistent across all three screens. */
@@ -79,27 +75,6 @@ fun StudioPanel(
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
             Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-        }
-        return
-    }
-    if (design == AppDesign.GRID) {
-        // Flat card over a hard offset shadow — blueprint spec block.
-        Box(modifier.fillMaxWidth()) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .offset(x = 3.dp, y = 3.dp)
-                    .clip(MaterialTheme.shapes.large)
-                    .background(Color(0x24141410)),
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-            }
         }
         return
     }
@@ -137,7 +112,7 @@ fun StudioPanel(
 
 /**
  * Screen-level backdrop painted under the scrollable content.
- * AURORA gets light blooms, GRID gets a dot grid, ALBUM gets a cover-tinted wash.
+ * AURORA gets light blooms, ALBUM gets a cover-tinted wash.
  */
 @Composable
 fun DesignBackdrop(seed: Long? = null) {
@@ -153,20 +128,6 @@ fun DesignBackdrop(seed: Long? = null) {
                     Brush.radialGradient(listOf(color.copy(alpha = 0.42f), Color.Transparent), center = center, radius = radius),
                     radius = radius, center = center,
                 )
-            }
-        }
-        AppDesign.GRID -> Canvas(Modifier.fillMaxSize()) {
-            val step = 14.dp.toPx()
-            val dot = 1.dp.toPx()
-            val color = Color(0xFF141410).copy(alpha = 0.10f)
-            var x = step
-            while (x < size.width) {
-                var y = step
-                while (y < size.height) {
-                    drawCircle(color, dot, Offset(x, y))
-                    y += step
-                }
-                x += step
             }
         }
         AppDesign.ALBUM -> {
@@ -245,9 +206,7 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, la
             3 -> Color(0xFF8FB196)
             else -> Color(0xFF145C38)
         }
-        AppDesign.MIXDECK -> Color(0xFF17171D)
         AppDesign.ALBUM -> AlbumCovers[variant].first
-        AppDesign.GRID -> Color(0xFF141410)
         AppDesign.CONSOLE -> Color(0xFFF9F0DC)
         AppDesign.AURORA -> Color(0xFF12162E)
     }
@@ -259,9 +218,7 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, la
         AppDesign.SNOW -> if (variant == 1 || variant == 3) Color(0xFF161616) else Color.White
         AppDesign.INK -> Color(0xFFF3F0E8)
         AppDesign.MOSS -> if (variant == 1 || variant == 3) Color(0xFF142117) else Color(0xFFF4FFF8)
-        AppDesign.MIXDECK -> Color(0xFFF4F4F7)
         AppDesign.ALBUM -> Color(0xFFFDF7EE)
-        AppDesign.GRID -> Color(0xFFE7E6E0)
         AppDesign.CONSOLE -> Color(0xFF5C4B33)
         AppDesign.AURORA -> Color(0xFFEDEFF5)
     }
@@ -326,38 +283,12 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, la
             drawCircle(ink, disc * 0.22f, center)
             return@Canvas
         }
-        if (design == AppDesign.MIXDECK) {
-            // Stem channel colors as an equalizer sleeve graphic, not a live meter.
-            MixdeckBars.forEachIndexed { index, height ->
-                val barHeight = this.size.height * MixdeckBars[(index + variant) % MixdeckBars.size]
-                drawRect(
-                    color = StemChannelColors[index % StemChannelColors.size],
-                    topLeft = Offset(this.size.width * (0.12f + index * 0.13f), this.size.height - barHeight - this.size.height * 0.14f),
-                    size = Size(this.size.width * 0.075f, barHeight),
-                )
-            }
-            return@Canvas
-        }
         if (design == AppDesign.ALBUM) {
             val (_, dark) = AlbumCovers[variant]
             drawRect(Brush.verticalGradient(listOf(background, dark)))
             drawCircle(ink.copy(alpha = 0.2f), this.size.width * 0.5f, Offset(this.size.width * 0.85f, this.size.height * 0.1f))
             drawCircle(ink.copy(alpha = 0.12f), this.size.width * 0.55f, Offset(this.size.width * 0.1f, this.size.height * 0.95f))
             drawCircle(ink.copy(alpha = 0.9f), this.size.width * 0.16f, center)
-            return@Canvas
-        }
-        if (design == AppDesign.GRID) {
-            // Dot-matrix sound mark: column heights come from the seed profile.
-            val dot = this.size.width * 0.045f
-            val stepY = this.size.height * 0.15f
-            for (column in 0..4) {
-                val rows = GridDotRows[(column + variant) % GridDotRows.size]
-                for (row in 0 until rows) {
-                    val y = center.y + (row - (rows - 1) / 2f) * stepY
-                    drawCircle(ink.copy(alpha = 0.85f), dot, Offset(this.size.width * (0.16f + column * 0.17f), y))
-                }
-            }
-            drawCircle(Color(0xFFFF3B1E), dot * 1.3f, center)
             return@Canvas
         }
         if (design == AppDesign.CONSOLE) {

@@ -79,7 +79,7 @@ private val BlueScheme = lightColorScheme(
 )
 
 fun designIsDark(design: AppDesign, systemDark: Boolean): Boolean = when (design) {
-    AppDesign.AMP, AppDesign.INK, AppDesign.MIXDECK, AppDesign.AURORA -> true
+    AppDesign.AMP, AppDesign.INK, AppDesign.AURORA -> true
     AppDesign.STUDIO, AppDesign.ALBUM -> systemDark
     else -> false
 }
@@ -149,41 +149,10 @@ fun designColors(design: AppDesign, systemDark: Boolean = false): ColorScheme = 
     AppDesign.SNOW -> SnowScheme
     AppDesign.INK -> InkScheme
     AppDesign.MOSS -> MossScheme
-    AppDesign.MIXDECK -> MixdeckScheme
     AppDesign.ALBUM -> if (systemDark) AlbumDarkScheme else AlbumScheme
-    AppDesign.GRID -> GridScheme
     AppDesign.CONSOLE -> ConsoleScheme
     AppDesign.AURORA -> AuroraScheme
 }
-
-/** DAW 채널 스트립 컬러 — 믹스덱 디자인의 스템 아이콘·슬라이더에 쓰는 표시 전용 팔레트 */
-val StemChannelColors = listOf(
-    Color(0xFFFF5C8A), // 보컬
-    Color(0xFFFF9A3D), // 드럼
-    Color(0xFFA78BFA), // 베이스
-    Color(0xFF4ADE80), // 기타
-    Color(0xFF38BDF8), // 피아노
-    Color(0xFFFACC15), // 그 외
-)
-
-private val MixdeckScheme = darkColorScheme(
-    primary = Color(0xFFF4F4F7), onPrimary = Color(0xFF0B0B0F),
-    primaryContainer = Color(0xFF26262E), onPrimaryContainer = Color(0xFFF4F4F7),
-    secondary = Color(0xFFB9B9C4), onSecondary = Color(0xFF0B0B0F),
-    secondaryContainer = Color(0xFF20202A), onSecondaryContainer = Color(0xFFDDDDE5),
-    tertiary = Color(0xFFFF5C8A), onTertiary = Color(0xFF3D0A1D),
-    tertiaryContainer = Color(0xFF3D1826), onTertiaryContainer = Color(0xFFFFB8CC),
-    background = Color(0xFF0B0B0F), onBackground = Color(0xFFF4F4F7),
-    surface = Color(0xFF16161C), onSurface = Color(0xFFF4F4F7),
-    surfaceVariant = Color(0xFF20202A), onSurfaceVariant = Color(0xFF8B8B99),
-    surfaceTint = Color(0xFFF4F4F7),
-    surfaceContainerLowest = Color(0xFF0E0E13), surfaceContainerLow = Color(0xFF1A1A21),
-    surfaceContainer = Color(0xFF20202A), surfaceContainerHigh = Color(0xFF26262F),
-    surfaceContainerHighest = Color(0xFF2E2E38),
-    outline = Color(0xFF55555F), outlineVariant = Color(0xFF26262E),
-    error = Color(0xFFFF6B6B), onError = Color(0xFF3D0A0A),
-    errorContainer = Color(0xFF471818), onErrorContainer = Color(0xFFFFD2D2),
-)
 
 private val AlbumScheme = lightColorScheme(
     primary = Color(0xFF3D2E26), onPrimary = Color(0xFFFBF3EC),
@@ -221,25 +190,6 @@ private val AlbumDarkScheme = darkColorScheme(
     outline = Color(0xFF7E7064), outlineVariant = Color(0xFF3A302A),
     error = Color(0xFFFFB4A9), onError = Color(0xFF680F13),
     errorContainer = Color(0xFF512B2A), onErrorContainer = Color(0xFFFFDAD4),
-)
-
-private val GridScheme = lightColorScheme(
-    primary = Color(0xFFFF3B1E), onPrimary = Color(0xFFFFF3EE),
-    primaryContainer = Color(0xFFF7DCD5), onPrimaryContainer = Color(0xFFC22610),
-    secondary = Color(0xFF5A5750), onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE4E3DA), onSecondaryContainer = Color(0xFF36342F),
-    tertiary = Color(0xFF141410), onTertiary = Color(0xFFE7E6E0),
-    tertiaryContainer = Color(0xFFDFDED5), onTertiaryContainer = Color(0xFF141410),
-    background = Color(0xFFE7E6E0), onBackground = Color(0xFF141410),
-    surface = Color(0xFFEEEDE7), onSurface = Color(0xFF141410),
-    surfaceVariant = Color(0xFFE1E0D8), onSurfaceVariant = Color(0xFF75726A),
-    surfaceTint = Color(0xFFFF3B1E),
-    surfaceContainerLowest = Color(0xFFF4F3EC), surfaceContainerLow = Color(0xFFE9E8E0),
-    surfaceContainer = Color(0xFFE3E2D9), surfaceContainerHigh = Color(0xFFDCDAD0),
-    surfaceContainerHighest = Color(0xFFD4D2C7),
-    outline = Color(0xFFA9A79A), outlineVariant = Color(0xFFC9C7BB),
-    error = Color(0xFFC22610), onError = Color.White,
-    errorContainer = Color(0xFFF7DCD5), onErrorContainer = Color(0xFF8A1A0A),
 )
 
 private val ConsoleScheme = lightColorScheme(
@@ -380,9 +330,7 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.SNOW -> 18
         AppDesign.INK -> 14
         AppDesign.MOSS -> 22
-        AppDesign.MIXDECK -> 12
         AppDesign.ALBUM -> 24
-        AppDesign.GRID -> 4
         AppDesign.CONSOLE -> 12
         AppDesign.AURORA -> 20
     }
@@ -397,20 +345,6 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         )
         AppDesign.INK -> BandTypography.copy(
             titleLarge = type(22, 30, FontWeight.Medium),
-        )
-        AppDesign.MIXDECK -> BandTypography.copy(
-            labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
-            labelMedium = type(12, 18, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
-        )
-        AppDesign.GRID -> BandTypography.copy(
-            headlineLarge = type(30, 38, FontWeight.Bold).copy(fontFamily = FontFamily.Monospace, letterSpacing = (-1).sp),
-            labelSmall = type(11, 16, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.5.sp),
-            labelMedium = type(12, 18, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
-        )
-        AppDesign.CONSOLE -> BandTypography.copy(
-            headlineLarge = type(30, 40, FontWeight.Bold).copy(fontFamily = FontFamily.Serif),
-            headlineMedium = type(25, 34, FontWeight.Bold).copy(fontFamily = FontFamily.Serif),
-            labelSmall = type(10, 16, FontWeight.Bold).copy(letterSpacing = 2.sp),
         )
         AppDesign.AURORA -> BandTypography.copy(
             labelSmall = type(11, 16, FontWeight.Medium).copy(letterSpacing = 2.sp),

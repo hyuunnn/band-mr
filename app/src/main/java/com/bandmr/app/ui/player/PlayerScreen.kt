@@ -55,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -85,7 +84,6 @@ import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
 import com.bandmr.app.ui.theme.LocalAppDesign
-import com.bandmr.app.ui.theme.StemChannelColors
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -508,8 +506,7 @@ private fun TransportCard(
                     onClick = { ctrl.playPause() },
                     modifier = Modifier.size(72.dp),
                     shape = when (design) {
-                        AppDesign.AMP, AppDesign.MIXDECK -> MaterialTheme.shapes.small
-                        AppDesign.GRID -> MaterialTheme.shapes.extraSmall
+                        AppDesign.AMP -> MaterialTheme.shapes.small
                         AppDesign.AURORA -> MaterialTheme.shapes.large
                         else -> CircleShape
                     },
@@ -738,7 +735,6 @@ private fun StemCard(
     onLevelDone: () -> Unit,
     onResetLevels: () -> Unit,
 ) {
-    val design = LocalAppDesign.current
     StudioPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SectionHeading(
@@ -752,10 +748,9 @@ private fun StemCard(
             stems.forEachIndexed { index, stem ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
                 val percent = Stem.percentOf(stemGainsPacked, stem)
-                val accent = if (design == AppDesign.MIXDECK) StemChannelColors[stem.ordinal % StemChannelColors.size] else null
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StemIcon(stem, active = percent > 0, accent = accent)
+                        StemIcon(stem, active = percent > 0)
                         Text(Stem.labelFor(stem, fourStem), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                         StatusBadge(
                             if (percent == 0) "음소거" else "$percent%",
@@ -768,7 +763,6 @@ private fun StemCard(
                         onValueChangeFinished = onLevelDone,
                         valueRange = 0f..Stem.GAIN_FULL.toFloat(),
                         modifier = Modifier.semantics { contentDescription = "${stem.label} 볼륨" },
-                        colors = accent?.let { SliderDefaults.colors(thumbColor = it, activeTrackColor = it) } ?: SliderDefaults.colors(),
                     )
                 }
             }
@@ -821,7 +815,7 @@ private fun StemCard(
 }
 
 @Composable
-private fun StemIcon(stem: Stem, active: Boolean, accent: Color? = null) {
+private fun StemIcon(stem: Stem, active: Boolean) {
     val icon = when (stem) {
         Stem.VOCAL -> R.drawable.ic_stem_vocal
         Stem.DRUMS -> R.drawable.ic_stem_drums
@@ -833,14 +827,8 @@ private fun StemIcon(stem: Stem, active: Boolean, accent: Color? = null) {
     Surface(
         modifier = Modifier.size(38.dp),
         shape = MaterialTheme.shapes.small,
-        color = when {
-            accent != null && active -> accent.copy(alpha = 0.16f)
-            active -> MaterialTheme.colorScheme.primaryContainer
-            else -> MaterialTheme.colorScheme.surfaceContainerLow
-        },
-        contentColor = if (accent != null && active) accent
-        else if (active) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Box(contentAlignment = Alignment.Center) { Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp)) }
     }
