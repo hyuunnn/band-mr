@@ -249,7 +249,7 @@ private fun StorageSection() {
         }
     }
 
-    SectionHeading("저장공간", "연습할 곡은 남겨 두고, 임시 파일만 정리하세요.", Modifier.padding(top = 20.dp))
+    SectionHeading("저장공간", "연습할 곡은 남겨 두고, 재생 캐시나 AI 분리 파일을 정리하세요.", Modifier.padding(top = 20.dp))
 
     StudioPanel {
         Text("정리할 수 있는 공간", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

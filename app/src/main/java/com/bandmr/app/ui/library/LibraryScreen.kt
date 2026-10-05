@@ -89,7 +89,6 @@ import com.bandmr.app.youtube.YouTubeImport
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -120,11 +119,10 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
         scope.launch { listState.scrollToItem(0) }
     }
 
-    // 다이얼로그를 닫고 기다렸어도 새 곡이 검색·분리 필터에 가려지지 않게 한다.
+    // 다이얼로그를 닫아도 새 곡이 검색·분리 필터에 가려지지 않게 한다.
     LaunchedEffect(importState) {
         if (importState is ImportState.Done) {
             revealAddedSong()
-            if (showLinkDialog) delay(600)
             showLinkDialog = false
             YouTubeImport.dismiss()
         }

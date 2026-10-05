@@ -204,6 +204,14 @@ fun PlayerScreen(songId: Long) {
 
     fun startSeparation() {
         if (running || otherRunning) return
+        // 파일이 없으면 서비스가 곧바로 실패한다. 그 전에 release하면 재생이 멈추고 위치가 처음으로 돌아간다.
+        if (!Locator.modelManager.isDownloaded(selectedTier)) {
+            SepBus.state.value = SepState.Error(
+                songId,
+                "먼저 설정에서 '${selectedTier.label}' 모델을 다운로드하세요",
+            )
+            return
+        }
         if (separated) ctrl.release()
         if (Build.VERSION.SDK_INT >= 33) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
