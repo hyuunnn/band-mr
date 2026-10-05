@@ -1,11 +1,11 @@
 package com.bandmr.app
 
 import android.content.res.Configuration
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,9 +31,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -47,9 +48,9 @@ import com.bandmr.app.ui.player.PlayerScreen
 import com.bandmr.app.ui.settings.SettingsScreen
 import com.bandmr.app.ui.theme.BandMrTheme
 import com.bandmr.app.ui.theme.LocalAppDesign
-import com.bandmr.app.ui.theme.designColors
 import com.bandmr.app.ui.theme.designIsDark
 import com.bandmr.app.ui.theme.startingTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,28 +59,28 @@ class MainActivity : ComponentActivity() {
         setTheme(initialDesign.startingTheme())
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        applyDesignChrome(initialDesign, isNightMode())
-        // 첫 프레임에 곡 목록이 있게 한 뒤 시작 화면을 바로 걷는다. 페이드 동안 빈 목록이 비친다.
+        splashScreen.setSplashScreenTheme(initialDesign.startingTheme())
+        applySystemBarIcons(designIsDark(initialDesign, isNightMode()))
         Locator.librarySongs()
-        splashScreen.setOnExitAnimationListener { it.remove() }
         setContent {
             val design by Locator.settings.design.collectAsState(initial = initialDesign)
+            val dark = designIsDark(design, isSystemInDarkTheme())
+            // enableEdgeToEdge는 회전처럼 설정이 바뀔 때마다 시스템 밤낮으로 아이콘을 다시 깐다.
+            SideEffect { applySystemBarIcons(dark) }
             BandMrTheme(design) {
                 BandMrNav(
                     onDesignSelected = { selected ->
-                        Locator.settings.setDesignNow(selected)
-                        applyDesignChrome(selected, isNightMode())
+                        lifecycleScope.launch {
+                            Locator.settings.setDesign(selected)
+                            splashScreen.setSplashScreenTheme(selected.startingTheme())
+                        }
                     },
                 )
             }
         }
     }
 
-    /** 이번 창의 배경·시스템 바, 그리고 다음 콜드 스타트의 스플래시. */
-    private fun applyDesignChrome(design: AppDesign, night: Boolean) {
-        splashScreen.setSplashScreenTheme(design.startingTheme())
-        window.setBackgroundDrawable(ColorDrawable(designColors(design, night).background.toArgb()))
-        val dark = designIsDark(design, night)
+    private fun applySystemBarIcons(dark: Boolean) {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = !dark
             isAppearanceLightNavigationBars = !dark

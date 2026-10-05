@@ -105,10 +105,6 @@ object Locator {
 
     fun librarySongs(): List<Song> =
         librarySongCache ?: runBlocking { songDao.getAllOnce() }.also { librarySongCache = it }
-
-    fun cacheLibrarySongs(songs: List<Song>) {
-        librarySongCache = songs
-    }
     val settings: SettingsStore by lazy { SettingsStore(appContext) }
     val modelManager: ModelManager by lazy { ModelManager(appContext) }
     val playerController: PlayerController by lazy { PlayerController(appContext) }

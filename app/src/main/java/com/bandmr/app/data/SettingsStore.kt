@@ -26,9 +26,8 @@ class SettingsStore(private val context: Context) {
     /** 첫 프레임 전에 읽는다. 구독 초기값을 기본 테마로 두면 그 색이 먼저 보였다가 바뀐다. */
     fun startupDesign(): AppDesign = runBlocking { design.first() }
 
-    /** 테마를 고르자마자 디스크에 남긴다. 시작 화면은 이 값이 저장된 뒤에야 다음 실행에 쓰인다. */
-    fun setDesignNow(design: AppDesign) {
-        runBlocking { context.dataStore.edit { it[designKey] = design.id } }
+    suspend fun setDesign(design: AppDesign) {
+        context.dataStore.edit { it[designKey] = design.id }
     }
 
     val aiEnabled: Flow<Boolean> = context.dataStore.data.map { it[aiKey] ?: false }
