@@ -79,16 +79,76 @@ private val BlueScheme = lightColorScheme(
 )
 
 fun designIsDark(design: AppDesign, systemDark: Boolean): Boolean = when (design) {
-    AppDesign.AMP, AppDesign.MIXDECK, AppDesign.AURORA -> true
+    AppDesign.AMP, AppDesign.INK, AppDesign.MIXDECK, AppDesign.AURORA -> true
     AppDesign.STUDIO, AppDesign.ALBUM -> systemDark
     else -> false
 }
+
+private val SnowScheme = lightColorScheme(
+    primary = Color(0xFF141414), onPrimary = Color.White,
+    primaryContainer = Color(0xFFE8E8EA), onPrimaryContainer = Color(0xFF141414),
+    secondary = Color(0xFF5C5C60), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE4E4E7), onSecondaryContainer = Color(0xFF141414),
+    tertiary = Color(0xFF5C5C60), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFE8E8EA), onTertiaryContainer = Color(0xFF141414),
+    background = Color(0xFFF3F3F4), onBackground = Color(0xFF141414),
+    surface = Color.White, onSurface = Color(0xFF141414),
+    surfaceVariant = Color(0xFFE8E8EA), onSurfaceVariant = Color(0xFF6D6D72),
+    surfaceTint = Color(0xFF141414),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF7F7F8),
+    surfaceContainer = Color(0xFFEEEEF0), surfaceContainerHigh = Color(0xFFE6E6E8),
+    surfaceContainerHighest = Color(0xFFDEDEE2),
+    outline = Color(0xFF8A8A90), outlineVariant = Color(0xFFE4E4E7),
+    error = Color(0xFFB43E3E), onError = Color.White,
+    errorContainer = Color(0xFFFCE8E5), onErrorContainer = Color(0xFF792D2D),
+)
+
+private val InkScheme = darkColorScheme(
+    primary = Color(0xFFF3F0E8), onPrimary = Color(0xFF14120E),
+    primaryContainer = Color(0xFF2A2D36), onPrimaryContainer = Color(0xFFF3F0E8),
+    secondary = Color(0xFFC8C2B6), onSecondary = Color(0xFF1A1916),
+    secondaryContainer = Color(0xFF2A2D36), onSecondaryContainer = Color(0xFFF3F0E8),
+    tertiary = Color(0xFFC8C2B6), onTertiary = Color(0xFF1A1916),
+    tertiaryContainer = Color(0xFF2A2D36), onTertiaryContainer = Color(0xFFF3F0E8),
+    background = Color(0xFF0C0D10), onBackground = Color(0xFFF3F0E8),
+    surface = Color(0xFF17191F), onSurface = Color(0xFFF3F0E8),
+    surfaceVariant = Color(0xFF24262E), onSurfaceVariant = Color(0xFFA39E94),
+    surfaceTint = Color(0xFFF3F0E8),
+    surfaceContainerLowest = Color(0xFF090A0C), surfaceContainerLow = Color(0xFF14161C),
+    surfaceContainer = Color(0xFF1C1E26), surfaceContainerHigh = Color(0xFF262830),
+    surfaceContainerHighest = Color(0xFF31343C),
+    outline = Color(0xFF8E8A82), outlineVariant = Color(0xFF2C303A),
+    error = Color(0xFFFFB4A9), onError = Color(0xFF680F13),
+    errorContainer = Color(0xFF512B2A), onErrorContainer = Color(0xFFFFDAD4),
+)
+
+private val MossScheme = lightColorScheme(
+    primary = Color(0xFF145C38), onPrimary = Color(0xFFF4FFF8),
+    primaryContainer = Color(0xFFD3E8DA), onPrimaryContainer = Color(0xFF0E3B24),
+    secondary = Color(0xFF3E5C4A), onSecondary = Color(0xFFF4FFF8),
+    secondaryContainer = Color(0xFFD7E6D4), onSecondaryContainer = Color(0xFF142117),
+    tertiary = Color(0xFF145C38), onTertiary = Color(0xFFF4FFF8),
+    tertiaryContainer = Color(0xFFD3E8DA), onTertiaryContainer = Color(0xFF0E3B24),
+    background = Color(0xFFDCE7D4), onBackground = Color(0xFF142117),
+    surface = Color(0xFFF7FBF4), onSurface = Color(0xFF142117),
+    surfaceVariant = Color(0xFFD3E0CC), onSurfaceVariant = Color(0xFF4E6154),
+    surfaceTint = Color(0xFF145C38),
+    surfaceContainerLowest = Color(0xFFF7FBF4), surfaceContainerLow = Color(0xFFE7F0E2),
+    surfaceContainer = Color(0xFFDCE8D6), surfaceContainerHigh = Color(0xFFD0DFC8),
+    surfaceContainerHighest = Color(0xFFC5D6BC),
+    outline = Color(0xFF6E846E), outlineVariant = Color(0xFFC5D4C0),
+    error = Color(0xFFB43E3E), onError = Color.White,
+    errorContainer = Color(0xFFFCE8E5), onErrorContainer = Color(0xFF792D2D),
+)
 
 fun designColors(design: AppDesign, systemDark: Boolean = false): ColorScheme = when (design) {
     AppDesign.MONO -> MonoScheme
     AppDesign.AMP -> AmpScheme
     AppDesign.BLUE -> BlueScheme
     AppDesign.STUDIO -> if (systemDark) DarkScheme else LightScheme
+    AppDesign.SNOW -> SnowScheme
+    AppDesign.INK -> InkScheme
+    AppDesign.MOSS -> MossScheme
     AppDesign.MIXDECK -> MixdeckScheme
     AppDesign.ALBUM -> if (systemDark) AlbumDarkScheme else AlbumScheme
     AppDesign.GRID -> GridScheme
@@ -317,6 +377,9 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.AMP -> 10
         AppDesign.BLUE -> 28
         AppDesign.STUDIO -> 24
+        AppDesign.SNOW -> 18
+        AppDesign.INK -> 14
+        AppDesign.MOSS -> 22
         AppDesign.MIXDECK -> 12
         AppDesign.ALBUM -> 24
         AppDesign.GRID -> 4
@@ -331,6 +394,9 @@ fun BandMrTheme(design: AppDesign = AppDesign.MONO, content: @Composable () -> U
         AppDesign.AMP -> BandTypography.copy(
             headlineLarge = type(32, 42, FontWeight.Bold),
             labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),
+        )
+        AppDesign.INK -> BandTypography.copy(
+            titleLarge = type(22, 30, FontWeight.Medium),
         )
         AppDesign.MIXDECK -> BandTypography.copy(
             labelSmall = type(11, 17, FontWeight.Medium).copy(fontFamily = FontFamily.Monospace),

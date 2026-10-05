@@ -104,7 +104,7 @@ private fun BandMrNav() {
                     }
                 },
                 actions = {
-                    TextButton(onClick = { showDesigns = true }) { Text("디자인") }
+                    TextButton(onClick = { showDesigns = true }) { Text("테마") }
                     if (route != "settings") {
                         IconButton(onClick = { nav.navigate("settings") }) {
                             Icon(Icons.Default.Settings, contentDescription = "설정")

@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -26,8 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.ui.theme.LocalAppDesign
 import com.bandmr.app.ui.theme.StemChannelColors
@@ -100,19 +103,23 @@ fun StudioPanel(
         }
         return
     }
+    val openCard = design == AppDesign.BLUE || design == AppDesign.SNOW || design == AppDesign.MOSS || design == AppDesign.ALBUM
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = if (design == AppDesign.ALBUM) 3.dp else 0.dp,
+        shadowElevation = when (design) {
+            AppDesign.SNOW -> 2.dp
+            AppDesign.ALBUM -> 3.dp
+            else -> 0.dp
+        },
         border = when {
-            design == AppDesign.ALBUM && !highlighted -> null
-            design == AppDesign.BLUE && !highlighted -> null
             design == AppDesign.AURORA -> BorderStroke(
                 1.dp,
                 if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                 else Color.White.copy(alpha = 0.10f),
             )
+            openCard && !highlighted -> null
             else -> BorderStroke(
                 1.dp,
                 if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
@@ -184,10 +191,8 @@ fun StatusBadge(text: String, modifier: Modifier = Modifier, active: Boolean = f
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraSmall,
-        color = if (active) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerLow,
-        contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
         Text(text, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall)
     }
@@ -216,7 +221,7 @@ fun BrandMark(modifier: Modifier = Modifier) {
 
 /** Decorative record sleeves, not a representation of the song's actual waveform. */
 @Composable
-fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp) {
+fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, label: String? = null) {
     val design = LocalAppDesign.current
     val variant = Math.floorMod(seed, 4L).toInt()
     val background = when (design) {
@@ -229,6 +234,17 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp) {
             else -> Color(0xFF81AAB6)
         }
         AppDesign.STUDIO -> StudioCovers[variant].first
+        AppDesign.SNOW -> when (variant) {
+            1 -> Color(0xFFE6E6E8)
+            3 -> Color(0xFFCFCFD2)
+            else -> Color(0xFF161616)
+        }
+        AppDesign.INK -> Color(0xFF2A2D36)
+        AppDesign.MOSS -> when (variant) {
+            1 -> Color(0xFFC5D9C4)
+            3 -> Color(0xFF8FB196)
+            else -> Color(0xFF145C38)
+        }
         AppDesign.MIXDECK -> Color(0xFF17171D)
         AppDesign.ALBUM -> AlbumCovers[variant].first
         AppDesign.GRID -> Color(0xFF141410)
@@ -240,11 +256,35 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp) {
         AppDesign.AMP -> Color(0xFFFFBE63)
         AppDesign.BLUE -> Color(0xFFFFF9EC)
         AppDesign.STUDIO -> StudioCovers[variant].second
+        AppDesign.SNOW -> if (variant == 1 || variant == 3) Color(0xFF161616) else Color.White
+        AppDesign.INK -> Color(0xFFF3F0E8)
+        AppDesign.MOSS -> if (variant == 1 || variant == 3) Color(0xFF142117) else Color(0xFFF4FFF8)
         AppDesign.MIXDECK -> Color(0xFFF4F4F7)
         AppDesign.ALBUM -> Color(0xFFFDF7EE)
         AppDesign.GRID -> Color(0xFFE7E6E0)
         AppDesign.CONSOLE -> Color(0xFF5C4B33)
         AppDesign.AURORA -> Color(0xFFEDEFF5)
+    }
+    if (design == AppDesign.SNOW || design == AppDesign.INK || design == AppDesign.MOSS) {
+        val mark = label?.trim()?.firstOrNull()?.toString()
+        Box(
+            modifier.size(size).clip(MaterialTheme.shapes.medium).background(background),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (mark != null) {
+                Text(mark, color = ink, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.36f).sp)
+            } else {
+                Canvas(Modifier.fillMaxSize()) {
+                    val heights = floatArrayOf(0.28f, 0.55f, 0.82f, 0.55f, 0.28f)
+                    heights.forEachIndexed { index, height ->
+                        val x = this.size.width * (0.28f + index * 0.11f)
+                        val half = this.size.height * height * 0.22f
+                        drawLine(ink, Offset(x, center.y - half), Offset(x, center.y + half), this.size.width * 0.045f, StrokeCap.Round)
+                    }
+                }
+            }
+        }
+        return
     }
     Canvas(modifier.size(size).clip(MaterialTheme.shapes.medium)) {
         drawRect(background)
