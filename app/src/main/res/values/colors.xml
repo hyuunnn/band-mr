@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme.kt 배경색과 같다. 어긋나면 실행 첫 화면 색이 한 번 바뀐다. -->
+    <color name="theme_mono_background">#FAFAF8</color>
+    <color name="theme_snow_background">#F3F3F4</color>
+    <color name="theme_ink_background">#0C0D10</color>
+    <color name="theme_amp_background">#141414</color>
+    <color name="theme_aurora_background">#0B0E1E</color>
+    <color name="theme_console_background">#E9E1D0</color>
+    <color name="theme_album_background">#F3ECE4</color>
+    <color name="theme_blue_background">#F1F4FC</color>
+    <color name="theme_studio_background">#F6F7F4</color>
+    <color name="theme_moss_background">#DCE7D4</color>
+</resources>

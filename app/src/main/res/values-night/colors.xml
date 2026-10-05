@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 시스템 테마를 따르는 커버·스튜디오만 밤에 배경이 바뀐다. -->
+    <color name="theme_album_background">#171210</color>
+    <color name="theme_studio_background">#111714</color>
+</resources>

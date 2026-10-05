@@ -1,10 +1,11 @@
 package com.bandmr.app
 
+import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -22,15 +23,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavType
@@ -47,34 +47,54 @@ import com.bandmr.app.ui.player.PlayerScreen
 import com.bandmr.app.ui.settings.SettingsScreen
 import com.bandmr.app.ui.theme.BandMrTheme
 import com.bandmr.app.ui.theme.LocalAppDesign
+import com.bandmr.app.ui.theme.designColors
 import com.bandmr.app.ui.theme.designIsDark
-import kotlinx.coroutines.launch
+import com.bandmr.app.ui.theme.startingTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 시작 화면은 프로세스가 뜨기 전에 그려진다. 여기서 기본 테마로 한 번 그리면 저장 테마로 바뀌며 깜빡인다.
+        val initialDesign = Locator.settings.startupDesign()
+        setTheme(initialDesign.startingTheme())
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        applyDesignChrome(initialDesign, isNightMode())
+        // 첫 프레임에 곡 목록이 있게 한 뒤 시작 화면을 바로 걷는다. 페이드 동안 빈 목록이 비친다.
+        Locator.librarySongs()
+        splashScreen.setOnExitAnimationListener { it.remove() }
         setContent {
-            val design by Locator.settings.design.collectAsState(initial = AppDesign.MONO)
-            val dark = designIsDark(design, isSystemInDarkTheme())
-            SideEffect {
-                WindowCompat.getInsetsController(window, window.decorView).apply {
-                    isAppearanceLightStatusBars = !dark
-                    isAppearanceLightNavigationBars = !dark
-                }
-            }
+            val design by Locator.settings.design.collectAsState(initial = initialDesign)
             BandMrTheme(design) {
-                BandMrNav()
+                BandMrNav(
+                    onDesignSelected = { selected ->
+                        Locator.settings.setDesignNow(selected)
+                        applyDesignChrome(selected, isNightMode())
+                    },
+                )
             }
         }
     }
+
+    /** 이번 창의 배경·시스템 바, 그리고 다음 콜드 스타트의 스플래시. */
+    private fun applyDesignChrome(design: AppDesign, night: Boolean) {
+        splashScreen.setSplashScreenTheme(design.startingTheme())
+        window.setBackgroundDrawable(ColorDrawable(designColors(design, night).background.toArgb()))
+        val dark = designIsDark(design, night)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+
+    private fun isNightMode(): Boolean =
+        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BandMrNav() {
+private fun BandMrNav(onDesignSelected: (AppDesign) -> Unit) {
     val design = LocalAppDesign.current
-    val scope = rememberCoroutineScope()
     var showDesigns by remember { mutableStateOf(false) }
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
@@ -138,7 +158,7 @@ private fun BandMrNav() {
         DesignPicker(
             selectedDesign = design,
             onSelect = { selected ->
-                scope.launch { Locator.settings.setDesign(selected) }
+                onDesignSelected(selected)
                 showDesigns = false
             },
             onDismiss = { showDesigns = false },

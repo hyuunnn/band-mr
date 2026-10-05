@@ -1,8 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 저장된 테마가 아직 없을 때만 쓴다. 이름(Theme.BandMR.*)은 스플래시에 남아 있으므로 바꾸지 말 것.
+         아이콘은 지정하지 않는다. 안드로이드가 런처 아이콘(앱 로고)을 시작 화면 가운데에 그린다. -->
     <style name="Theme.BandMR" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.BandMR.Mono" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_mono_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_mono_background</item>
+    </style>
+    <style name="Theme.BandMR.Snow" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_snow_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_snow_background</item>
+    </style>
+    <style name="Theme.BandMR.Ink" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_ink_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_ink_background</item>
+    </style>
+    <style name="Theme.BandMR.Amp" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_amp_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_amp_background</item>
+    </style>
+    <style name="Theme.BandMR.Aurora" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_aurora_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_aurora_background</item>
+    </style>
+    <style name="Theme.BandMR.Console" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_console_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_console_background</item>
+    </style>
+    <style name="Theme.BandMR.Album" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_album_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_album_background</item>
+    </style>
+    <style name="Theme.BandMR.Blue" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_blue_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_blue_background</item>
+    </style>
+    <style name="Theme.BandMR.Studio" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_studio_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_studio_background</item>
+    </style>
+    <style name="Theme.BandMR.Moss" parent="Theme.BandMR">
+        <item name="android:windowBackground">@color/theme_moss_background</item>
+        <item name="android:windowSplashScreenBackground">@color/theme_moss_background</item>
     </style>
 </resources>

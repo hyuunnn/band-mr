@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
 private const val TAG = "BandMrApp"
@@ -97,6 +98,17 @@ object Locator {
 
     val database: AppDatabase by lazy { AppDatabase.build(appContext) }
     val songDao get() = database.songDao()
+
+    /** 첫 화면의 곡 목록. 빈 목록으로 그리면 '첫 곡' 안내가 떴다가 실제 목록으로 바뀐다. */
+    @Volatile
+    private var librarySongCache: List<Song>? = null
+
+    fun librarySongs(): List<Song> =
+        librarySongCache ?: runBlocking { songDao.getAllOnce() }.also { librarySongCache = it }
+
+    fun cacheLibrarySongs(songs: List<Song>) {
+        librarySongCache = songs
+    }
     val settings: SettingsStore by lazy { SettingsStore(appContext) }
     val modelManager: ModelManager by lazy { ModelManager(appContext) }
     val playerController: PlayerController by lazy { PlayerController(appContext) }
