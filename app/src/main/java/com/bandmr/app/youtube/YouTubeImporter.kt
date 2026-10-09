@@ -1,6 +1,5 @@
 package com.bandmr.app.youtube
 
-import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.bandmr.app.Locator
@@ -8,11 +7,14 @@ import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
 import com.bandmr.app.io.FilePromote
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
@@ -76,6 +78,9 @@ object YouTubeImport {
     val state = MutableStateFlow<ImportState>(ImportState.Idle)
 
     private var job: Job? = null
+    // 취소된 Job도 블로킹 read/파일 정리가 끝날 때까지 락을 보유한다. 대기 중인 새 Job을
+    // 다시 취소해도 다음 작업이 아직 정리 중인 다운로드를 앞질러 시작할 수 없다.
+    private val importMutex = Mutex()
 
     private const val SOURCES_DIR = "sources"
 
@@ -86,13 +91,16 @@ object YouTubeImport {
     private var newPipeReady = false
 
     /** 이미 진행 중이면 false를 반환하고 무시한다 */
+    @Synchronized
     fun start(rawInput: String): Boolean {
         val input = rawInput.trim()
         if (input.isEmpty()) return false
         if (job?.isActive == true) return false
-        job = Locator.appScope.launch {
-            runCatchingImport(input)
+        val next = Locator.appScope.launch(start = CoroutineStart.LAZY) {
+            importMutex.withLock { runCatchingImport(input) }
         }
+        job = next
+        next.start()
         return true
     }
 
@@ -100,35 +108,44 @@ object YouTubeImport {
      * 터미널 상태(Done/Failed)의 UI 노출을 끊는다. 실행 중에는 건드리지 않는다 —
      * 다이얼로그를 닫을 때와 다시 열 때 남은 성공/실패 메시지를 초기화하는 용도.
      */
+    @Synchronized
     fun dismiss() {
         if (!isRunning()) state.value = ImportState.Idle
     }
 
+    @Synchronized
     fun cancel() {
         job?.cancel()
-        job = null
         state.value = ImportState.Idle
     }
 
+    @Synchronized
     fun isRunning(): Boolean = job?.isActive == true
 
+    @Synchronized
+    private fun publish(owner: Job, next: ImportState) {
+        if (job === owner && owner.isActive) state.value = next
+    }
+
     private suspend fun runCatchingImport(input: String) {
+        val owner = requireNotNull(coroutineContext[Job])
         try {
-            import(input)
+            import(input, owner)
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
+            coroutineContext.ensureActive()
             Log.e(TAG, "import failed", t)
-            state.value = ImportState.Failed(userMessage(t))
+            publish(owner, ImportState.Failed(userMessage(t)))
         }
     }
 
-    private suspend fun import(input: String) {
+    private suspend fun import(input: String, owner: Job) {
         val videoId = YouTubeUrl.videoIdOf(input)
             ?: throw IllegalArgumentException("유효한 유튜브 링크가 아닙니다")
         val context = Locator.context
 
-        state.value = ImportState.Resolving
+        publish(owner, ImportState.Resolving)
         val info = withContext(Dispatchers.IO) { resolveInfo(videoId) }
 
         val title = info.name.orEmpty().ifBlank { "제목 없음" }.take(MAX_TITLE_LEN)
@@ -150,12 +167,15 @@ object YouTubeImport {
         val ext = info.audioStreams.firstOrNull { it.content == bestUrl }
             ?.format?.suffix ?: "m4a"
 
-        state.value = ImportState.Downloading(title, null, 0, null)
+        publish(owner, ImportState.Downloading(title, null, 0, null))
         val source = withContext(Dispatchers.IO) {
-            download(context, videoId, bestUrl, ext)
+            downloadAudioSource(File(context.filesDir, SOURCES_DIR), videoId, bestUrl, ext) { rec, total ->
+                val progress = total?.let { ((rec * 100) / it).toInt() / 100f }
+                publish(owner, ImportState.Downloading(title, progress, rec, total))
+            }
         }
 
-        state.value = ImportState.PreparingCache(title)
+        publish(owner, ImportState.PreparingCache(title))
         val songId = Locator.songDao.insert(
             Song(
                 title = title,
@@ -167,7 +187,7 @@ object YouTubeImport {
         withContext(Dispatchers.IO) {
             MixCache.prepare(context, songId, Uri.fromFile(source))
         }
-        state.value = ImportState.Done(songId, title)
+        publish(owner, ImportState.Done(songId, title))
     }
 
     private fun resolveInfo(videoId: String): StreamInfo {
@@ -189,88 +209,6 @@ object YouTubeImport {
         }
     }
 
-    /**
-     * 스트림 URL을 part 파일로 내려받은 뒤 최종 파일로 rename한다.
-     * 같은 영상 ID 원본이 이미 있으면 즉시 반환한다(재임포트 비용 절감).
-     * 실패 시 part 파일은 폐기한다 — 구간별 googlevideo URL이 시간이 지나면 만료되어
-     * 이어받기 가치가 없다(ModelManager의 .tmp 보존 규칙은 모델 전용).
-     */
-    private suspend fun download(
-        context: Context,
-        videoId: String,
-        url: String,
-        ext: String,
-    ): File {
-        val dir = File(context.filesDir, SOURCES_DIR).apply { mkdirs() }
-        val final = File(dir, "$videoId.$ext")
-        if (final.exists()) return final
-
-        val part = File(dir, "${final.name}.part")
-        if (part.exists()) part.delete()
-        var conn: HttpURLConnection? = null
-        var succeeded = false
-        try {
-            conn = URL(url).openConnection() as HttpURLConnection
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 30_000
-            conn.instanceFollowRedirects = true
-            conn.useCaches = false
-            conn.setRequestProperty("User-Agent", USER_AGENT)
-            conn.setRequestProperty("Accept-Encoding", "identity")
-            conn.setRequestProperty("Referer", "https://www.youtube.com")
-
-            // 만료된 구간별 URL은 403으로 답한다 — 암묵적 스트림 예외 대신 상태 코드를 명시해 확인
-            val code = conn.responseCode
-            if (code !in 200..299) {
-                throw IOException("스트림 서버 응답 오류 (HTTP $code)")
-            }
-            val total = conn.contentLengthLong.takeIf { it > 0 }
-            var received = 0L
-            var lastPercent = -1
-            var copyReturned = false
-
-            try {
-                conn.inputStream.use { ins ->
-                    part.outputStream().use { out ->
-                        received = copyHttpBody(ins, out, total) { rec ->
-                            received = rec
-                            // 갱신 빈도 제한: 크기 불명은 512KB마다, 크기 확인 시 1% 경계마다만
-                            if (total != null) {
-                                val pct = ((rec * 100) / total).toInt()
-                                if (pct != lastPercent) {
-                                    lastPercent = pct
-                                    state.value = ImportState.Downloading(
-                                        state.value.currentTitle(), pct / 100f,
-                                        rec, total,
-                                    )
-                                }
-                            } else if (rec % (512 * 1024) < HTTP_COPY_BUF.toLong()) {
-                                state.value = ImportState.Downloading(
-                                    state.value.currentTitle(), null, rec, null,
-                                )
-                            }
-                        }
-                        copyReturned = true
-                    }
-                }
-            } catch (e: IOException) {
-                // 본문 복사가 끝난 뒤의 close/RST, 또는 디스크에 전량이 있으면 정상 종료
-                if (!shouldKeepDownload(e, received, total, part.length(), copyReturned)) {
-                    throw e
-                }
-            }
-            if (part.length() <= 0L) {
-                throw IOException("다운로드 파일이 비어 있습니다")
-            }
-            FilePromote.file(part, final)
-            succeeded = true
-            return final
-        } finally {
-            conn?.disconnect()
-            if (!succeeded && part.exists()) part.delete()
-        }
-    }
-
     private fun userMessage(t: Throwable): String = when (t) {
         is IllegalArgumentException -> t.message ?: "유효한 유튜브 링크가 아닙니다"
         is ContentNotAvailableException -> "영상을 찾을 수 없습니다 (삭제·비공개·지역제한일 수 있음)"
@@ -279,8 +217,80 @@ object YouTubeImport {
     }
 }
 
-private fun ImportState.currentTitle(): String =
-    (this as? ImportState.Downloading)?.title.orEmpty()
+/**
+ * 스트림을 작업 고유 .part로 받는다. 취소된 읽기가 늦게 반환해도 다른 작업의 파일을
+ * 삭제하거나 승격할 수 없다. 같은 영상의 완성 원본은 재사용하고, 실패한 부분 파일은 폐기한다
+ * (만료되는 스트림 URL에는 모델 다운로드와 달리 이어받기 가치가 없다).
+ */
+internal suspend fun downloadAudioSource(
+    dir: File,
+    videoId: String,
+    url: String,
+    ext: String,
+    onProgress: (received: Long, total: Long?) -> Unit = { _, _ -> },
+): File {
+    coroutineContext.ensureActive()
+    dir.mkdirs()
+    val final = File(dir, "$videoId.$ext")
+    if (final.exists()) return final
+
+    val part = File.createTempFile("$videoId-", ".$ext.part", dir)
+    var conn: HttpURLConnection? = null
+    var succeeded = false
+    try {
+        conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 15_000
+        conn.readTimeout = 30_000
+        conn.instanceFollowRedirects = true
+        conn.useCaches = false
+        conn.setRequestProperty("User-Agent", USER_AGENT)
+        conn.setRequestProperty("Accept-Encoding", "identity")
+        conn.setRequestProperty("Referer", "https://www.youtube.com")
+
+        val code = conn.responseCode
+        if (code !in 200..299) throw IOException("스트림 서버 응답 오류 (HTTP $code)")
+        val total = conn.contentLengthLong.takeIf { it > 0 }
+        var received = 0L
+        var lastPercent = -1
+        var copyReturned = false
+
+        try {
+            conn.inputStream.use { ins ->
+                part.outputStream().use { out ->
+                    received = copyHttpBody(ins, out, total) { rec ->
+                        received = rec
+                        // 크기 불명은 512KB마다, 크기 확인 시 1% 경계마다만 갱신한다.
+                        if (total != null) {
+                            val pct = ((rec * 100) / total).toInt()
+                            if (pct != lastPercent) {
+                                lastPercent = pct
+                                onProgress(rec, total)
+                            }
+                        } else if (rec % (512 * 1024) < HTTP_COPY_BUF.toLong()) {
+                            onProgress(rec, null)
+                        }
+                    }
+                    copyReturned = true
+                }
+            }
+        } catch (e: IOException) {
+            coroutineContext.ensureActive()
+            // 본문 복사 완료 뒤 close/RST, 또는 디스크에 전량이 있으면 정상 종료한다.
+            if (!shouldKeepDownload(e, received, total, part.length(), copyReturned)) throw e
+        }
+        coroutineContext.ensureActive()
+        if (part.length() <= 0L) throw IOException("다운로드 파일이 비어 있습니다")
+        FilePromote.file(part, final)
+        succeeded = true
+        return final
+    } finally {
+        try {
+            conn?.disconnect()
+        } finally {
+            if (!succeeded) part.delete()
+        }
+    }
+}
 
 /**
  * NewPipeExtractor 요청 전송기. OkHttp 등 추가 의존성 없이 HttpURLConnection 기반으로 동작.
@@ -377,6 +387,7 @@ internal suspend fun copyHttpBody(
         val n = try {
             input.read(buf)
         } catch (e: IOException) {
+            coroutineContext.ensureActive()
             if (downloadReachedTotal(received, total) ||
                 (total == null && received > 0 && isBenignDisconnect(e))
             ) {
@@ -384,6 +395,8 @@ internal suspend fun copyHttpBody(
             }
             throw e
         }
+        // read 중 취소될 수 있다. 마지막 read/EOF도 쓰기·진행률·승격 전에 취소를 소비한다.
+        coroutineContext.ensureActive()
         if (n < 0) break
         if (n == 0) continue
         output.write(buf, 0, n)
@@ -391,6 +404,7 @@ internal suspend fun copyHttpBody(
         onProgress(received)
         if (downloadReachedTotal(received, total)) break
     }
+    coroutineContext.ensureActive()
     if (total != null && received < total) {
         throw IOException("다운로드가 중간에 끊겼습니다 ($received / $total)")
     }

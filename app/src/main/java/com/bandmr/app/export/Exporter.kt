@@ -14,8 +14,10 @@ import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.coroutines.coroutineContext
 
 /** 가공 믹스 및 스템 개별 파일 내보내기 */
 class Exporter(private val context: Context) {
@@ -64,6 +66,7 @@ class Exporter(private val context: Context) {
                 val total = stems.totalFrames
                 var pos = 0L
                 while (pos < total) {
+                    coroutineContext.ensureActive()
                     val frames = minOf(CHUNK.toLong(), total - pos).toInt()
                     java.util.Arrays.fill(mixed, 0, frames * 2, 0f)
                     // 재생(StemMixPlayer)과 같은 접근자·같은 순서로 합산한다
@@ -122,18 +125,11 @@ class Exporter(private val context: Context) {
      * SAF 목적지에 곧바로 쓰지 못하는 이유: [WavWriter]는 close 때 헤더의 크기 필드를 되짚어
      * 패치하므로 랜덤 액세스가 필요하다. 실패해도 수십 MB짜리 중간 파일을 캐시에 남기지 않는다.
      */
-    private fun writeMixTo(dest: Uri, render: (WavWriter) -> Unit) {
-        val tmp = File(context.cacheDir, "export_mix.wav")
-        tmp.delete()
-        try {
-            WavWriter.create(tmp, PIPELINE_SAMPLE_RATE).use(render)
-            copyTmpToDest(tmp, dest)
-        } finally {
-            tmp.delete()
-        }
+    private suspend fun writeMixTo(dest: Uri, render: suspend (WavWriter) -> Unit) {
+        writeMixWav(context.cacheDir, render) { tmp -> copyTmpToDest(tmp, dest) }
     }
 
-    private fun renderDspChunks(
+    private suspend fun renderDspChunks(
         reader: WavReader,
         chain: DspChain,
         shifter: PitchShifter,
@@ -145,6 +141,7 @@ class Exporter(private val context: Context) {
         val buf = ShortArray(CHUNK * 2)
         var pos = 0L
         while (pos < totalFrames) {
+            coroutineContext.ensureActive()
             val frames = reader.read(pos, buf, CHUNK)
             if (frames == 0) break
             // 재생 경로(SourceWavPlayer)와 동일한 순서: 피치시프트 → 제거 체인
@@ -185,7 +182,6 @@ class Exporter(private val context: Context) {
         context.contentResolver.openOutputStream(dest, "wt")?.use { out ->
             tmp.inputStream().use { input -> input.copyTo(out) }
         } ?: error("저장 위치를 열 수 없습니다")
-        tmp.delete()
     }
 
     companion object {

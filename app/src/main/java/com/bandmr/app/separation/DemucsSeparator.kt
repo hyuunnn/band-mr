@@ -110,6 +110,9 @@ class DemucsSeparator {
                         }
                     }
 
+                    // 마지막 추론 중 취소되면 다음 청크의 시작 검사가 없다.
+                    if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
+
                     // ---- 오버랩-애드 기록 ----
                     // 출력 텐서 레이아웃은 [stem][channel][seg] 이므로 stride는 len이 아니라 seg.
                     val writable = if (isLast) len else chunk.writable
@@ -159,6 +162,7 @@ class DemucsSeparator {
         } finally {
             writers.values.forEach { runCatching { it.close() } }
         }
+        if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
         return writers.keys.associateWith { File(outDir, "${it.fileName}.wav") }
     }
 

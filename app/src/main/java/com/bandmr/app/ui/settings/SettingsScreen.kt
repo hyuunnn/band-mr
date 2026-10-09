@@ -52,6 +52,7 @@ import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemFiles
 import com.bandmr.app.separation.Tier
+import com.bandmr.app.separation.withStemMutation
 import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
@@ -319,20 +320,21 @@ private suspend fun clearMixCache(): Long {
 
 /** 모든 곡의 스템을 버리고 DB의 분리 표시도 내린다. @return 회수한 바이트 */
 private suspend fun deleteAllStems(): Long {
-    // 진행 중인 분리를 먼저 취소한다. 취소는 세그먼트 경계에서만 판정되므로 그 사이 완료된
-    // 분리가 승격될 수 있다 → .part 디렉터리까지 함께 지워 "DB는 미분리인데 스템만 남은"
-    // 고아를 만들지 않는다(승격이 실패로 끝난다)
+    // 진행 중인 분리를 취소하고 .part까지 지운다. 블로킹 추론이 아직 끝나지 않은
+    // 경우에도 쓰던 디렉터리를 버려 고아 산출물을 남기지 않는다.
     if (SepBus.state.value is SepState.Running) {
         SeparationService.cancel(Locator.context)
     }
     Locator.playerController.release()
-    val freed = withContext(Dispatchers.IO) {
-        CacheStorage.clearSubdirectories(StemFiles.dir(Locator.context), includeInFlight = true)
+    return withContext(Dispatchers.IO) {
+        // 확정 중인 분리는 파일·DB 기록까지 마친 뒤 지운다. 화면 이탈로 이 정리가
+        // 취소되더라도 파일 삭제와 DB 표시 해제가 갈라지지 않도록 같은 확정 락을 쓴다.
+        withStemMutation {
+            val freed = CacheStorage.clearSubdirectories(StemFiles.dir(Locator.context), includeInFlight = true)
+            Locator.songDao.clearAllSeparation()
+            freed
+        }
     }
-    // 파일이 사라졌으므로 DB의 분리 표시도 함께 내린다(한 문장 UPDATE).
-    // 안 내리면 AI ON이 스템 없는 곡을 열려다 실패한다
-    Locator.songDao.clearAllSeparation()
-    return freed
 }
 
 /**

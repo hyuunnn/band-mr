@@ -105,7 +105,7 @@ class SeparationService : Service() {
 
             setState(SepState.Running(songId, "입력 준비 중…", 0f))
             // MixCache.prepare와 ONNX 추론은 둘 다 블로킹이라 IO 디스패처에서 돌린다
-            val stemsDir = withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 val wav = MixCache.prepare(this@SeparationService, songId, song.uri.toUri())
 
                 partDir.deleteRecursively()
@@ -113,18 +113,19 @@ class SeparationService : Service() {
                     modelFile, ModelConfig(stemOrder = tier.stemOrder), wav, partDir,
                     segmentSamples = tier.segmentSamples,
                     onProgress = { p, stage ->
-                        // 취소된 뒤에는 상태를 되살리지 않는다. isCancelled는 세그먼트 경계에서만
-                        // 보므로, 취소 시점의 세그먼트가 끝나면 진행률이 한 번 더 올라온다
+                        // 추론 후 취소 확인과 이 콜백 사이에 취소돼도 상태를 되살리지 않는다.
                         if (self?.isActive == true) setState(SepState.Running(songId, stage, p))
                     },
                     isCancelled = { self?.isActive != true },
                 )
                 check(stems.isNotEmpty()) { "분리 결과가 없습니다" }
-                // 완성된 결과만 정식 디렉터리로 교체한다. 중간에 취소/실패하면 이전 스템이 그대로
-                // 남아서 DB의 분리 완료 표시(stemsDir)와 파일이 어긋나지 않는다
-                promoteStems(partDir, StemFiles.songDir(this@SeparationService, songId))
+                // 취소를 확인한 뒤 파일·DB를 함께 확정한다. DB 갱신을 IO 밖에 두면 복귀 시
+                // 취소가 전달되어 파일만 새 결과로 바뀔 수 있다.
+                commitSeparation(
+                    promote = { promoteStems(partDir, StemFiles.songDir(this@SeparationService, songId)) },
+                    record = { dir -> dao.updateSeparation(songId, tier.id, dir.absolutePath) },
+                )
             }
-            dao.updateSeparation(songId, tier.id, stemsDir.absolutePath)
             // 완료 여부는 Song.isSeparated가 갖는다 — 버스는 진행/오류 표시 전용이라 Idle로 되돌린다
             setState(SepState.Idle)
         } catch (e: CancellationException) {

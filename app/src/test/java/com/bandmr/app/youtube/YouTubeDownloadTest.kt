@@ -1,6 +1,8 @@
 package com.bandmr.app.youtube
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,6 +17,71 @@ import java.net.SocketException
 class YouTubeDownloadTest {
 
     private val payload = ByteArray(200) { it.toByte() }
+
+    @Test
+    fun `마지막 블로킹 read 중 취소하면 쓰기와 진행률을 실행하지 않는다`() {
+        val job = Job()
+        val out = ByteArrayOutputStream()
+        var progressed = false
+        val body = object : ByteArrayInputStream(payload) {
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                job.cancel()
+                return super.read(b, off, len)
+            }
+        }
+        try {
+            runBlocking(job) { copyHttpBody(body, out, payload.size.toLong()) { progressed = true } }
+            throw AssertionError("취소가 전파되어야 함")
+        } catch (_: CancellationException) {
+            assertEquals(0, out.size())
+            assertFalse(progressed)
+        }
+    }
+
+    @Test
+    fun `길이 미상 read가 취소 후 RST로 끝나도 완료로 처리하지 않는다`() {
+        val job = Job()
+        val body = object : InputStream() {
+            var first = true
+            override fun read(): Int = error("bulk read만 사용")
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (first) {
+                    first = false
+                    b[off] = 1
+                    return 1
+                }
+                job.cancel()
+                throw SocketException("Connection reset")
+            }
+        }
+        var returned = false
+        try {
+            runBlocking(job) {
+                copyHttpBody(body, ByteArrayOutputStream(), null)
+                returned = true
+            }
+            throw AssertionError("취소가 전파되어야 함")
+        } catch (_: CancellationException) {
+            assertFalse(returned)
+        }
+    }
+
+    @Test
+    fun `마지막 진행률에서 취소하면 복사 완료를 반환하지 않는다`() {
+        val job = Job()
+        var returned = false
+        try {
+            runBlocking(job) {
+                copyHttpBody(ByteArrayInputStream(payload), ByteArrayOutputStream(), payload.size.toLong()) {
+                    job.cancel()
+                }
+                returned = true
+            }
+            throw AssertionError("취소가 전파되어야 함")
+        } catch (_: CancellationException) {
+            assertFalse(returned)
+        }
+    }
 
     @Test
     fun `전량 수신 후 read 예외는 정상 종료`() {
