@@ -305,6 +305,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
 
     if (showLinkDialog) {
         val busy = YouTubeImport.isRunning()
+        var confirmStop by remember(busy) { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = {
                 // 진행 중이어도 다이얼로그만 닫으면 백그라운드(appScope)에서 계속 진행된다
@@ -371,10 +372,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (busy) {
-                        TextButton(onClick = {
-                            YouTubeImport.cancel()
-                            showLinkDialog = false
-                        }) { Text("중단") }
+                        TextButton(onClick = { confirmStop = true }) { Text("중단") }
                     }
                     TextButton(onClick = {
                         showLinkDialog = false
@@ -383,6 +381,26 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                 }
             },
         )
+
+        if (confirmStop && busy) {
+            AlertDialog(
+                onDismissRequest = { confirmStop = false },
+                title = { Text("곡 추가를 중단할까요?") },
+                text = { Text("유튜브에서 곡을 가져오는 작업을 중단합니다.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmStop = false
+                        if (YouTubeImport.isRunning()) {
+                            YouTubeImport.cancel()
+                            showLinkDialog = false
+                        }
+                    }) { Text("중단하기") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmStop = false }) { Text("계속하기") }
+                },
+            )
+        }
     }
 
     pendingDelete?.let { song ->
