@@ -93,10 +93,12 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 **파일·캐시**
 - **임시 산출물 승격은 반드시 `FilePromote`.** MixCache WAV·스템 디렉터리·모델·유튜브 원본이 "완성 뒤에만 정식 이름으로 공개" 규약을 공유한다. 복사 폴백이 도중에 실패하면 목적지를 지운다 — 이 앱은 파일 존재를 완성 신호로 쓰므로 잘린 결과가 남으면 손상 캐시가 재생에 쓰인다. 분리 결과는 `stems/<songId>.part` → 성공 시에만 승격(정식 디렉터리를 먼저 지우면 실패 시 스템 없는 곡이 된다)
 - **MixCache 준비는 1패스.** `decodeTo44kStereo` → `WavWriter`가 `.part`에 직접(헤더 크기는 close 때 패치). 중간 raw를 만들면 쓰기량·피크가 2배. 승격은 반드시 close 뒤
-- **빈 디코딩 결과는 승격하지 않는다.** `decodeTo44kStereo`가 0프레임을 돌려주면 `prepare`가 던진다 — 헤더만 있는 44바이트 WAV는 `FilePromote`(크기를 보지 않는다)와 `WavReader` 파싱을 **둘 다 통과**해서, 한 번 공개되면 아무도 못 잡고 `play()`가 조용히 no-op이 된다(재생 버튼 영구 무반응). `MixCacheWavTest`가 "기존 안전장치로는 못 막는다"를 고정한다
+- **빈 디코딩 결과는 승격하지 않는다.** `decodeTo44kStereo`가 0프레임을 돌려주면 `prepare`가 던진다 — 헤더만 있는 44바이트 WAV는 `FilePromote`(0바이트만 차단)와 `WavReader` 파싱을 **둘 다 통과**해서, 한 번 공개되면 아무도 못 잡고 `play()`가 조용히 no-op이 된다(재생 버튼 영구 무반응). `MixCacheWavTest`가 "기존 안전장치로는 못 막는다"를 고정한다
 - **쓸 수 없는 캐시 WAV는 즉시 버린다(`openSourceOrDiscardCache`).** `prepare`가 `exists()`만 보므로 열기 실패를 "캐시 없음"으로 흘리면 준비→실패→준비가 영구히 겉돈다. `MixCache.delete`로 wav·peaks를 함께 지울 것(파형 캐시 검사는 원본 **크기** 기준이라 재생성본이 같은 크기면 손상본 막대가 살아남는다). 길이 0 분기는 일회성 마이그레이션 — 위 검사가 없던 버전이 남긴 파일만 해당하고 그 경로가 사라지면 지워도 된다
 - **캐시 비우기의 표시·버튼 활성 기준은 `CacheStorage.clearable*`이다(`dirSize` 아님).** 정리는 쓰는 중인 `.part`/`.tmp`를 건너뛰므로, 집계에 그것들을 넣으면 "용량은 남았는데 눌러도 0B"가 된다. 선정 술어는 `clearableFiles`/`clearableSubdirs` 한 곳에만 두어 집계와 삭제가 갈라질 수 없게 한다(실제로 갈라졌던 버그)
-- **"분리 결과 삭제"는 `.part` 디렉터리까지 지운다(`includeInFlight`).** 취소는 세그먼트 경계에서만 판정되므로, 남겨두면 그 사이 완료된 분리가 승격되어 DB는 미분리인데 스템만 살아 있는 고아가 된다(유효 songId라 `cleanUpOrphans`도 못 지운다)
+- **"분리 결과 삭제"는 `.part`까지 지우고 파일·DB를 `withStemMutation` 안에서 함께 변경한다.** 블로킹 추론은 취소 요청 직후 끝나지 않는다. 확정 중인 분리는 파일·DB 갱신을 마친 뒤 삭제하고, 취소된 추론의 임시 결과도 `includeInFlight`로 제거한다
+- **유튜브 취소 후 재시도는 `importMutex`로 정리까지 직렬화하고, 임시 파일은 작업마다 고유하게 만든다.** 취소된 블로킹 read와 파일 정리가 끝나기 전에 다음 임포트가 겹치지 않게 한다. 늦게 도착한 상태 콜백은 현재 실행 중인 Job만 허용한다
+- **유튜브 시작 상태는 Job 등록 직후, `next.start()` 전에 발행한다.** 락을 기다리는 새 작업도 `Resolving`으로 화면을 갱신해야 중단 버튼이 나온다. 시작 뒤 발행하면 즉시 실패한 작업의 `Failed`를 덮을 수 있다
 - **파형 막대는 `mixcache/<songId>.peaks`에 캐시.** 계산은 WAV 전체 스캔인데 결과는 1.9KB다. 막대 수·원본 크기를 함께 저장해 불일치·손상 시 재계산. 표시 전용이라 실패해도 예외를 던지지 않는다(`FilePromote`를 쓰지 않는 유일한 산출물)
 - 파형 데이터는 **songId 기준 remember**. `preparingSongId`가 바뀔 때 null 하면 슬라이더가 깜빡인다. 캐시가 없으면 `MixCache.awaitReady`로 기다린다(파일 폴링 금지)
 
@@ -104,6 +106,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **`OrtSession`은 분리 1회마다 열고 닫는다(캐시 금지).** ORT 아레나가 3GB대 네이티브 힙을 세션 닫을 때까지 OS에 반환하지 않는다(실측 3.17GB → 닫으면 0.03GB). 오픈은 1초, 분리는 곡당 수 분이라 재사용 이득이 없다
 - **항상 고정 길이 세그먼트**(`Tier.segmentSamples`)로 추론, 마지막 청크는 0 패딩. ONNX가 고정 shape로 export됐다 — 동적 축 금지
 - **취소 판정은 코루틴 자신의 Job으로**(`currentCoroutineContext()[Job]`). 서비스 필드를 읽으면 대입 전 null을 취소로 오판하고, 새 작업이 필드를 덮어써 이전 작업이 안 죽는다. 새 분리는 이전 Job을 `join`한 뒤 시작(세션 수 GB가 겹치면 OOM)
+- **마지막 추론 뒤와 결과 반환 전에도 취소를 확인한다.** 다음 세그먼트 시작에서만 확인하면 마지막 추론 중 취소가 빠진다. 스템 승격·DB 갱신은 `commitSeparation`의 짧은 `NonCancellable` 구간에서 함께 끝내며, 추론 전체를 취소 불가로 감싸지 않는다
 - 분리는 MixCache WAV를 입력으로 쓴다 — 별도 raw 디코딩을 다시 만들지 말 것
 - ModelManager는 Range 이어받기를 한다. 부분 파일(.tmp)은 네트워크 실패 시 보존하고 무결성 실패 시에만 삭제
 
@@ -111,6 +114,7 @@ tools/       모델 변환 스크립트 — 절차는 tools/README.md
 - **Song 저장은 컬럼별 UPDATE만**(`updateStemLevels`/`Semitones`/`Speed`/`Loop`/`Separation`). `get→copy→update`로 쓰면 먼저 쓴 필드가 날아간다
 - **스템 볼륨의 기준은 `stemGainsPacked`.** `muteMask`는 `Stem.muteMaskFromPacked`(0%만 ON)로 파생. AI ON은 `gainArrayFromPacked`(0~1), AI OFF는 체크(0/100) + 보컬 제거 강도
 - **내보내기에 배속·A-B를 넣지 않는다.** 연습용 배속·구간과 저장 파일(원곡 템포·전체 길이)을 섞지 말 것
+- **믹스 내보내기의 임시 WAV는 저장마다 고유하게 만든다(`writeMixWav`).** 취소된 렌더가 늦게 끝나도 새 저장의 파일을 지울 수 없어야 한다. WAV를 닫아 헤더를 완성한 뒤 취소를 확인하고 목적지로 복사한다
 
 ## AI 모델 (GitHub Releases 호스팅)
 

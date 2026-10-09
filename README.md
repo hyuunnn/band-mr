@@ -8,6 +8,8 @@
 
 📊 **그림으로 보는 소개 페이지**: [docs/index.html](docs/index.html)
 
+앱 설치 파일은 [최신 릴리즈](https://github.com/hyuunnn/band-mr/releases/latest)에서 받을 수 있습니다.
+
 ## 주요 기능
 
 | 기능 | 설명 |
@@ -25,7 +27,7 @@
 | 모델 6종 | Demucs 4스템·6스템 × 균형/품질 (약 236MB · 178MB) + SCNet XL/XL IHF 4스템 (6초 세그먼트) 선택 다운로드 |
 | 테마 | 상단의 테마에서 모노, 스노우, 나이트, 앰프, 오로라, 세피아, 커버, 블루, 스튜디오, 가든 중 하나를 고르면 바로 적용. 곡과 재생 설정은 그대로 |
 | 저장공간 관리 | 설정에서 재생 캐시·AI 분리 파일 사용량을 보고 비우기. 곡 목록은 남음. 재생 캐시는 다음 재생 때 다시 만들어짐 |
-| 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 화면을 열어 둔 채 받아야 함 |
+| 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 입력창을 닫아도 작업은 계속되며, 중단 전 확인 팝업 표시 |
 
 ![앱 화면 구성 — 라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
 
@@ -66,15 +68,25 @@ AI ON (사전 분리 후 캐시, 고품질)
 
 ## 빌드
 
-요구사항: Android Studio Quail 2(2026.1.2) 이상, JDK 17+, Android SDK 37
+요구사항: JDK 17, Android SDK 37. Android Studio에서 프로젝트를 열거나 터미널에서 빌드합니다.
 
 ```bash
-# Android Studio에서 열거나
-./gradlew assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 minSdk 33 (Android 13+) / targetSdk 36
+
+GitHub 릴리즈에 올릴 APK는 릴리즈 빌드로 만듭니다.
+
+```bash
+./gradlew :app:assembleRelease
+# APK: app/build/outputs/apk/release/app-release.apk
+```
+
+릴리즈 서명은 로컬 `keystore.properties`로 설정하며, 서명 키와 설정 파일은 커밋하지 않습니다.
+같은 서명의 APK는 `adb install -r`로 기존 데이터를 유지하며 업데이트할 수 있습니다.
+릴리즈 태그는 업로드한 APK를 빌드한 커밋을 가리켜야 합니다.
 
 ## 🤖 AI 모델
 
@@ -140,11 +152,14 @@ app/src/main/java/com/bandmr/app/
 │   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
 │   │                          # ONNX 세션은 분리 1회마다 열고 닫음(메모리 반환)
 │   ├── SeparationService.kt   # Foreground Service + 진행 알림
+│   ├── SeparationCommit.kt    # 취소 확인 후 스템 교체·DB 갱신 확정, 설정의 전체 삭제와 직렬화
 │   └── SepBus.kt              # 서비스↔UI 상태 버스
 ├── youtube/
 │   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
 │   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
-├── export/Exporter.kt         # 믹스/스템 내보내기 (MixCache WAV 재사용, 배속·A-B 제외)
+├── export/
+│   ├── Exporter.kt            # 믹스/스템 내보내기 (MixCache WAV 재사용, 배속·A-B 제외)
+│   └── MixWavExport.kt        # 저장마다 고유 임시 WAV 사용, 헤더 완성·취소 확인 후 목적지 복사
 ├── data/                      # Room(Song v4: stemGains/mute/키/배속/A-B), DataStore(설정). 저장은 컬럼별 UPDATE
 └── ui/                        # Compose (라이브러리/플레이어/설정)
     └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
@@ -161,7 +176,8 @@ tools/export_scnet_onnx.py     # SCNet XL / XL IHF → ONNX 변환 스크립트 
 
 DSP·WAV·청크 수학은 전부 순수 JVM이라 단위테스트로 검증합니다 — FFT, WAV 입출력, 바이쿼드,
 피치 시프트, 배속·점프·A-B, 파형, 캐시 준비 신호, STFT, DSP 리셋, 리샘플러, 스템 게인,
-유튜브 링크 파싱, 파일 승격, 캐시 정리.
+유튜브 링크 파싱·다운로드·취소 후 재시도 상태, 동시 믹스 내보내기, 분리 확정과 취소,
+파일 승격, 캐시 정리.
 
 ## 알아두면 좋은 점
 
@@ -182,7 +198,14 @@ DSP·WAV·청크 수학은 전부 순수 JVM이라 단위테스트로 검증합�
 
 **동작 방식**
 
-- 유튜브 가져오기와 모델 다운로드는 화면을 열어 둔 채 진행해야 합니다. 앱을 내리면 끊길 수 있습니다.
+- 유튜브 입력창의 '닫기'는 작업을 계속합니다. '중단'을 누른 뒤 확인 팝업에서 '중단하기'를
+  선택해야 취소되며, '계속하기'나 팝업 닫기는 작업을 유지합니다.
+- 중단 직후 다시 추가하면 이전 작업의 정리가 끝날 때까지 기다립니다. 이때도
+  '영상 정보를 가져오는 중…'과 중단 버튼이 바로 표시됩니다.
+- 유튜브 가져오기와 모델 다운로드는 완료될 때까지 앱을 열어 두는 것을 권장합니다.
+  앱을 백그라운드로 보내면 기기가 앱을 종료하면서 작업이 끊길 수 있습니다.
+- 이미 분리한 곡을 다시 분리하는 중 취소하면 이전 결과를 유지합니다. 결과 교체를 확정한
+  뒤에는 파일과 모델 정보를 함께 갱신하므로, 그 시점의 취소로 이전 결과로 돌아가지는 않습니다.
 - 같은 유튜브 링크를 다시 추가하면 목록에 곡이 하나 더 생깁니다 — 같은 곡을 키·배속 다르게 두 벌
   두고 싶을 수 있어서 막지 않았습니다. 내려받은 원본 파일은 재사용합니다.
 - 악기별 볼륨 카드를 위아래로 스크롤할 때 슬라이더를 스치면 값이 바뀔 수 있습니다(슬라이더가 누른

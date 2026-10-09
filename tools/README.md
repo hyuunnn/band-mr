@@ -3,7 +3,7 @@
 앱이 쓰는 온디바이스 모델을 만드는 절차. 모델을 다시 export할 때만 필요하고,
 앱 코드를 고치는 작업과는 무관하다 — 그래서 AGENTS.md에서 이 파일로 분리했다.
 
-사용법:
+`tools` 디렉터리에서 실행합니다:
 
 ```bash
 python export_demucs_onnx.py <출력폴더> htdemucs      # Demucs 4스템
@@ -26,10 +26,12 @@ python export_scnet_onnx.py <출력폴더> xl-ihf        # SCNet XL IHF (4스템
 
 ## 환경
 
-python venv는 임시 폴더라 사라졌을 수 있음. 재구성:
+모델 변환용 가상환경을 만들고 활성화합니다:
 
 ```bash
-python3 -m venv && pip install torch torchaudio demucs onnx onnxruntime onnxscript onnxconverter-common pyyaml
+python3 -m venv /tmp/bandmr-model-venv
+source /tmp/bandmr-model-venv/bin/activate
+python -m pip install torch torchaudio demucs onnx onnxruntime onnxscript onnxconverter-common pyyaml
 ```
 
 ## export 후 할 일
