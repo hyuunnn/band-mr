@@ -100,6 +100,8 @@ object YouTubeImport {
             importMutex.withLock { runCatchingImport(input) }
         }
         job = next
+        // 이전 작업 정리를 기다리는 동안에도 화면의 진행 상태와 중단 버튼을 갱신한다.
+        state.value = ImportState.Resolving
         next.start()
         return true
     }
