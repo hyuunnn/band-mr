@@ -108,8 +108,10 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
     var separatedOnly by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
-    val visibleSongs = remember(songs, query, separatedOnly) {
-        songs.filter { (!separatedOnly || it.isSeparated) && it.title.contains(query.trim(), ignoreCase = true) }
+    // 칩 숫자와 목록은 같은 검색 결과에서 센다. 전체 곡 수를 두면 한 곡만 보여도 "전체 5"가 남는다.
+    val matchedSongs = remember(songs, query) { songsMatchingQuery(songs, query) }
+    val visibleSongs = remember(matchedSongs, separatedOnly) {
+        if (separatedOnly) matchedSongs.filter { it.isSeparated } else matchedSongs
     }
 
     fun revealAddedSong() {
@@ -277,8 +279,8 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                         FilterChipDefaults.filterChipColors()
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !separatedOnly, onClick = { separatedOnly = false }, label = { Text("전체 ${songs.size}") }, colors = chipColors)
-                        FilterChip(selected = separatedOnly, onClick = { separatedOnly = true }, label = { Text("AI 분리 완료 ${songs.count { it.isSeparated }}") }, colors = chipColors)
+                        FilterChip(selected = !separatedOnly, onClick = { separatedOnly = false }, label = { Text("전체 ${matchedSongs.size}") }, colors = chipColors)
+                        FilterChip(selected = separatedOnly, onClick = { separatedOnly = true }, label = { Text("AI 분리 완료 ${matchedSongs.count { it.isSeparated }}") }, colors = chipColors)
                     }
                 }
                 if (visibleSongs.isEmpty()) {
@@ -497,6 +499,13 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
             if (design == AppDesign.MONO) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
+}
+
+/** 검색어에 걸리는 곡. 비어 있으면 전체. 칩 개수와 목록이 이 결과를 함께 쓴다. */
+internal fun songsMatchingQuery(songs: List<Song>, query: String): List<Song> {
+    val needle = query.trim()
+    if (needle.isEmpty()) return songs
+    return songs.filter { it.title.contains(needle, ignoreCase = true) }
 }
 
 internal fun formatDuration(ms: Long): String {
