@@ -36,7 +36,9 @@ AI OFF는 모델 없이 동작하는 근사 처리입니다.
 | SCNet XL | 보컬·드럼·베이스·그 외 | 약 286MB |
 | SCNet XL IHF | 보컬·드럼·베이스·그 외 | 약 283MB |
 
-Demucs는 균형형·품질 우선을 제공합니다. 분리 시간은 곡·모델·기기에 따라 달라집니다.
+Demucs는 균형형·품질 우선을 제공합니다. 품질 우선은 시간과 메모리가 더 필요합니다.
+SCNet XL은 Demucs보다 느리고, XL IHF는 XL보다 시간이 더 걸립니다. SCNet은 메모리 4GB 이상인 기기를 권장합니다.
+분리 시간은 곡·모델·기기에 따라 달라집니다.
 모델은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에서 내려받으며 SHA-256을 검증합니다.
 
 ## 동작 안내

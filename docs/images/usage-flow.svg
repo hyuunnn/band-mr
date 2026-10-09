@@ -33,7 +33,7 @@
     <text x="354" y="102" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">3</text>
     <text x="354" y="156" font-size="15" font-weight="bold" fill="#1a1a28" text-anchor="middle">AI 분리</text>
     <text x="354" y="176" font-size="11.5" fill="#66667e" text-anchor="middle">선택한 모델로 4/6스템 분리</text>
-    <text x="354" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">몇십 초 ~ 수분</text>
+    <text x="354" y="192" font-size="11.5" fill="#66667e" text-anchor="middle">곡·모델·기기마다 시간 다름</text>
 
     <line x1="396" y1="92" x2="436" y2="92" stroke="#7C4DFF" stroke-width="2.5" marker-end="url(#ar)"/>
 

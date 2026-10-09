@@ -24,7 +24,7 @@ python export_scnet_onnx.py ./exported xl-ihf
 
 ## 게시
 
-1. 원본 PyTorch와 ONNX 출력의 활성 구간 상관계수 `1.0000`을 확인한다.
+1. 스크립트가 `ALL_OK`로 끝나는지 확인한다. 자동 검증은 패치 전후 PyTorch 오차·고정 입출력 shape·NaN/Inf 및 활성 구간 `corr > 0.99`·`relRMS < 0.1`을 검사한다. `corr=1.0000`은 배포 전 확인할 기대값이다.
 2. 생성한 파일을 GitHub Releases `model-v3`에 올린다. 파일명·스템 순서는 스크립트와 ModelCatalog/Tier를 따른다.
 3. [ModelCatalog.kt](../app/src/main/java/com/bandmr/app/separation/ModelCatalog.kt)의 SHA-256 핀을 갱신한다.
 

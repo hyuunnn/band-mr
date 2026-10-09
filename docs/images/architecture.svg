@@ -50,7 +50,7 @@
       <rect x="252" y="274" width="196" height="26" rx="13" fill="#ffffff" stroke="#DDD2FF"/>
       <text x="350" y="291" text-anchor="middle" fill="#5B3FBF">기타 = 중역대 페킹 딥 (근사)</text>
     </g>
-    <text x="250" y="330" text-anchor="middle" font-size="12" fill="#66667e">캐시 후 즉시 시작 · 배터리 거의 없음 · 완전 분리는 아님</text>
+    <text x="250" y="330" text-anchor="middle" font-size="12" fill="#66667e">캐시 후 바로 재생 · 실시간 DSP · 완전 분리는 아님</text>
     <text x="250" y="352" text-anchor="middle" font-size="12" fill="#66667e">체크·보컬 강도 바꾸면 즉시 반영</text>
   </g>
 
