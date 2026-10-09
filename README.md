@@ -1,212 +1,67 @@
 # 밴드 MR (Band MR)
 
-밴드 연습용 MR 제거 앱 (Android). 곡에서 **보컬 / 드럼 / 베이스 / 기타 / 피아노(키보드) / 그 외**를 악기별로 줄이거나 제거하고 남은 반주로 합주 연습을 할 수 있습니다.
+보컬·드럼·베이스·기타·피아노·그 외 소리를 줄여 합주용 반주를 만드는 Android 앱입니다.
 
-> 스템 분리에는 [Demucs](https://github.com/facebookresearch/demucs) (MIT, Meta Platforms)의
-> htdemucs(4스템)·htdemucs_6s(6스템)와 [SCNet](https://github.com/starrytong/SCNet) XL/XL IHF
-> (MIT, ZFTurbo MUSDB 가중치)를 사용합니다. 서드파티 라이선스 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
+[APK 다운로드](https://github.com/hyuunnn/band-mr/releases/latest) · [그림으로 보기](docs/index.html) · [라이선스 고지](THIRD_PARTY_NOTICES.md)
 
-📊 **그림으로 보는 소개 페이지**: [docs/index.html](docs/index.html)
+## 사용법
 
-앱 설치 파일은 [최신 릴리즈](https://github.com/hyuunnn/band-mr/releases/latest)에서 받을 수 있습니다.
+1. 음악 파일이나 유튜브 링크로 곡을 추가합니다.
+2. AI OFF로 바로 연습하거나, 설정에서 모델을 받은 뒤 AI 분리를 실행합니다.
+3. 악기별 볼륨·키·배속·반복 구간을 조절합니다.
+4. 필요하면 믹스 또는 스템별 WAV를 저장합니다.
+
+![라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
 
 ## 주요 기능
 
-| 기능 | 설명 |
+| 기능 | 범위 |
 |---|---|
-| 스템별 볼륨 | AI ON(분리 후): 4스템(보컬·드럼·베이스·그 외) 또는 6스템(+기타·피아노)을 0~100%로 조절 (0%=제거). AI OFF: 체크 제거(피아노·그 외는 AI 전용) |
-| AI ON/OFF | OFF: 실시간 신호처리(절전) / ON: 온디바이스 AI 분리(고품질) |
-| 보컬 제거 강도 | AI OFF에서 0~100% 슬라이더 조절 (낮음=반주 보존, 높음=최대 제거, 재생 중 즉시 반영) |
-| 키 조절 | ±12반음 (옥타브 포함), 세미톤 단위 피치 시프트 |
-| 속도 조절 | 0.25×~2× (0.05 단위). 키와 독립, 곡마다 저장. 재생만 적용 |
-| 구간 점프 | −10 / −5 / +5 / +10초. 곡 시작·끝(A-B가 켜져 있으면 그 구간)을 넘지 않음 |
-| 파형 시크 | MixCache 개요 파형에서 탭·드래그로 위치 이동. 드래그 중에도 재생이 따라감. 캐시 준비 중엔 슬라이더(완료되면 자동 전환) |
-| A-B 반복 | 시작(A)·끝(B)을 지정하면 그 구간만 반복. 배속·키 유지, 곡마다 저장. 0.5초 이상 |
-| 백그라운드 재생 | 화면을 벗어나거나 홈으로 나가도 재생 유지. 알림에서 −10/−5/재생·일시정지/+5/+10초 조작 |
-| 내보내기 | ① 스템 볼륨·키 설정으로 믹스 WAV 저장(배속·A-B는 넣지 않음) ② 스템별 WAV 개별 저장 |
-| 모델 6종 | Demucs 4스템·6스템 × 균형/품질 (약 236MB · 178MB) + SCNet XL/XL IHF 4스템 (6초 세그먼트) 선택 다운로드 |
-| 테마 | 상단의 테마에서 모노, 스노우, 나이트, 앰프, 오로라, 세피아, 커버, 블루, 스튜디오, 가든 중 하나를 고르면 바로 적용. 곡과 재생 설정은 그대로 |
-| 저장공간 관리 | 설정에서 재생 캐시·AI 분리 파일 사용량을 보고 비우기. 곡 목록은 남음. 재생 캐시는 다음 재생 때 다시 만들어짐 |
-| 유튜브 가져오기 | 링크로 오디오를 받아 곡으로 등록. 입력창을 닫아도 작업은 계속되며, 중단 전 확인 팝업 표시 |
+| 악기 조절 | AI OFF: 체크 제거·보컬 강도 조절. AI ON: 4/6스템별 볼륨 0~100%(피아노·그 외는 AI 전용) |
+| 키·배속 | ±12반음, 0.25×~2×. 곡마다 저장 |
+| 재생 | 파형 시크, ±5/±10초 점프, A-B 반복(최소 0.5초) |
+| 백그라운드 | 알림·잠금화면·블루투스 조작. 전화·이어폰 분리 시 일시정지 |
+| 저장 | 믹스·스템 WAV 내보내기. 믹스에는 볼륨·키만 적용하며 배속·A-B는 제외 |
+| 관리 | 테마 10종, 재생 캐시·분리 결과 정리 |
 
-![앱 화면 구성 — 라이브러리 · 플레이어 · 설정](docs/images/ui-mockup.svg)
+## AI 모델
 
-## 재생 정책
+설정에서 선택한 모델을 다운로드합니다. 분리는 폰에서 처리하고, 완료된 결과는 재사용합니다.
+AI OFF는 모델 없이 동작하는 근사 처리입니다.
 
-- **이어폰 분리**: 이어폰/블루투스가 분리되면 즉시 일시정지됩니다.
-- **백그라운드**: 플레이어 화면을 닫거나 홈으로 나가도 재생이 계속되며, A-B 반복도 화면과 무관하게 유지됩니다.
-- **알림 컨트롤**: MediaSession을 붙여 OS 미디어 플레이어 카드로 표시됩니다. 앱과 같은 5개 버튼(−10 / −5 / 재생·일시정지 / +5 / +10초)과 진행바를 제공하고, 잠금화면·블루투스 조작도 동작합니다. 앱에서 파형을 움직이면 진행바가 즉시 따라옵니다.
-- **종료**: 알림을 밀어서 지우거나 최근 앱 목록에서 앱을 치우면 재생이 정리됩니다(홈으로 나가는 것만으로는 종료되지 않습니다).
-
-## AI ON/OFF 동작 방식
-
-![두 가지 재생 엔진 아키텍처](docs/images/architecture.svg)
-
-<details>
-<summary>텍스트로 보기</summary>
-
-```
-AI OFF (WAV 캐시, 절전)
-  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ SourceWavPlayer(DspChain)
-                                      ├ 보컬 제거: STFT 패닝 인덱스 중앙 마스킹 (저역 중앙 성분 보존)
-                                      ├ 베이스 제거: STFT f0 배음 노칭 + 하이패스 2단
-                                      ├ 드럼 제거: STFT HPSS 타악 억제 (근사)
-                                      └ 기타 제거: 중역대 페킹 딥 (실험적)
-
-AI ON (사전 분리 후 캐시, 고품질)
-  원본 파일 ──▶ MixCache(44.1kHz WAV) ──▶ ONNX 추론(Demucs/SCNet, 4 또는 6스템, 고정 세그먼트)
-             ──▶ 스템별 WAV 캐시 ──▶ 커스텀 믹서로 동기 재생 + 게인/피치/배속
-```
-
-</details>
-
-![시작하는 5단계](docs/images/usage-flow.svg)
-
-- **AI OFF**: 즉시 반응하고 배터리를 거의 쓰지 않지만, 신호처리 특성상 완전히 분리되진 않습니다(특히 기타).
-- **AI ON**: 곡당 한 번만 처리하면 캐시로 재사용되며, 스템별 볼륨(0~100%)으로 정확히 조절됩니다.
-  - 균형형: 수분 내외 / 품질: 더 길고 발열 있음
-
-## 빌드
-
-요구사항: JDK 17, Android SDK 37. Android Studio에서 프로젝트를 열거나 터미널에서 빌드합니다.
-
-```bash
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-minSdk 33 (Android 13+) / targetSdk 36
-
-GitHub 릴리즈에 올릴 APK는 릴리즈 빌드로 만듭니다.
-
-```bash
-./gradlew :app:assembleRelease
-# APK: app/build/outputs/apk/release/app-release.apk
-```
-
-릴리즈 서명은 로컬 `keystore.properties`로 설정하며, 서명 키와 설정 파일은 커밋하지 않습니다.
-같은 서명의 APK는 `adb install -r`로 기존 데이터를 유지하며 업데이트할 수 있습니다.
-릴리즈 태그는 업로드한 APK를 빌드한 커밋을 가리켜야 합니다.
-
-## 🤖 AI 모델
-
-AI를 ON하면 설정에서 Demucs 4스템/6스템(균형형·품질) 또는 SCNet XL/XL IHF를 골라
-다운로드할 수 있습니다. 모델은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에
-호스팅되며, 다운로드 시 SHA-256 무결성이 검증됩니다.
-
-| 구성 | 스템 | 모델 | 용량 |
-|---|---|---|---|
-| Demucs 4스템 | 보컬·드럼·베이스·그 외 | htdemucs | 약 236MB |
-| Demucs 6스템 | + 기타·피아노 | htdemucs_6s | 약 178MB |
-| SCNet XL | 보컬·드럼·베이스·그 외 | SCNet XL | 약 286MB |
-| SCNet XL IHF | 보컬·드럼·베이스·그 외 | SCNet XL IHF | 약 283MB |
-
-| 등급 | 세그먼트 | 특징 |
+| 모델 | 스템 | 용량 |
 |---|---|---|
-| 균형형 (권장) | 262,144 샘플 (약 6초) | Demucs 속도·품질 균형 |
-| 품질 우선 | 344,064 샘플 (약 7.8초) | Demucs 최고 품질 |
-| SCNet XL | 262,144 샘플 (약 6초) | 보컬 제거는 Demucs 4스보다 조금 약하고, 악기 분리는 더 정확함. Demucs보다 느림. 메모리 4GB 이상인 기기 권장 |
-| SCNet XL IHF | 262,144 샘플 (약 6초) | 보컬·고역이 XL보다 나음. XL보다 약 1.5~2배 느림. 메모리 4GB 이상인 기기 권장 |
+| Demucs htdemucs | 보컬·드럼·베이스·그 외 | 약 236MB |
+| Demucs htdemucs_6s | 위 4종 + 기타·피아노 | 약 178MB |
+| SCNet XL | 보컬·드럼·베이스·그 외 | 약 286MB |
+| SCNet XL IHF | 보컬·드럼·베이스·그 외 | 약 283MB |
 
-### 모델 재변환
+Demucs는 균형형·품질 우선을 제공합니다. 분리 시간은 곡·모델·기기에 따라 달라집니다.
+모델은 [model-v3](https://github.com/hyuunnn/band-mr/releases/tag/model-v3)에서 내려받으며 SHA-256을 검증합니다.
 
-htdemucs·SCNet 모두 `torch.stft`의 complex 출력 때문에 그대로는 ONNX export가 되지 않아,
-여러 우회가 필요합니다. 절차와 우회 목록은 [`tools/README.md`](tools/README.md)에 있고
-변환은 [`tools/export_demucs_onnx.py`](tools/export_demucs_onnx.py)·
-[`tools/export_scnet_onnx.py`](tools/export_scnet_onnx.py)가 검증까지 자동으로 합니다.
-모델을 다시 올릴 때는 `ModelCatalog.kt`의 SHA-256 핀을 반드시 갱신해야 합니다.
+## 동작 안내
 
-## 프로젝트 구조
+- 유튜브 입력창의 '닫기'는 작업을 계속하고, '중단'은 확인 팝업을 거쳐 취소합니다.
+- 중단 후 다시 추가하면 이전 작업 정리를 기다리며, 대기 중에도 진행 표시와 중단 버튼이 나옵니다.
+- 같은 링크를 다시 추가하면 목록에 별도 곡을 등록하고 내려받은 원본은 재사용합니다.
+- 유튜브·모델 다운로드는 완료까지 앱을 열어 두는 것을 권장합니다. 백그라운드에서는 중단될 수 있습니다.
+- 재분리 취소는 결과 교체 확정 전까지 이전 결과를 보존합니다.
+- 알림을 지우거나 최근 앱에서 앱을 치우면 재생이 종료됩니다. 홈으로 나가면 재생을 유지합니다.
+- AI OFF·키 변경은 음질에 영향을 줄 수 있고, 일부 기기는 낮은 배속을 지원하지 않습니다.
 
-```
-app/src/main/java/com/bandmr/app/
-├── MainActivity.kt            # 네비게이션 (라이브러리/플레이어/설정)
-├── BandMrApp.kt               # Application + 수동 DI(Locator)
-├── audio/
-│   ├── AudioTrackEngine.kt    # 두 재생 엔진 공통 골격 (스레드 루프·A-B·시크·배속·AudioTrack)
-│   ├── DspChain.kt            # STFT 스펙트럼 단계 + 바이쿼드 체인 (실시간·오프라인 공용)
-│   ├── SpectralStage.kt       # 드럼=HPSS 타악 억제 / 베이스=f0 배음 노칭
-│   ├── Fft.kt                 # radix-2 FFT (사전 계산 트위들 테이블)
-│   ├── Biquad.kt              # RBJ cookbook 바이쿼드 (스펙트럼 단계·리샘플러 사용)
-│   ├── MixCache.kt            # 원본 → 44.1kHz WAV 캐시 1패스 생성(filesDir/mixcache). 완료는 awaitReady 신호
-│   ├── SourceWavPlayer.kt     # WAV 캐시 + DspChain 실시간 재생 (AudioTrack)
-│   ├── PitchShift.kt          # ±12반음 피치 시프터 (0반음은 패스스루)
-│   ├── PlaybackSpeed.kt       # 재생 배속 0.25~2.0 (AudioTrack PlaybackParams)
-│   ├── PlaybackSkip.kt        # ±5/±10초 점프 (0~duration 클램프)
-│   ├── PlaybackLoop.kt        # A-B 구간 반복 (최소 0.5초, 시크/점프도 구간 안)
-│   ├── WaveformPeaks.kt       # MixCache WAV → 개요 파형 (막대 RMS 정규화, <songId>.peaks로 캐시)
-│   ├── StemMixPlayer.kt       # 스템 동기 재생 믹서 (AudioTrack)
-│   ├── StemWavSet.kt          # 스템 WAV 묶음 열기 (누락 스킵·44.1k 불일치 제외·최장 길이) — 재생·내보내기 공용
-│   ├── PlayerController.kt    # 두 엔진 전환/오디오 포커스/파라미터 적용
-│   └── WavIo.kt               # WAV 읽기/스트리밍 쓰기 (little-endian)
-├── io/
-│   ├── FilePromote.kt         # .part/.tmp → 정식 경로 승격 (rename 실패 시 copy, 실패 시 목적지 정리)
-│   └── CacheStorage.kt        # 캐시 용량 집계·비우기 (쓰는 중인 .part/.tmp는 건너뜀)
-├── playback/
-│   └── PlaybackService.kt     # 백그라운드 재생 FGS + MediaSession 알림(점프 5버튼·진행바)
-├── separation/
-│   ├── StemFiles.kt           # 스템 경로의 유일한 정의 (stems/<songId>, <songId>.part)
-│   ├── ModelCatalog.kt        # 모델 6종 정의 (Demucs 4/6 × 균형/품질 + SCNet XL/XL IHF, URL·SHA-256 핀)
-│   ├── ModelManager.kt        # 다운로드(이어받기·SHA-256 검증)/삭제/상태
-│   ├── AudioDecode.kt         # MediaCodec → 44.1kHz 스테레오 PCM16 스트림 (MixCache용, 1패스)
-│   ├── DemucsSeparator.kt     # MixCache WAV 입력 + ONNX 추론 + 오버랩 크로스페이드
-│   │                          # ONNX 세션은 분리 1회마다 열고 닫음(메모리 반환)
-│   ├── SeparationService.kt   # Foreground Service + 진행 알림
-│   ├── SeparationCommit.kt    # 취소 확인 후 스템 교체·DB 갱신 확정, 설정의 전체 삭제와 직렬화
-│   └── SepBus.kt              # 서비스↔UI 상태 버스
-├── youtube/
-│   ├── YouTubeUrl.kt          # 유튜브 링크 파싱·스트림 선택
-│   └── YouTubeImporter.kt     # NewPipeExtractor 다운로드 → Song + MixCache
-├── export/
-│   ├── Exporter.kt            # 믹스/스템 내보내기 (MixCache WAV 재사용, 배속·A-B 제외)
-│   └── MixWavExport.kt        # 저장마다 고유 임시 WAV 사용, 헤더 완성·취소 확인 후 목적지 복사
-├── data/                      # Room(Song v4: stemGains/mute/키/배속/A-B), DataStore(설정). 저장은 컬럼별 UPDATE
-└── ui/                        # Compose (라이브러리/플레이어/설정)
-    └── player/WaveformBar.kt  # 파형 시크바 (탭·드래그, A-B 오버레이)
+## 개발
 
-tools/export_demucs_onnx.py    # htdemucs / htdemucs_6s → ONNX 변환 스크립트 (검증 포함, 절차는 tools/README.md)
-tools/export_scnet_onnx.py     # SCNet XL / XL IHF → ONNX 변환 스크립트 (검증 포함)
-```
-
-## 테스트
+JDK 17, Android SDK 37 필요. Android 13 이상 지원.
 
 ```bash
 ./gradlew :app:testDebugUnitTest
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
 ```
 
-DSP·WAV·청크 수학은 전부 순수 JVM이라 단위테스트로 검증합니다 — FFT, WAV 입출력, 바이쿼드,
-피치 시프트, 배속·점프·A-B, 파형, 캐시 준비 신호, STFT, DSP 리셋, 리샘플러, 스템 게인,
-유튜브 링크 파싱·다운로드·취소 후 재시도 상태, 동시 믹스 내보내기, 분리 확정과 취소,
-파일 승격, 캐시 정리.
+배포 APK는 `app/build/outputs/apk/release/app-release.apk`입니다.
+릴리즈 서명은 커밋하지 않는 `keystore.properties`로 설정합니다.
+동일 서명의 APK는 `adb install -r`로 데이터를 유지하며 업데이트합니다.
+릴리즈 태그는 APK를 빌드한 커밋을 가리켜야 합니다.
 
-## 알아두면 좋은 점
-
-**음질** — 비AI 모드는 신호처리 근사입니다
-
-- 기타 제거는 중역대를 깎는 방식이라 같은 대역의 다른 악기도 함께 옅어집니다(정확한 분리는 AI 모드).
-- 드럼 제거는 STFT HPSS 근사로, 트랜지언트 일부가 같이 약해집니다.
-- 키를 바꾸면 음색이 미세하게 훑는 플랜저 성분이 얹힙니다(곡 속도는 바뀌지 않습니다). 반음이
-  커져도 정도가 심해지는 게 아니라 훑는 속도만 빨라집니다 — +1반음은 초당 약 1.5회, +12반음은
-  약 24회. 순음에서는 뚜렷하지만 여러 악기가 섞인 음원에서는 서로 가려져 잘 드러나지 않습니다.
-  키를 건드리지 않으면(0반음) 이 처리를 아예 지나가지 않습니다.
-
-**기기에 따라 다른 것**
-
-- 배속은 AudioTrack 타임스트레치라 0.25×처럼 느린 값을 거부하는 기기가 있습니다.
-- 알림 점프 버튼 배치는 OS 미디어 카드의 슬롯 규칙에 맞춘 것으로, 갤럭시(One UI)에서 확인했습니다.
-  제조사 스킨에 따라 순서가 달라지거나 커스텀 버튼이 표시되지 않을 수 있습니다.
-
-**동작 방식**
-
-- 유튜브 입력창의 '닫기'는 작업을 계속합니다. '중단'을 누른 뒤 확인 팝업에서 '중단하기'를
-  선택해야 취소되며, '계속하기'나 팝업 닫기는 작업을 유지합니다.
-- 중단 직후 다시 추가하면 이전 작업의 정리가 끝날 때까지 기다립니다. 이때도
-  '영상 정보를 가져오는 중…'과 중단 버튼이 바로 표시됩니다.
-- 유튜브 가져오기와 모델 다운로드는 완료될 때까지 앱을 열어 두는 것을 권장합니다.
-  앱을 백그라운드로 보내면 기기가 앱을 종료하면서 작업이 끊길 수 있습니다.
-- 이미 분리한 곡을 다시 분리하는 중 취소하면 이전 결과를 유지합니다. 결과 교체를 확정한
-  뒤에는 파일과 모델 정보를 함께 갱신하므로, 그 시점의 취소로 이전 결과로 돌아가지는 않습니다.
-- 같은 유튜브 링크를 다시 추가하면 목록에 곡이 하나 더 생깁니다 — 같은 곡을 키·배속 다르게 두 벌
-  두고 싶을 수 있어서 막지 않았습니다. 내려받은 원본 파일은 재사용합니다.
-- 악기별 볼륨 카드를 위아래로 스크롤할 때 슬라이더를 스치면 값이 바뀔 수 있습니다(슬라이더가 누른
-  지점으로 즉시 이동하는 기본 동작). 밸런스가 틀어졌으면 '초기화'로 되돌리세요.
+[개발 규칙·코드 지도](AGENTS.md) · [모델 변환 절차](tools/README.md)
