@@ -18,8 +18,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 
 private const val TAG = "PlayerController"
@@ -83,6 +81,7 @@ class PlayerController(private val context: Context) {
     val seekEpoch = MutableStateFlow(0)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val sourcePreparation = SourcePreparation(scope)
 
     // ---------- 오디오 포커스 / 이어폰 분리 ----------
 
@@ -305,42 +304,39 @@ class PlayerController(private val context: Context) {
         if (preparingSongId.value == songId) return
         preparingSongId.value = songId
         if (prepareFailedSongId.value == songId) prepareFailedSongId.value = null
-        scope.launch(Dispatchers.IO) {
-            val ok = runCatching { MixCache.prepare(context, songId, uri) }.isSuccess
-            withContext(Dispatchers.Main) {
-                if (preparingSongId.value == songId) preparingSongId.value = null
-                if (!ok) {
-                    // 실패를 노출하고 저장해 둔 재생 의도도 폐기 (스테일 자동 재생 방지)
+        sourcePreparation.start(prepare = { MixCache.prepare(context, songId, uri) }) { ok ->
+            if (preparingSongId.value == songId) preparingSongId.value = null
+            if (!ok) {
+                // 실패를 노출하고 저장해 둔 재생 의도도 폐기 (스테일 자동 재생 방지)
+                prepareFailedSongId.value = songId
+                clearPendingResume(songId)
+                abandonFocus() // 재생 대기 중 잡아둔 포커스 반납
+                return@start
+            }
+            val cur = currentSong ?: return@start
+            if (cur.id == songId && !aiMode) {
+                val player = openSourceOrDiscardCache(songId)
+                if (player != null) {
+                    val resume = pendingResumeSongId == songId
+                    attachSource(
+                        player,
+                        lastMask,
+                        lastSemitones,
+                        lastSpeed,
+                        resume && pendingResumePlay,
+                        if (resume) pendingResumePosMs else 0L,
+                    )
+                    applyLoopToEngines()
+                    snapIntoLoopIfNeeded()
+                    isPlaying.value = player.isPlaying
+                } else {
+                    // 준비는 성공했는데 캐시를 열지 못한 경우(위에서 그 캐시를 버렸다).
+                    // 실패를 노출해야 재생 버튼이 실제 재시도 진입점이 된다 — 조용히 지나가면
+                    // 화면에 아무 표시 없이 재생만 안 되는 상태로 남는다
                     prepareFailedSongId.value = songId
-                    clearPendingResume(songId)
-                    abandonFocus() // 재생 대기 중 잡아둔 포커스 반납
-                    return@withContext
+                    abandonFocus()
                 }
-                val cur = currentSong ?: return@withContext
-                if (cur.id == songId && !aiMode) {
-                    val player = openSourceOrDiscardCache(songId)
-                    if (player != null) {
-                        val resume = pendingResumeSongId == songId
-                        attachSource(
-                            player,
-                            lastMask,
-                            lastSemitones,
-                            lastSpeed,
-                            resume && pendingResumePlay,
-                            if (resume) pendingResumePosMs else 0L,
-                        )
-                        applyLoopToEngines()
-                        snapIntoLoopIfNeeded()
-                        isPlaying.value = player.isPlaying
-                    } else {
-                        // 준비는 성공했는데 캐시를 열지 못한 경우(위에서 그 캐시를 버렸다).
-                        // 실패를 노출해야 재생 버튼이 실제 재시도 진입점이 된다 — 조용히 지나가면
-                        // 화면에 아무 표시 없이 재생만 안 되는 상태로 남는다
-                        prepareFailedSongId.value = songId
-                        abandonFocus()
-                    }
-                    clearPendingResume(songId)
-                }
+                clearPendingResume(songId)
             }
         }
     }
@@ -511,7 +507,6 @@ class PlayerController(private val context: Context) {
         nowPlayingTitle.value = null
         isPlaying.value = false
         durationMs.value = 0L
-        preparingSongId.value = null
         prepareFailedSongId.value = null
         lastLoopStartMs = null
         lastLoopEndMs = null
@@ -523,6 +518,8 @@ class PlayerController(private val context: Context) {
     // ---------- 유틸 ----------
 
     private fun releaseEngines() {
+        sourcePreparation.invalidate()
+        preparingSongId.value = null
         mixer?.release(); mixer = null
         source?.release(); source = null
     }
