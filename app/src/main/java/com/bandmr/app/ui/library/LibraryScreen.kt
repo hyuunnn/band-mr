@@ -76,9 +76,6 @@ import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.deleteSong
-import com.bandmr.app.separation.SepBus
-import com.bandmr.app.separation.SepState
-import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.Tier
 import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.StatusBadge
@@ -86,7 +83,6 @@ import com.bandmr.app.ui.components.TrackArtwork
 import com.bandmr.app.ui.theme.LocalAppDesign
 import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
-import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -411,23 +407,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     Locator.appScope.launch {
-                        // 재생 중인 곡이면 먼저 정지·해제 (삭제된 파일 재생 방지)
-                        if (Locator.playerController.currentSongId() == song.id) {
-                            Locator.playerController.release()
-                        }
-                        // 분리 진행 중이면 취소 (완료 후 스템이 고아로 남는 것 방지)
-                        val sep = SepBus.state.value
-                        if (sep is SepState.Running && sep.songId == song.id) {
-                            SeparationService.cancel(Locator.context)
-                        }
-                        withContext(Dispatchers.IO) {
-                            deleteSong(
-                                song = song,
-                                dao = Locator.songDao,
-                                sourcesDir = File(Locator.context.filesDir, "sources"),
-                                deleteMixCache = { MixCache.delete(Locator.context, song.id) },
-                            )
-                        }
+                        deleteSong(song)
                     }
                     pendingDelete = null
                 }) { Text("삭제") }

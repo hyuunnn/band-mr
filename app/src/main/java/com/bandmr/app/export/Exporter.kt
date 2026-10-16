@@ -2,6 +2,7 @@ package com.bandmr.app.export
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bandmr.app.audio.DspChain
@@ -17,12 +18,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import kotlin.coroutines.coroutineContext
 
 /** 가공 믹스 및 스템 개별 파일 내보내기 */
 class Exporter(private val context: Context) {
 
-    /** 현재 설정(스템 유지 퍼센트 + 반음)으로 재생 중인 오디오를 WAV로 저장. 배속은 연습용이라 넣지 않는다 */
+    /**
+     * 현재 설정(스템 유지 퍼센트 + 반음)으로 WAV를 저장한다. 배속은 연습용이라 넣지 않는다.
+     * [dest]는 CreateDocument로 새로 만든 문서이며, 실패·취소 시 삭제한다.
+     */
     suspend fun exportMix(
         song: Song,
         stemGainsPacked: Long,
@@ -31,18 +36,27 @@ class Exporter(private val context: Context) {
         dest: Uri,
         vocalStrength: Float = 1f,
         onProgress: (Float) -> Unit = {},
-    ): Unit = withContext(Dispatchers.IO) {
-        if (aiOn && song.isSeparated) {
-            exportMixFromStems(song, stemGainsPacked, semitones, dest, onProgress)
-        } else {
-            exportMixFromOriginal(
-                song,
-                Stem.muteMaskFromPacked(stemGainsPacked),
-                semitones,
-                vocalStrength,
-                dest,
-                onProgress,
-            )
+    ): Unit = withExportDestination(discard = { discardMixDestination(dest) }) {
+        withContext(Dispatchers.IO) {
+            if (aiOn && song.isSeparated) {
+                exportMixFromStems(song, stemGainsPacked, semitones, dest, onProgress)
+            } else {
+                exportMixFromOriginal(
+                    song,
+                    Stem.muteMaskFromPacked(stemGainsPacked),
+                    semitones,
+                    vocalStrength,
+                    dest,
+                    onProgress,
+                )
+            }
+        }
+    }
+
+    /** CreateDocument로 새로 받은 목적지만 삭제한다. 렌더 전 실패와 복사 실패에 공통 사용한다. */
+    internal suspend fun discardMixDestination(dest: Uri) = withContext(Dispatchers.IO) {
+        if (!DocumentsContract.deleteDocument(context.contentResolver, dest)) {
+            throw IOException("실패한 저장 파일을 삭제하지 못했습니다")
         }
     }
 
