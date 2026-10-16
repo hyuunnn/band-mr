@@ -10,7 +10,7 @@ import kotlin.coroutines.coroutineContext
 
 private val stemMutationMutex = Mutex()
 
-/** 스템 승격과 설정의 전체 삭제가 서로의 파일·DB 변경 사이에 끼어들지 않게 한다. */
+/** 스템 승격과 곡·전체 스템 삭제가 서로의 파일·DB 변경 사이에 끼어들지 않게 한다. */
 internal suspend fun <T> withStemMutation(block: suspend () -> T): T = stemMutationMutex.withLock {
     coroutineContext.ensureActive()
     withContext(NonCancellable) { block() }

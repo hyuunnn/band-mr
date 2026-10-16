@@ -70,12 +70,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import com.bandmr.app.Locator
 import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Song
+import com.bandmr.app.data.deleteSong
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
@@ -410,7 +410,7 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
             text = { Text("'${song.title}'을(를) 목록과 분리 캐시에서 삭제할까요?") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch {
+                    Locator.appScope.launch {
                         // 재생 중인 곡이면 먼저 정지·해제 (삭제된 파일 재생 방지)
                         if (Locator.playerController.currentSongId() == song.id) {
                             Locator.playerController.release()
@@ -420,21 +420,14 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                         if (sep is SepState.Running && sep.songId == song.id) {
                             SeparationService.cancel(Locator.context)
                         }
-                        song.stemsDir?.let { withContext(Dispatchers.IO) { File(it).deleteRecursively() } }
-                        MixCache.delete(Locator.context, song.id)
-                        // 다른 곡이 참조하지 않는 파일 소스(유튜브 다운로드 원본 등) 정리.
-                        // files/sources 아래 경로만 허용해 의도치 않은 삭제를 차단한다
-                        val shared = Locator.songDao.getAllOnce()
-                            .any { it.id != song.id && it.uri == song.uri }
-                        if (!shared && song.uri.startsWith("file://")) {
-                            val sourcesDir =
-                                File(Locator.context.filesDir, "sources").canonicalFile
-                            song.uri.toUri().path?.let { p ->
-                                File(p).takeIf { it.canonicalFile.parentFile == sourcesDir }
-                                    ?.delete()
-                            }
+                        withContext(Dispatchers.IO) {
+                            deleteSong(
+                                song = song,
+                                dao = Locator.songDao,
+                                sourcesDir = File(Locator.context.filesDir, "sources"),
+                                deleteMixCache = { MixCache.delete(Locator.context, song.id) },
+                            )
                         }
-                        Locator.songDao.delete(song)
                     }
                     pendingDelete = null
                 }) { Text("삭제") }
