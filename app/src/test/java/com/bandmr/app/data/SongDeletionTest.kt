@@ -95,6 +95,36 @@ class SongDeletionTest {
         assertNull(dao.row)
     }
 
+    @Test
+    fun `임포트 롤백은 다운로드 원본을 남기고 캐시와 등록을 삭제한다`() = runBlocking {
+        val sources = temp.newFolder("sources")
+        val source = File(sources, "video.m4a").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val song = song(null).copy(uri = "file://${source.absolutePath}")
+        val dao = RecordingSongDao(song)
+        val cache = temp.newFile("mix.wav")
+        withContext(Dispatchers.IO) {
+            deleteSong(song, dao, sources, keepSource = true) { cache.delete() }
+        }
+        assertArrayEquals(byteArrayOf(1, 2, 3), source.readBytes())
+        assertFalse(cache.exists())
+        assertNull(dao.row)
+    }
+
+    @Test
+    fun `등록 당시 미분리여도 삭제 시점에 완료된 스템까지 정리한다`() = runBlocking {
+        val original = song(null)
+        val stems = temp.newFolder("completed-stems")
+        File(stems, "vocals.wav").writeBytes(byteArrayOf(1, 2))
+        val dao = RecordingSongDao(original.copy(stemsDir = stems.absolutePath, separatedTier = "balanced"))
+        val cache = temp.newFile("mix.wav")
+        withContext(Dispatchers.IO) {
+            deleteSong(original, dao, temp.root) { cache.delete() }
+        }
+        assertFalse(stems.exists())
+        assertFalse(cache.exists())
+        assertNull(dao.row)
+    }
+
     private fun song(stems: File?) = Song(
         id = 1L,
         title = "test",

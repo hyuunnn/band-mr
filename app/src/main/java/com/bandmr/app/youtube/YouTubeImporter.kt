@@ -2,14 +2,17 @@ package com.bandmr.app.youtube
 
 import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import com.bandmr.app.Locator
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.Song
+import com.bandmr.app.data.deleteSong
 import com.bandmr.app.io.FilePromote
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -67,8 +70,9 @@ sealed interface ImportState {
  * 유튜브 링크로 곡을 추가하는 임포터. 화면 수명과 무관하게 끝까지 진행되어야 하므로
  * [Locator.appScope]에서 실행한다 (PlayerController 스코프 취소 버그 교훈 준수).
  *
- * 흐름: 링크 파싱 → StreamInfo 추출(NewPipeExtractor) → 오디오 스트림 선택 →
- * `filesDir/sources/<videoId>.<ext>` 다운로드 → Song 등록(file:// URI) → MixCache 프리페어
+ * 링크 파싱 후 기존 영상은 Song·원본을 재사용한다. 새 영상은 정보 추출(NewPipeExtractor)
+ * → 오디오 스트림 선택 → `filesDir/sources/<videoId>.<ext>` 다운로드 → Song 등록(file:// URI)
+ * → MixCache 준비 순서이며, 준비 실패·취소 시 신규 등록을 되돌린다.
  *
  * 다운로드된 원본은 압축 원본 그대로이며 재생 파이프라인도 기존과 동일하게
  * MixCache의 WAV로 디코딩해 사용한다(압축 원본 스트리밍 금지 불변식 준수).
@@ -148,6 +152,25 @@ object YouTubeImport {
         val context = Locator.context
 
         publish(owner, ImportState.Resolving)
+        val sourcePrefix = Uri.fromFile(File(context.filesDir, "$SOURCES_DIR/$videoId")).toString() + "."
+        val song = importYouTubeSong(
+            dao = Locator.songDao,
+            sourceUriPrefix = sourcePrefix,
+            downloadSong = { downloadSong(videoId, owner) },
+            prepareCache = { song ->
+                publish(owner, ImportState.PreparingCache(song.title))
+                withContext(Dispatchers.IO) {
+                    val decodeJob = currentCoroutineContext()[Job]
+                    MixCache.prepare(context, song.id, song.uri.toUri()) { decodeJob?.ensureActive() }
+                }
+            },
+            rollback = { deleteSong(it, keepSource = true) },
+        )
+        publish(owner, ImportState.Done(song.id, song.title))
+    }
+
+    private suspend fun downloadSong(videoId: String, owner: Job): Song {
+        val context = Locator.context
         val info = withContext(Dispatchers.IO) { resolveInfo(videoId) }
 
         val title = info.name.orEmpty().ifBlank { "제목 없음" }.take(MAX_TITLE_LEN)
@@ -177,19 +200,12 @@ object YouTubeImport {
             }
         }
 
-        publish(owner, ImportState.PreparingCache(title))
-        val songId = Locator.songDao.insert(
-            Song(
-                title = title,
-                uri = Uri.fromFile(source).toString(),
-                // 라이브·길이 불명 영상은 음수가 나올 수 있다
-                durationMs = info.duration.coerceAtLeast(0) * 1000L,
-            ),
+        return Song(
+            title = title,
+            uri = Uri.fromFile(source).toString(),
+            // 라이브·길이 불명 영상은 음수가 나올 수 있다
+            durationMs = info.duration.coerceAtLeast(0) * 1000L,
         )
-        withContext(Dispatchers.IO) {
-            MixCache.prepare(context, songId, Uri.fromFile(source))
-        }
-        publish(owner, ImportState.Done(songId, title))
     }
 
     private fun resolveInfo(videoId: String): StreamInfo {

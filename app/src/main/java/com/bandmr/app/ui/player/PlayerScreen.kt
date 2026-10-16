@@ -2,6 +2,8 @@ package com.bandmr.app.ui.player
 
 import android.Manifest
 import android.os.SystemClock
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -71,6 +73,7 @@ import com.bandmr.app.audio.WaveformPeaks
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Stem
 import com.bandmr.app.export.Exporter
+import com.bandmr.app.export.ExportStatus
 import com.bandmr.app.playback.PlaybackService
 import com.bandmr.app.separation.SepBus
 import com.bandmr.app.separation.SepState
@@ -84,6 +87,7 @@ import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
 import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -95,6 +99,15 @@ fun PlayerScreen(songId: Long) {
     val song by Locator.songDao.observe(songId).collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     val ctrl = remember { Locator.playerController }
+    var hadSong by remember(songId) { mutableStateOf(false) }
+    LaunchedEffect(song?.id) {
+        if (song != null) {
+            hadSong = true
+        } else if (hadSong && ctrl.currentSongId() == songId) {
+            // 임포트 롤백 등으로 열린 곡이 삭제되면, 삭제 직전 재준비 요청도 무효화한다.
+            ctrl.release()
+        }
+    }
 
     val aiOn by Locator.settings.aiEnabled.collectAsState(initial = false)
     val selectedTierId by Locator.settings.modelTier.collectAsState(initial = Tier.S6_BALANCED.id)
@@ -111,8 +124,9 @@ fun PlayerScreen(songId: Long) {
     var loopStartMs by remember { mutableStateOf<Long?>(null) }
     var loopEndMs by remember { mutableStateOf<Long?>(null) }
     var waveformPeaks by remember(songId) { mutableStateOf<FloatArray?>(null) }
-    var exporting by remember { mutableStateOf(false) }
-    var exportMsg by remember { mutableStateOf<String?>(null) }
+    val exportStates by Locator.exportTasks.states.collectAsState()
+    val exportStatus = exportStates[songId]
+    val exporting = exportStatus?.running == true
     var selectedTab by rememberSaveable(songId) { mutableIntStateOf(0) }
 
     val notifPermission = rememberLauncherForActivityResult(
@@ -393,7 +407,7 @@ fun PlayerScreen(songId: Long) {
             )
         }
 
-        // Keep the launchers and export scope composed while switching tabs.
+        // 파일 선택 결과는 탭 전환 중에도 받는다. 저장 작업·결과는 앱 수명에 둔다.
         ExportCard(
             visible = selectedTab == 2,
             song = s,
@@ -402,10 +416,7 @@ fun PlayerScreen(songId: Long) {
             stemGainsPacked = stemGainsPacked,
             semitones = semitones,
             vocalStrength = vocalStrength,
-            exporting = exporting,
-            exportMsg = exportMsg,
-            setExporting = { exporting = it },
-            setExportMsg = { exportMsg = it },
+            status = exportStatus,
         )
         }
     }
@@ -915,26 +926,36 @@ private fun ExportCard(
     stemGainsPacked: Long,
     semitones: Int,
     vocalStrength: Float,
-    exporting: Boolean,
-    exportMsg: String?,
-    setExporting: (Boolean) -> Unit,
-    setExportMsg: (String?) -> Unit,
+    status: ExportStatus?,
 ) {
-    val scope = rememberCoroutineScope()
     val exporter = remember { Locator.exporter }
+    val tasks = remember { Locator.exportTasks }
+    val exporting = status?.running == true
 
     val mixLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("audio/wav")
     ) { uri ->
         if (uri != null) {
-            setExporting(true)
-            setExportMsg(null)
-            scope.launch {
-                runCatching {
-                    exporter.exportMix(song, stemGainsPacked, semitones, aiOn, uri, vocalStrength)
-                }.onSuccess { setExportMsg("저장 완료") }
-                    .onFailure { setExportMsg("실패: ${it.message}") }
-                setExporting(false)
+            val started = tasks.start(song.id) {
+                exporter.exportMix(song, stemGainsPacked, semitones, aiOn, uri, vocalStrength)
+                "저장 완료"
+            }
+            if (!started) {
+                // 다른 화면에서 같은 곡의 저장이 먼저 시작됐으면 새 빈 목적지를 정리한다.
+                Locator.appScope.launch {
+                    try {
+                        exporter.discardMixDestination(uri)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        Log.w("MixExport", "중복 저장 요청의 빈 파일 삭제 실패", failure)
+                        Toast.makeText(
+                            Locator.context,
+                            "추가로 선택한 빈 파일을 삭제하지 못했습니다. 저장 위치를 확인해 주세요.",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
             }
         }
     }
@@ -943,15 +964,9 @@ private fun ExportCard(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) {
-            setExporting(true)
-            setExportMsg(null)
-            scope.launch {
-                runCatching {
-                    val n = exporter.exportStems(song, uri)
-                    "스템 ${n}개 저장 완료"
-                }.onSuccess { setExportMsg(it) }
-                    .onFailure { setExportMsg("실패: ${it.message}") }
-                setExporting(false)
+            tasks.start(song.id) {
+                val n = exporter.exportStems(song, uri)
+                "스템 ${n}개 저장 완료"
             }
         }
     }
@@ -980,7 +995,10 @@ private fun ExportCard(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Text("전체 곡을 원래 속도로 저장해요. 구간 반복과 연습용 재생 속도는 저장 파일에 적용되지 않아요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (exporting) LinearProgressIndicator(Modifier.fillMaxWidth())
-        exportMsg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        if (exporting) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text("화면을 나가도 저장을 계속해요.", style = MaterialTheme.typography.bodySmall)
+        }
+        status?.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
 }

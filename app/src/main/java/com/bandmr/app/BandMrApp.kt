@@ -9,6 +9,7 @@ import com.bandmr.app.data.AppDatabase
 import com.bandmr.app.data.SettingsStore
 import com.bandmr.app.data.Song
 import com.bandmr.app.export.Exporter
+import com.bandmr.app.export.ExportTasks
 import com.bandmr.app.separation.ModelManager
 import com.bandmr.app.separation.StemFiles
 import kotlinx.coroutines.CoroutineScope
@@ -109,4 +110,5 @@ object Locator {
     val modelManager: ModelManager by lazy { ModelManager(appContext) }
     val playerController: PlayerController by lazy { PlayerController(appContext) }
     val exporter: Exporter by lazy { Exporter(appContext) }
+    val exportTasks by lazy { ExportTasks(appScope) }
 }
