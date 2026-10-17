@@ -12,9 +12,13 @@ import com.bandmr.app.export.Exporter
 import com.bandmr.app.export.ExportTasks
 import com.bandmr.app.separation.ModelManager
 import com.bandmr.app.separation.StemFiles
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -31,18 +35,31 @@ class BandMrApp : Application() {
 
     /** 캐시 없는 기존 곡들을 백그라운드로 미리 변환해 첫 재생이 즉시 되도록 한다 */
     private fun preCacheMixes() {
-        Locator.appScope.launch(Dispatchers.IO) {
-            runCatching {
+        Locator.startupPreCacheJob = Locator.appScope.launch(Dispatchers.IO) {
+            try {
+                val preCacheContext = currentCoroutineContext()
                 val songs = Locator.songDao.getAllOnce()
                 cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
                 cleanUpSourceFiles(songs)
                 songs.forEach { song ->
+                    preCacheContext.ensureActive()
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
-                        runCatching {
-                            MixCache.prepare(this@BandMrApp, song.id, song.uri.toUri())
-                        }.onFailure { Log.w(TAG, "곡 ${song.id} 캐시 준비 실패", it) }
+                        try {
+                            MixCache.prepare(
+                                this@BandMrApp, song.id, song.uri.toUri(),
+                                checkCancelled = { preCacheContext.ensureActive() },
+                            )
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (failure: Throwable) {
+                            Log.w(TAG, "곡 ${song.id} 캐시 준비 실패", failure)
+                        }
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                Log.w(TAG, "시작 캐시 준비 실패", failure)
             }
         }
     }
@@ -90,6 +107,9 @@ object Locator {
 
     /** 화면 수명과 무관하게 끝까지 실행되어야 하는 작업용 (모델 다운로드, 캐시 프리페치 등) */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** 캐시 비우기가 취소·종료를 기다릴 대상. 앱 시작 때 한 번만 등록한다. */
+    internal var startupPreCacheJob: Job? = null
 
     fun init(app: Application) {
         appContext = app
