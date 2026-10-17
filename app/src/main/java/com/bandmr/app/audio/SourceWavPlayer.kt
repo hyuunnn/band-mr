@@ -27,6 +27,7 @@ class SourceWavPlayer(
     @Volatile
     var muteMask: Int = 0
         set(value) {
+            if (field == value) return
             field = value
             rebuildChain()
         }

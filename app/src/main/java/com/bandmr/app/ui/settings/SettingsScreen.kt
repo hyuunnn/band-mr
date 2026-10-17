@@ -105,10 +105,11 @@ fun SettingsScreen() {
                         },
                         onDownload = {
                             busyTier = tier.id
+                            val selectionVersion = Locator.settings.modelSelectionVersion
                             // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
                             Locator.appScope.launch {
                                 runCatching { Locator.modelManager.download(tier) }
-                                    .onSuccess { Locator.settings.setModelTier(tier.id) }
+                                    .onSuccess { Locator.settings.selectDownloadedModel(tier.id, selectionVersion) }
                                 busyTier = null
                             }
                         },
@@ -194,6 +195,10 @@ private fun ModelTierCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         when (state) {
+            ModelState.Checking -> {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("모델 파일 확인 중…", style = MaterialTheme.typography.labelMedium)
+            }
             is ModelState.Downloading -> {
                 LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
                 Text("다운로드 중 · ${(state.progress * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)

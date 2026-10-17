@@ -25,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -100,13 +101,17 @@ class SeparationService : Service() {
             acquireWakeLock()
             val song = dao.get(songId) ?: error("곡을 찾을 수 없습니다")
             val tier = Tier.fromId(Locator.settings.modelTier.first())
-            val modelFile = Locator.modelManager.modelFile(tier)
-            if (!modelFile.exists()) error("먼저 설정에서 '${tier.label}' 모델을 다운로드하세요")
+            val modelFile = Locator.modelManager.requireModel(tier)
 
             setState(SepState.Running(songId, "입력 준비 중…", 0f))
             // MixCache.prepare와 ONNX 추론은 둘 다 블로킹이라 IO 디스패처에서 돌린다
             withContext(Dispatchers.IO) {
-                val wav = MixCache.prepare(this@SeparationService, songId, song.uri.toUri())
+                val decodeContext = currentCoroutineContext()
+                val wav = MixCache.prepare(
+                    this@SeparationService, songId, song.uri.toUri(),
+                    checkCancelled = { decodeContext.ensureActive() },
+                )
+                decodeContext.ensureActive()
 
                 partDir.deleteRecursively()
                 val stems = DemucsSeparator().separate(

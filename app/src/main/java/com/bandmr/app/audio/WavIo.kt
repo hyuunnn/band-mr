@@ -89,7 +89,7 @@ class WavReader(private val file: File) : Closeable {
         val byteLen = toRead * frameBytes
         // scratch 할당·읽기·변환을 한 락 안에서 한다 — scratch가 공유 필드라, 한 리더를 두
         // 스레드가 쓰게 되면 락 밖 변환은 조용히 섞인다(단일 스레드에서는 비용 차이 없음)
-        synchronized(raf) {
+        return synchronized(raf) {
             if (scratch.size < byteLen) scratch = ByteArray(byteLen)
             raf.seek(dataOffset + framePos * frameBytes)
             var done = 0
@@ -101,15 +101,16 @@ class WavReader(private val file: File) : Closeable {
             // 오디오 스레드에서 매 청크 호출되므로 ByteBuffer를 새로 만들지 않고 직접 변환한다
             // (AI ON은 스템 6개 × 초당 20여 회 → 그만큼의 임시 객체가 생긴다)
             var si = 0
-            val samples = toRead * channels
+            val readFrames = done / frameBytes
+            val samples = readFrames * channels
             while (si < samples) {
                 val lo = scratch[si * 2].toInt() and 0xFF
                 val hi = scratch[si * 2 + 1].toInt()
                 out[si] = ((hi shl 8) or lo).toShort()
                 si++
             }
+            readFrames
         }
-        return toRead
     }
 
     override fun close() {

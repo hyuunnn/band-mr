@@ -6,6 +6,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,10 +90,13 @@ import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun PlayerScreen(songId: Long) {
@@ -156,18 +160,28 @@ fun PlayerScreen(songId: Long) {
         ctrl.setVocalStrength(vocalStrength)
     }
 
-    LaunchedEffect(songId, prepareFailedSongId) {
+    LaunchedEffect(songId, song?.uri, prepareFailedSongId) {
+        val sourceUri = song?.uri ?: return@LaunchedEffect
         val file = MixCache.cacheFile(Locator.context, songId)
-        if (!file.exists()) {
-            if (prepareFailedSongId == songId) return@LaunchedEffect
-            // 프리캐시·재생 준비 모두 MixCache.prepare → rename 뒤에만 깨어난다
-            MixCache.awaitReady(Locator.context, songId)
-        }
-        if (!file.exists()) return@LaunchedEffect
-        waveformPeaks = withContext(Dispatchers.IO) {
-            runCatching {
-                WaveformPeaks.fromWavCached(file, MixCache.peaksFile(Locator.context, songId))
-            }.getOrNull()
+        if (!file.exists() && prepareFailedSongId == songId) return@LaunchedEffect
+        try {
+            waveformPeaks = withContext(Dispatchers.IO) {
+                val waveformContext = currentCoroutineContext()
+                prepareWaveformPeaks(
+                    file, MixCache.peaksFile(Locator.context, songId),
+                    prepare = {
+                        MixCache.prepare(
+                            Locator.context, songId, sourceUri.toUri(),
+                            checkCancelled = { waveformContext.ensureActive() },
+                        )
+                    },
+                    awaitReady = { MixCache.awaitReady(Locator.context, songId) },
+                )
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w("Waveform", "파형 준비 실패", failure)
         }
     }
 
@@ -424,6 +438,18 @@ fun PlayerScreen(songId: Long) {
             },
         )
     }
+}
+
+/** AI ON도 캐시를 비운 뒤에는 파형 입력을 먼저 만든다. IO 디스패처에서 호출한다. */
+internal suspend fun prepareWaveformPeaks(
+    file: File,
+    peaksFile: File,
+    prepare: suspend () -> Unit,
+    awaitReady: suspend () -> Unit,
+): FloatArray {
+    if (!file.exists()) prepare()
+    awaitReady()
+    return WaveformPeaks.fromWavCached(file, peaksFile)
 }
 
 @Composable

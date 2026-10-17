@@ -74,17 +74,20 @@ object MixCache {
         context: Context,
         songId: Long,
         sourceUri: Uri,
+        checkCancelled: () -> Unit = {},
         onProgress: (Float) -> Unit = {},
     ): File {
+        checkCancelled()
         val lock = locks.computeIfAbsent(songId) { Any() }
         synchronized(lock) {
+            checkCancelled()
             val final = cacheFile(context, songId)
             if (final.exists()) return final
             val dir = dir(context).apply { mkdirs() }
             val part = File(dir, "${final.name}.part")
             try {
                 val frames = WavWriter.create(part, PIPELINE_SAMPLE_RATE).use { writer ->
-                    AudioDecode.decodeTo44kStereo(context, sourceUri, onProgress) { buf, n ->
+                    AudioDecode.decodeTo44kStereo(context, sourceUri, onProgress, checkCancelled) { buf, n ->
                         writer.writeShorts(buf, n)
                     }
                 }
@@ -93,6 +96,7 @@ object MixCache {
                 // 안전장치에도 걸리지 않는다(`MixCacheWavTest`가 그 이유를 실행으로 고정한다).
                 // 여기서 던지면 호출부의 실패 경로로 나간다(prepareFailedSongId·내보내기 오류).
                 check(frames > 0) { "곡에서 소리를 찾지 못했습니다 (빈 오디오)" }
+                checkCancelled()
                 FilePromote.file(part, final)
                 // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
                 // 이 emit을 놓쳐도 파일이 있으면 바로 끝난다

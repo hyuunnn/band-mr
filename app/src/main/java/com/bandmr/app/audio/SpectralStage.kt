@@ -116,9 +116,7 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
 
     /**
      * 새로 만든 인스턴스와 동일한 상태로 되돌린다(시크 시 제자리 리셋용).
-     * magHist를 반드시 비워야 한다 — histPos/histFill은 인스턴스 단위인데 증가는
-     * 채널마다 일어나서(스테레오는 프레임당 2), 워밍업 중 medianOverHist가 해당 채널이
-     * 아직 쓰지 않은 슬롯까지 읽는다. 잔여값이 남으면 새 인스턴스(0f)와 출력이 달라진다.
+     * 히스토리·OLA·FIFO를 함께 비워 시크 이전 신호가 다음 출력에 섞이지 않게 한다.
      */
     fun reset() {
         pendingLen = 0
@@ -140,6 +138,7 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
 
     private fun processFrame(muteDrums: Boolean, muteBass: Boolean, muteVocal: Boolean) {
         val bassF0 = if (muteBass) detectBassF0() else -1f
+        if (muteDrums && histFill < histDepth) histFill++
 
         for (ch in 0 until chCount) {
             val re = chRe[ch]
@@ -155,6 +154,8 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
 
             if (muteBass && bassF0 > 0f) applyBassNotch(bassF0, re, im)
         }
+        // 좌우는 같은 시점의 한 슬롯을 쓴다. 양 채널을 채운 뒤 한 번만 전진한다.
+        if (muteDrums) histPos = (histPos + 1) % histDepth
 
         // 보컬(중앙) 마스킹은 L/R 스펙트럼을 함께 봐야 하므로 채널 루프 밖에서 적용
         if (muteVocal && chCount == 2) applyCenterSuppression()
@@ -228,8 +229,6 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
         // 히스토리 저장 후 수평(시간축) 중간값 → 화성 추정
         val cur = magHist[ch][histPos]
         System.arraycopy(mags, 0, cur, 0, bins)
-        histPos = (histPos + 1) % histDepth
-        if (histFill < histDepth) histFill++
 
         for (j in 0..half) {
             val h = medianOverHist(ch, j)
@@ -250,8 +249,7 @@ class SpectralStage(private val sampleRate: Int, channels: Int = 2) {
     private fun medianOverHist(ch: Int, bin: Int): Float {
         val cnt = histFill
         if (cnt == 1) {
-            val idx = if (histPos == 0) histDepth - 1 else histPos - 1
-            return magHist[ch][idx][bin]
+            return magHist[ch][histPos][bin]
         }
         for (t in 0 until cnt) histScratch[t] = magHist[ch][t][bin]
         for (a in 1 until cnt) {

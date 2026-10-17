@@ -34,7 +34,7 @@ abstract class AudioTrackEngine(
 
     // wait/notify가 필요한 모니터 객체 — kotlin.Any에는 이 메서드가 없어 java.lang.Object를 쓴다
     protected val stateLock = Object()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
     /** 렌더 결과 버퍼. [renderChunk]가 채우고 [loop]가 트랙에 쓴다 */
     protected val outShort = ShortArray(CHUNK * 2)
@@ -180,8 +180,13 @@ abstract class AudioTrackEngine(
     protected open fun finish() {
         synchronized(stateLock) { isPlaying = false }
         track?.pause()
-        // post 시점이 아니라 실행 시점에 확인한다 — 그 사이에 해제될 수 있다
-        mainHandler.post { if (!released) onEndedCallback() }
+        // 대기 중 해제되거나 다시 재생됐으면 이전 종료 통보는 폐기한다.
+        postToMain { if (!released && !isPlaying) onEndedCallback() }
+    }
+
+    /** 곡 끝 통보를 메인 큐에 전달한다. */
+    protected open fun postToMain(callback: () -> Unit) {
+        mainHandler.post(callback)
     }
 
     // ---------- 내부 ----------
@@ -232,13 +237,8 @@ abstract class AudioTrackEngine(
         track = buildTrack()
         applySpeed()
         while (running) {
-            val play: Boolean
-            synchronized(stateLock) {
-                play = isPlaying
-                if (!play) stateLock.wait()
-            }
-            if (!running) break
-            if (!play || track == null) continue
+            if (!awaitPlayback()) break
+            if (track == null) continue
 
             val pos: Long
             val limit: Long
@@ -277,6 +277,12 @@ abstract class AudioTrackEngine(
         }
         track?.release()
         track = null
+    }
+
+    private fun awaitPlayback(): Boolean = synchronized(stateLock) {
+        // stop의 notify가 락 획득보다 먼저 지나가도 종료된 스레드는 대기하지 않는다.
+        while (running && !isPlaying) stateLock.wait()
+        running
     }
 
     protected fun stopEngine() {

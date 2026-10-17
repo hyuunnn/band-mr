@@ -2,10 +2,68 @@ package com.bandmr.app.audio
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertArrayEquals
 import kotlin.random.Random
 import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.security.MessageDigest
 
 class SpectralStageTest {
+
+    @Test
+    fun `스테레오 드럼 출력은 좌우 독립 모노 참조와 시작부터 같다`() {
+        assertStereoMatchesMono(reset = false)
+    }
+
+    @Test
+    fun `시크 리셋 뒤에도 좌우 드럼 히스토리에 빈 슬롯이 들어가지 않는다`() {
+        assertStereoMatchesMono(reset = true)
+    }
+
+    @Test
+    fun `기존 모노 드럼과 드럼 없는 스테레오 출력은 바이트 동일하다`() {
+        // 7233311의 컴파일된 SpectralStage에서 동일 입력으로 얻은 수정 전 SHA-256.
+        for ((channels, expected) in listOf(
+            1 to "e249dcc93038a65d8bc1e3e82bf3f4b9532323d309f2d65eecc5465f9c72507b",
+            2 to "e176db1de63331136f0bb6a8843b9d86005e0ec584e3551183ebe5d942728c6b",
+        )) {
+            val input = FloatArray(6144 * channels) { ((it * 7919L % 20001) - 10000) / 20000f }
+            val stage = SpectralStage(44100, channels)
+            stage.feed(input, 0, input.size, muteDrums = channels == 1, muteBass = channels == 2, muteVocal = channels == 2)
+            val output = FloatArray(input.size)
+            val count = stage.read(output, 0, output.size)
+            val bytes = ByteBuffer.allocate(count * 4).order(ByteOrder.LITTLE_ENDIAN)
+            for (i in 0 until count) bytes.putFloat(output[i])
+            val hash = MessageDigest.getInstance("SHA-256").digest(bytes.array()).joinToString("") { "%02x".format(it) }
+            assertEquals("channels=$channels", expected, hash)
+        }
+    }
+
+    private fun assertStereoMatchesMono(reset: Boolean) {
+        val frames = 6144
+        val input = FloatArray(frames * 2) { ((it * 7919L % 20001) - 10000) / 20000f }
+        val stereo = SpectralStage(44100, 2)
+        val mono = List(2) { SpectralStage(44100, 1) }
+        if (reset) {
+            stereo.feed(input, 0, input.size, true, false)
+            mono.forEach { stage -> stage.feed(input, 0, frames, true, false) }
+            stereo.reset()
+            mono.forEach { it.reset() }
+        }
+        stereo.feed(input, 0, input.size, true, false)
+        val actual = FloatArray(input.size)
+        val count = stereo.read(actual, 0, actual.size)
+        val expected = FloatArray(count)
+        for (channel in 0..1) {
+            val separate = FloatArray(frames) { input[it * 2 + channel] }
+            mono[channel].feed(separate, 0, frames, true, false)
+            val output = FloatArray(frames)
+            assertEquals(count / 2, mono[channel].read(output, 0, frames))
+            for (frame in 0 until count / 2) expected[frame * 2 + channel] = output[frame]
+        }
+        assertArrayEquals(expected, actual.copyOf(count), 0f)
+    }
 
     private fun stereoFrames(n: Int, rnd: Random): FloatArray =
         FloatArray(n * 2) { rnd.nextFloat() * 2f - 1f }

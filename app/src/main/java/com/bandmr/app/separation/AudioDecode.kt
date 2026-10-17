@@ -28,8 +28,10 @@ object AudioDecode {
         context: Context,
         uri: Uri,
         onProgress: (Float) -> Unit = {},
+        checkCancelled: () -> Unit = {},
         sink: (ShortArray, Int) -> Unit,
     ): Long {
+        checkCancelled()
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         val out = ShortSink(sink)
@@ -60,13 +62,12 @@ object AudioDecode {
             val resampler = LinearResampler(inSr, PIPELINE_SAMPLE_RATE)
 
             var sawInputEos = false
-            var sawOutputEos = false
             var outFrames = 0L
             val info = MediaCodec.BufferInfo()
             val mix = StereoMixBuf()
             var decodeBuf = ShortArray(0)
 
-            while (!sawOutputEos) {
+            decodeUntilEos(checkCancelled) {
                 if (!sawInputEos) {
                     val inIdx = codec.dequeueInputBuffer(10_000)
                     if (inIdx >= 0) {
@@ -81,6 +82,7 @@ object AudioDecode {
                         }
                     }
                 }
+                var sawOutputEos = false
                 when (val outIdx = codec.dequeueOutputBuffer(info, 10_000)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         val of = codec.outputFormat
@@ -105,6 +107,7 @@ object AudioDecode {
                         sawOutputEos = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
                     }
                 }
+                sawOutputEos
             }
             // 리샘플 지연분 플러시 (마지막 샘플 손실 방지)
             outFrames += resampler.flush { lo, ro ->
@@ -118,6 +121,14 @@ object AudioDecode {
             runCatching { codec?.release() }
             runCatching { extractor.release() }
         }
+    }
+
+    /** 진행률·출력 버퍼 유무와 무관하게 매 디코드 반복 및 마지막 출력 뒤에 취소를 확인한다. */
+    internal inline fun decodeUntilEos(checkCancelled: () -> Unit, decodeStep: () -> Boolean) {
+        do {
+            checkCancelled()
+        } while (!decodeStep())
+        checkCancelled()
     }
 
     /**

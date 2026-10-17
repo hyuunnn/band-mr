@@ -3,7 +3,10 @@ package com.bandmr.app.separation
 import android.content.Context
 import com.bandmr.app.io.FilePromote
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -15,6 +18,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 sealed interface ModelState {
+    data object Checking : ModelState
     data object NotDownloaded : ModelState
     data class Downloading(val progress: Float) : ModelState
     data object Ready : ModelState
@@ -25,31 +29,57 @@ sealed interface ModelState {
 private class IntegrityException(message: String) : IOException(message)
 
 /** 카탈로그 [Tier] 모델의 다운로드·삭제·상태 관리 */
-class ModelManager(private val context: Context) {
+class ModelManager internal constructor(
+    private val filesDir: File,
+    private val cacheDir: File,
+    scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
+    constructor(context: Context, scope: CoroutineScope) : this(context.filesDir, context.cacheDir, scope)
 
-    private val _states = MutableStateFlow<Map<Tier, ModelState>>(emptyMap())
+    private val _states = MutableStateFlow(Tier.entries.associateWith<Tier, ModelState> { ModelState.Checking })
     val states: StateFlow<Map<Tier, ModelState>> = _states
 
-    init {
+    private val initialization = scope.async(ioDispatcher) {
         // 경량 티어는 카탈로그에서 빠졌다. 받아 둔 파일은 고아로 남지 않게 지운다
-        File(context.filesDir, "models/light").deleteRecursively()
+        File(filesDir, "models/light").deleteRecursively()
         // 다운로드 직후 SHA는 이미 본다. 여기 검사는 디스크에 남은 파일을 카탈로그 핀과
         // 다시 맞추는 것. 핀이 바뀌었거나 같은 경로에 옛 파일이 있으면 지운다.
-        Tier.entries.forEach { retainPinnedModel(modelFile(it), it.sha256, shaMarker(it)) }
-        _states.value = Tier.entries.associateWith { if (modelFile(it).exists()) ModelState.Ready else ModelState.NotDownloaded }
+        Tier.entries.forEach { tier ->
+            val state = try {
+                if (retainPinnedModel(modelFile(tier), tier.sha256, shaMarker(tier))) {
+                    ModelState.Ready
+                } else {
+                    ModelState.NotDownloaded
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                ModelState.Failed(failure.message ?: "모델 파일 확인 실패")
+            }
+            setState(tier, state)
+        }
     }
 
-    fun modelFile(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), tier.fileName)
+    fun modelFile(tier: Tier): File = File(File(filesDir, "models/${tier.id}"), tier.fileName)
 
-    private fun shaMarker(tier: Tier): File = File(File(context.filesDir, "models/${tier.id}"), SHA_MARKER)
+    private fun shaMarker(tier: Tier): File = File(File(filesDir, "models/${tier.id}"), SHA_MARKER)
 
-    fun isDownloaded(tier: Tier): Boolean = modelFile(tier).exists()
+    fun isDownloaded(tier: Tier): Boolean = _states.value[tier] == ModelState.Ready && modelFile(tier).exists()
+
+    /** 시작 검증을 기다린 뒤에만 분리 입력으로 모델을 공개한다. */
+    suspend fun requireModel(tier: Tier): File {
+        initialization.await()
+        check(isDownloaded(tier)) { "먼저 설정에서 '${tier.label}' 모델을 다운로드하세요" }
+        return modelFile(tier)
+    }
 
     suspend fun download(tier: Tier) {
+        initialization.await()
         if (isDownloaded(tier)) return
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             setState(tier, ModelState.Downloading(0f))
-            val tmp = File(context.cacheDir, "model_${tier.id}.tmp")
+            val tmp = File(cacheDir, "model_${tier.id}.tmp")
             try {
                 // 이어받기 준비: 기존 부분 파일의 프리픽스 해시 선계산
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
