@@ -58,8 +58,11 @@ import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun SettingsScreen() {
@@ -314,12 +317,18 @@ private fun ConfirmStemDeleteDialog(onDismiss: () -> Unit, onConfirm: () -> Unit
 }
 
 /** 원본 캐시 WAV·파형을 버린다. @return 회수한 바이트 */
-private suspend fun clearMixCache(): Long {
+internal suspend fun clearMixCache(
+    startupPreCacheJob: Job? = Locator.startupPreCacheJob,
+    cacheDir: File = MixCache.dir(Locator.context),
+    releasePlayback: () -> Unit = { Locator.playerController.release() },
+): Long {
+    // 사전 변환의 .part 정리와 마지막 승격까지 끝나야 삭제 직후 다시 채워지지 않는다.
+    startupPreCacheJob?.cancelAndJoin()
     // 재생 중인 엔진이 이 WAV를 열고 있다. 지우고 계속 재생하면 화면에는 캐시가 없는데
     // 소리는 나는 상태가 되므로 종료 경로(release)를 지난다.
-    Locator.playerController.release()
+    releasePlayback()
     return withContext(Dispatchers.IO) {
-        CacheStorage.clearFiles(MixCache.dir(Locator.context))
+        CacheStorage.clearFiles(cacheDir)
     }
 }
 
