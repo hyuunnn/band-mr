@@ -6,6 +6,48 @@ import java.util.concurrent.atomic.AtomicReference
 
 class AudioTrackEngineTest {
     @Test
+    fun `출력 오류는 곡 위치와 DSP를 건드리지 않고 재생 중단을 알린다`() {
+        var ended = 0
+        val engine = Engine { ended++ }
+        engine.setPosition(123)
+        engine.setFlag("running", true)
+        engine.setFlag("isPlaying", true)
+
+        engine.failOutput()
+
+        assertFalse(engine.isPlaying)
+        assertEquals(123L, engine.positionFrames())
+        assertEquals(0, engine.finishCalls)
+        assertEquals(0, ended)
+        assertFalse(engine.await())
+        engine.deliver()
+        assertEquals(1, ended)
+    }
+
+    @Test
+    fun `출력 오류 뒤 해제된 엔진은 늦은 중단 통보를 보내지 않는다`() {
+        var ended = 0
+        val engine = Engine { ended++ }
+        engine.setFlag("isPlaying", true)
+        engine.failOutput()
+        engine.release()
+        engine.deliver()
+        assertEquals(0, ended)
+    }
+
+    @Test
+    fun `출력 오류 뒤 재시작하면 이전 중단 통보는 재생을 덮지 않는다`() {
+        var ended = 0
+        val engine = Engine { ended++ }
+        engine.setFlag("isPlaying", true)
+        engine.failOutput()
+        engine.setFlag("isPlaying", true)
+        engine.deliver()
+        assertTrue(engine.isPlaying)
+        assertEquals(0, ended)
+    }
+
+    @Test
     fun `다시 재생한 뒤 도착한 이전 종료 콜백은 무시한다`() {
         var ended = 0
         val engine = Engine { ended++ }
@@ -85,12 +127,19 @@ class AudioTrackEngineTest {
 
     private class Engine(onEnded: () -> Unit = {}) : AudioTrackEngine("test", onEnded) {
         private val callbacks = ArrayDeque<() -> Unit>()
-        override val totalFrames = 1L
+        var finishCalls = 0
+        override val totalFrames = 44_100L
         override val sampleRate = PIPELINE_SAMPLE_RATE
         override fun renderChunk(posFrames: Long, request: Int) = 0
         override fun closeSources() {}
         override fun postToMain(callback: () -> Unit) { callbacks.addLast(callback) }
+        override fun finish() { finishCalls++; super.finish() }
         val lock get() = stateLock
+        fun setPosition(frame: Long) { framePos = frame }
+        fun failOutput() {
+            AudioTrackEngine::class.java.getDeclaredMethod("onOutputError")
+                .apply { isAccessible = true }.invoke(this)
+        }
         fun end() = finish()
         fun deliver() = callbacks.removeFirst().invoke()
         fun stop() = stopEngine()
