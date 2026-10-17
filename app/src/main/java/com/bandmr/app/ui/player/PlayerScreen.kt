@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -96,20 +97,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun PlayerScreen(songId: Long) {
-    val song by Locator.songDao.observe(songId).collectAsState(initial = null)
+fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
+    val songs = remember(songId) { Locator.songDao.observe(songId) }
+    val songState = rememberPlayerSongState(songId, songs)
+    val song = (songState as? PlayerSongState.Ready)?.song
     val scope = rememberCoroutineScope()
     val ctrl = remember { Locator.playerController }
-    var hadSong by remember(songId) { mutableStateOf(false) }
-    LaunchedEffect(song?.id) {
-        if (song != null) {
-            hadSong = true
-        } else if (hadSong && ctrl.currentSongId() == songId) {
+    LaunchedEffect(songId, songState == PlayerSongState.Missing) {
+        if (songState == PlayerSongState.Missing && ctrl.currentSongId() == songId) {
             // 임포트 롤백 등으로 열린 곡이 삭제되면, 삭제 직전 재준비 요청도 무효화한다.
             ctrl.release()
         }
@@ -208,7 +210,26 @@ fun PlayerScreen(songId: Long) {
         }
     }
 
-    val s = song ?: return
+    val s = song
+    if (s == null) {
+        Box(Modifier.fillMaxSize()) {
+            DesignBackdrop()
+            Column(
+                Modifier.align(Alignment.Center).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (songState == PlayerSongState.Loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text("곡을 불러오는 중…")
+                } else {
+                    Text("곡을 찾을 수 없어요")
+                    Button(onClick = onLibrary) { Text("라이브러리로 돌아가기") }
+                }
+            }
+        }
+        return
+    }
     val separated = s.isSeparated
     val selectedTier = Tier.fromId(selectedTierId)
     val modelChecking = if (aiOn) isModelChecking(Locator.modelManager.states, selectedTier) else false
@@ -444,6 +465,22 @@ fun PlayerScreen(songId: Long) {
             },
         )
     }
+}
+
+/** 아직 읽기 전인 null과 Room이 확인한 곡 부재를 구분한다. */
+internal sealed interface PlayerSongState {
+    data object Loading : PlayerSongState
+    data object Missing : PlayerSongState
+    data class Ready(val song: com.bandmr.app.data.Song) : PlayerSongState
+}
+
+@Composable
+internal fun rememberPlayerSongState(songId: Long, songs: Flow<com.bandmr.app.data.Song?>): PlayerSongState = key(songId) {
+    val states = remember(songs) {
+        songs.map { song -> if (song == null) PlayerSongState.Missing else PlayerSongState.Ready(song) }
+    }
+    val state by states.collectAsState(initial = PlayerSongState.Loading)
+    state
 }
 
 /** AI ON도 캐시를 비운 뒤에는 파형 입력을 먼저 만든다. IO 디스패처에서 호출한다. */

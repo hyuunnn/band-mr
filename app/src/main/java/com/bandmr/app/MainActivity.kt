@@ -142,7 +142,7 @@ private fun BandMrNav(onDesignSelected: (AppDesign) -> Unit) {
                 arguments = listOf(navArgument("songId") { type = NavType.LongType }),
             ) { entry ->
                 val songId = entry.arguments?.getLong("songId") ?: 0L
-                PlayerScreen(songId = songId)
+                PlayerScreen(songId = songId, onLibrary = { nav.popBackStack("library", inclusive = false) })
             }
             composable("settings") {
                 SettingsScreen()
