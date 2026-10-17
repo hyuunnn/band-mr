@@ -70,9 +70,10 @@ sealed interface ImportState {
  * 유튜브 링크로 곡을 추가하는 임포터. 화면 수명과 무관하게 끝까지 진행되어야 하므로
  * [Locator.appScope]에서 실행한다 (PlayerController 스코프 취소 버그 교훈 준수).
  *
- * 링크 파싱 후 기존 영상은 Song·원본을 재사용한다. 새 영상은 정보 추출(NewPipeExtractor)
- * → 오디오 스트림 선택 → `filesDir/sources/<videoId>.<ext>` 다운로드 → Song 등록(file:// URI)
- * → MixCache 준비 순서이며, 준비 실패·취소 시 신규 등록을 되돌린다.
+ * 링크 파싱 → 정보 추출(NewPipeExtractor) → 오디오 스트림 선택
+ * → `filesDir/sources/<videoId>.<ext>` 다운로드 → Song 등록(file:// URI) → MixCache 준비 순서다.
+ * 같은 영상도 별도 곡으로 등록하며 완성 원본이 있으면 재사용하고, 없으면 다시 받는다.
+ * 캐시 준비 실패·취소 시 이번 등록을 되돌린다.
  *
  * 다운로드된 원본은 압축 원본 그대로이며 재생 파이프라인도 기존과 동일하게
  * MixCache의 WAV로 디코딩해 사용한다(압축 원본 스트리밍 금지 불변식 준수).
@@ -152,10 +153,8 @@ object YouTubeImport {
         val context = Locator.context
 
         publish(owner, ImportState.Resolving)
-        val sourcePrefix = Uri.fromFile(File(context.filesDir, "$SOURCES_DIR/$videoId")).toString() + "."
         val song = importYouTubeSong(
             dao = Locator.songDao,
-            sourceUriPrefix = sourcePrefix,
             downloadSong = { downloadSong(videoId, owner) },
             prepareCache = { song ->
                 publish(owner, ImportState.PreparingCache(song.title))
