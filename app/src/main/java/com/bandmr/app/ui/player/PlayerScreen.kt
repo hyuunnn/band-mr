@@ -113,16 +113,22 @@ fun PlayerScreen(songId: Long) {
     val selectedTierId by Locator.settings.modelTier.collectAsState(initial = Tier.S6_BALANCED.id)
     val sepState by SepBus.state.collectAsState()
 
-    var stemGainsPacked by remember { mutableLongStateOf(Stem.DEFAULT_PACKED) }
-    var semitones by remember { mutableIntStateOf(0) }
-    var speed by remember { mutableFloatStateOf(PlaybackSpeed.DEFAULT) }
+    // 알림 '종료'로 해제된 엔진도 현재 편집값으로 다시 준비한다.
+    val releaseEpoch by ctrl.releaseEpoch.collectAsState()
+    val parameters = rememberPlayerParameters(song, aiOn, releaseEpoch) { s, current ->
+        ctrl.setLoop(current.loopStartMs, current.loopEndMs, apply = false)
+        ctrl.ensureLoaded(s, aiOn, current.stemGainsPacked, current.semitones, current.speed)
+    }
+    var stemGainsPacked by parameters::stemGainsPacked
+    var semitones by parameters::semitones
+    var speed by parameters::speed
     var vocalStrength by remember { mutableFloatStateOf(1f) }
     var dragging by remember { mutableStateOf(false) }
     var dragPosMs by remember { mutableFloatStateOf(0f) }
     var lastScrubSeekAt by remember { mutableLongStateOf(0L) }
     var posMs by remember { mutableLongStateOf(0L) }
-    var loopStartMs by remember { mutableStateOf<Long?>(null) }
-    var loopEndMs by remember { mutableStateOf<Long?>(null) }
+    var loopStartMs by parameters::loopStartMs
+    var loopEndMs by parameters::loopEndMs
     var waveformPeaks by remember(songId) { mutableStateOf<FloatArray?>(null) }
     val exportStates by Locator.exportTasks.states.collectAsState()
     val exportStatus = exportStates[songId]
@@ -144,20 +150,6 @@ fun PlayerScreen(songId: Long) {
 
     val preparingSongId by ctrl.preparingSongId.collectAsState()
     val prepareFailedSongId by ctrl.prepareFailedSongId.collectAsState()
-    // 알림 '종료'로 엔진이 해제되면 값이 바뀌어 아래 로드 이펙트가 다시 돈다
-    val releaseEpoch by ctrl.releaseEpoch.collectAsState()
-
-    LaunchedEffect(song?.id, song?.separatedTier, aiOn, releaseEpoch) {
-        val s = song ?: return@LaunchedEffect
-        stemGainsPacked = s.stemGainsPacked
-        semitones = s.semitones
-        speed = PlaybackSpeed.snap(s.speed)
-        loopStartMs = s.loopStartMs
-        loopEndMs = s.loopEndMs
-        ctrl.setLoop(s.loopStartMs, s.loopEndMs, apply = false)
-        ctrl.ensureLoaded(s, aiOn, s.stemGainsPacked, s.semitones, speed)
-    }
-
     // 저장된 보컬 제거 강도 로드 후 컨트롤러에 반영
     LaunchedEffect(Unit) {
         vocalStrength = Locator.settings.vocalStrength.first()
