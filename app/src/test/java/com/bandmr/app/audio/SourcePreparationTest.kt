@@ -124,6 +124,50 @@ class SourcePreparationTest {
         assertEquals(listOf(false, true), results)
     }
 
+    @Test
+    fun `캐시 비우기는 무효화된 이전 준비와 현재 준비를 모두 취소한다`() = runTest {
+        val preparation = preparation()
+        val ready = CompletableDeferred<Unit>()
+        var cleaned = 0
+        var promoted = 0
+        var callbacks = 0
+        repeat(2) {
+            preparation.start({
+                try {
+                    ready.await()
+                    promoted++
+                } finally {
+                    cleaned++
+                }
+            }) { callbacks++ }
+            runCurrent()
+            if (it == 0) preparation.invalidate()
+        }
+
+        preparation.cancelAndJoin()
+        ready.complete(Unit)
+        runCurrent()
+
+        assertEquals(2, cleaned)
+        assertEquals(0, promoted)
+        assertEquals(0, callbacks)
+    }
+
+    @Test
+    fun `캐시 비우기 뒤 새 재생 준비는 정상 완료한다`() = runTest {
+        val preparation = preparation()
+        val ready = CompletableDeferred<Unit>()
+        val results = mutableListOf<Boolean>()
+        preparation.start({ ready.await() }) { results += it }
+        runCurrent()
+
+        preparation.cancelAndJoin()
+        preparation.start({}) { results += it }
+        runCurrent()
+
+        assertEquals(listOf(true), results)
+    }
+
     private fun TestScope.preparation(): SourcePreparation {
         val dispatcher = StandardTestDispatcher(testScheduler)
         return SourcePreparation(backgroundScope, dispatcher, dispatcher)

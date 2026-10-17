@@ -17,6 +17,8 @@ import com.bandmr.app.playback.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 
@@ -304,7 +306,10 @@ class PlayerController(private val context: Context) {
         if (preparingSongId.value == songId) return
         preparingSongId.value = songId
         if (prepareFailedSongId.value == songId) prepareFailedSongId.value = null
-        sourcePreparation.start(prepare = { MixCache.prepare(context, songId, uri) }) { ok ->
+        sourcePreparation.start(prepare = {
+            val prepareContext = currentCoroutineContext()
+            MixCache.prepare(context, songId, uri, checkCancelled = { prepareContext.ensureActive() })
+        }) { ok ->
             if (preparingSongId.value == songId) preparingSongId.value = null
             if (!ok) {
                 // 실패를 노출하고 저장해 둔 재생 의도도 폐기 (스테일 자동 재생 방지)
@@ -496,6 +501,12 @@ class PlayerController(private val context: Context) {
 
     private fun knownDurationMs(): Long =
         durationMs.value.takeIf { it > 0 } ?: currentSong?.durationMs ?: 0L
+
+    /** 캐시 비우기에서는 이미 시작한 디코딩도 끝나야 삭제 뒤 WAV가 다시 생기지 않는다. */
+    internal suspend fun releaseForCacheClear() {
+        release()
+        sourcePreparation.cancelAndJoin()
+    }
 
     fun release() {
         releaseEngines()
