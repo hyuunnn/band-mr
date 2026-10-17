@@ -1,10 +1,48 @@
 package com.bandmr.app.audio
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Test
 import java.io.File
+import java.io.RandomAccessFile
 
 class WavIoTest {
+
+    @Test
+    fun `본문이 잘리면 이전 청크를 반환하지 않고 실제 프레임만 읽는다`() {
+        val file = File.createTempFile("truncated", ".wav")
+        try {
+            val pcm = shortArrayOf(100, 101, 200, 201, 300, 301, 400, 401)
+            WavWriter.create(file, 44100).use { it.writeShorts(pcm, pcm.size) }
+            RandomAccessFile(file, "rw").use { it.setLength(44L + 3 * 4) }
+            WavReader(file).use { reader ->
+                val buffer = ShortArray(4)
+                assertEquals(2, reader.read(0, buffer, 2))
+                assertEquals(1, reader.read(2, buffer, 2))
+                assertArrayEquals(shortArrayOf(300, 301), buffer.copyOf(2))
+                assertEquals(0, reader.read(3, buffer, 1))
+            }
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `잘린 마지막 프레임의 일부 바이트는 반환하지 않는다`() {
+        val file = File.createTempFile("partial-frame", ".wav")
+        try {
+            val pcm = shortArrayOf(100, 101, 200, 201)
+            WavWriter.create(file, 44100).use { it.writeShorts(pcm, pcm.size) }
+            RandomAccessFile(file, "rw").use { it.setLength(44L + 4 + 3) }
+            WavReader(file).use { reader ->
+                val buffer = ShortArray(4) { -1 }
+                assertEquals(1, reader.read(0, buffer, 2))
+                assertArrayEquals(shortArrayOf(100, 101, -1, -1), buffer)
+            }
+        } finally {
+            file.delete()
+        }
+    }
 
     @Test
     fun `WAV 쓰기-읽기 라운드트립`() {

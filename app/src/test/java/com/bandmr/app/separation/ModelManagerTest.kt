@@ -7,14 +7,77 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 
 /**
- * 이미 받은 파일은 exists()만 보면 Ready가 된다. 카탈로그 핀과 다르면 버린다.
+ * 핀 검증 전 파일은 분리에 공개하지 않으며, 검증은 생성자 호출 뒤 IO 작업에서 한다.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ModelManagerTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
+
+    @Test
+    fun `생성자에서는 본문을 검사하지 않고 IO 검증 전에는 사용을 막는다`() = runTest {
+        val files = tmp.newFolder()
+        val tier = Tier.S6_BALANCED
+        val file = File(files, "models/${tier.id}/${tier.fileName}").apply {
+            parentFile!!.mkdirs()
+            writeText("unpinned model")
+        }
+        val manager = ModelManager(files, tmp.newFolder(), backgroundScope, StandardTestDispatcher(testScheduler))
+        assertTrue("생성자가 동기 검증으로 파일을 지워서는 안 된다", file.exists())
+        assertEquals(ModelState.Checking, manager.states.value[tier])
+        assertFalse(manager.isDownloaded(tier))
+        runCurrent()
+        assertFalse(file.exists())
+        assertEquals(ModelState.NotDownloaded, manager.states.value[tier])
+    }
+
+    @Test
+    fun `분리와 다운로드는 시작 검증을 기다리고 검증된 파일을 재사용한다`() = runTest {
+        val files = tmp.newFolder()
+        val tier = Tier.S6_BALANCED
+        val file = File(files, "models/${tier.id}/${tier.fileName}").apply {
+            parentFile!!.mkdirs()
+            writeText("previously verified")
+        }
+        File(file.parentFile, ModelManager.SHA_MARKER).writeText(tier.sha256)
+        val manager = ModelManager(files, tmp.newFolder(), backgroundScope, StandardTestDispatcher(testScheduler))
+        assertFalse(manager.isDownloaded(tier))
+        val required = async { manager.requireModel(tier) }
+        val download = async { manager.download(tier) }
+        assertFalse(required.isCompleted)
+        runCurrent()
+        assertEquals(file, required.await())
+        download.await() // 네트워크 호출 없이 기존 검증 파일을 재사용해야 한다.
+        assertTrue(manager.isDownloaded(tier))
+        assertEquals(ModelState.Ready, manager.states.value[tier])
+        manager.delete(tier)
+        assertFalse(manager.isDownloaded(tier))
+    }
+
+    @Test
+    fun `핀 검증에 실패한 파일을 분리에서 요구하면 거부한다`() = runTest {
+        val files = tmp.newFolder()
+        val tier = Tier.S6_BALANCED
+        File(files, "models/${tier.id}/${tier.fileName}").apply {
+            parentFile!!.mkdirs()
+            writeText("stale model")
+        }
+        val manager = ModelManager(files, tmp.newFolder(), backgroundScope, StandardTestDispatcher(testScheduler))
+        try {
+            manager.requireModel(tier)
+            org.junit.Assert.fail("검증되지 않은 모델을 반환하면 안 된다")
+        } catch (expected: IllegalStateException) {
+            assertFalse(manager.isDownloaded(tier))
+        }
+    }
 
     @Test
     fun `핀과 다른 파일은 지운다`() {

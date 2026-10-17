@@ -24,6 +24,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
@@ -79,7 +81,8 @@ class PlaybackService : Service() {
             isActive = true
         }
         scope.launch {
-            Locator.playerController.isPlaying.collect { promoteOrUpdate() }
+            val ctrl = Locator.playerController
+            collectPlaybackChanges(ctrl.isPlaying, ctrl.nowPlayingTitle, ::promoteOrUpdate)
         }
         // 앱에서 시크(파형 스크럽·점프 버튼)하면 알림 진행바도 즉시 따라가게 한다
         scope.launch {
@@ -92,20 +95,6 @@ class PlaybackService : Service() {
                 while (playing) {
                     delay(POSITION_SYNC_MS)
                     syncPlaybackState(true)
-                }
-            }
-        }
-        // 곡 삭제 등으로 컨트롤러가 해제되면(제목 null) 알림을 걷고 서비스도 종료
-        scope.launch {
-            Locator.playerController.nowPlayingTitle.collect { title ->
-                if (title == null && !Locator.playerController.isPlaying.value) {
-                    promoted = false
-                    ServiceCompat.stopForeground(
-                        this@PlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE,
-                    )
-                    stopSelf()
-                } else {
-                    promoteOrUpdate()
                 }
             }
         }
@@ -203,7 +192,17 @@ class PlaybackService : Service() {
 
     private fun promoteOrUpdate() {
         if (stopping) return // 종료 중에는 알림을 다시 띄우지 않는다
-        val playing = Locator.playerController.isPlaying.value
+        val ctrl = Locator.playerController
+        val playing = ctrl.isPlaying.value
+        // release는 제목과 재생 상태를 순서대로 비운다. 어느 값이 먼저 관찰돼도
+        // 최종 해제를 판정하고, 열린 화면이 제목을 다시 채워도 재등록하지 않는다.
+        if (ctrl.nowPlayingTitle.value == null && !playing) {
+            stopping = true
+            promoted = false
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
         syncSession(playing)
         if (!promoted) {
             ServiceCompat.startForeground(
@@ -304,6 +303,15 @@ class PlaybackService : Service() {
             }
         }
     }
+}
+
+/** 제목과 재생 상태 중 어느 쪽이 마지막에 바뀌어도 최종 상태로 알림을 갱신한다. */
+internal suspend fun collectPlaybackChanges(
+    playing: StateFlow<Boolean>,
+    title: StateFlow<String?>,
+    onChanged: () -> Unit,
+) {
+    combine(playing, title) { _, _ -> Unit }.collect { onChanged() }
 }
 
 /**

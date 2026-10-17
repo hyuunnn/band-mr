@@ -6,6 +6,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +77,7 @@ import com.bandmr.app.export.Exporter
 import com.bandmr.app.export.ExportStatus
 import com.bandmr.app.playback.PlaybackService
 import com.bandmr.app.separation.SepBus
+import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.SepState
 import com.bandmr.app.separation.SeparationService
 import com.bandmr.app.separation.StemLayout
@@ -89,10 +91,14 @@ import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun PlayerScreen(songId: Long) {
@@ -156,18 +162,28 @@ fun PlayerScreen(songId: Long) {
         ctrl.setVocalStrength(vocalStrength)
     }
 
-    LaunchedEffect(songId, prepareFailedSongId) {
+    LaunchedEffect(songId, song?.uri, prepareFailedSongId) {
+        val sourceUri = song?.uri ?: return@LaunchedEffect
         val file = MixCache.cacheFile(Locator.context, songId)
-        if (!file.exists()) {
-            if (prepareFailedSongId == songId) return@LaunchedEffect
-            // 프리캐시·재생 준비 모두 MixCache.prepare → rename 뒤에만 깨어난다
-            MixCache.awaitReady(Locator.context, songId)
-        }
-        if (!file.exists()) return@LaunchedEffect
-        waveformPeaks = withContext(Dispatchers.IO) {
-            runCatching {
-                WaveformPeaks.fromWavCached(file, MixCache.peaksFile(Locator.context, songId))
-            }.getOrNull()
+        if (!file.exists() && prepareFailedSongId == songId) return@LaunchedEffect
+        try {
+            waveformPeaks = withContext(Dispatchers.IO) {
+                val waveformContext = currentCoroutineContext()
+                prepareWaveformPeaks(
+                    file, MixCache.peaksFile(Locator.context, songId),
+                    prepare = {
+                        MixCache.prepare(
+                            Locator.context, songId, sourceUri.toUri(),
+                            checkCancelled = { waveformContext.ensureActive() },
+                        )
+                    },
+                    awaitReady = { MixCache.awaitReady(Locator.context, songId) },
+                )
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w("Waveform", "파형 준비 실패", failure)
         }
     }
 
@@ -195,6 +211,7 @@ fun PlayerScreen(songId: Long) {
     val s = song ?: return
     val separated = s.isSeparated
     val selectedTier = Tier.fromId(selectedTierId)
+    val modelChecking = if (aiOn) isModelChecking(Locator.modelManager.states, selectedTier) else false
     val separatedTier = if (separated) Tier.fromId(s.separatedTier) else null
     val mixerStems = separatedTier?.displayStems ?: Stem.entries
     val fourStemMixer = separatedTier?.layout == StemLayout.FOUR
@@ -208,7 +225,9 @@ fun PlayerScreen(songId: Long) {
     }
 
     fun startSeparation() {
-        if (running || otherRunning) return
+        if (running || otherRunning || modelChecking) return
+        // 확인 중은 미다운로드가 아니다. 확인이 끝날 때까지 재생도 해제하지 않는다.
+        if (Locator.modelManager.states.value[selectedTier] == ModelState.Checking) return
         // 파일이 없으면 서비스가 곧바로 실패한다. 그 전에 release하면 재생이 멈추고 위치가 처음으로 돌아간다.
         if (!Locator.modelManager.isDownloaded(selectedTier)) {
             SepBus.state.value = SepState.Error(
@@ -330,6 +349,7 @@ fun PlayerScreen(songId: Long) {
                 separatedLabel = separatedTier?.label,
                 selectedLabel = selectedTier.label,
                 canReseparate = separated && selectedTier.id != s.separatedTier,
+                modelChecking = modelChecking,
                 running = running,
                 otherRunning = otherRunning,
                 stage = sepProgress?.stage,
@@ -424,6 +444,25 @@ fun PlayerScreen(songId: Long) {
             },
         )
     }
+}
+
+/** AI ON도 캐시를 비운 뒤에는 파형 입력을 먼저 만든다. IO 디스패처에서 호출한다. */
+internal suspend fun prepareWaveformPeaks(
+    file: File,
+    peaksFile: File,
+    prepare: suspend () -> Unit,
+    awaitReady: suspend () -> Unit,
+): FloatArray {
+    if (!file.exists()) prepare()
+    awaitReady()
+    return WaveformPeaks.fromWavCached(file, peaksFile)
+}
+
+/** 선택한 모델의 검증 완료를 관찰해 분리 버튼을 다시 활성화한다. */
+@Composable
+internal fun isModelChecking(states: StateFlow<Map<Tier, ModelState>>, tier: Tier): Boolean {
+    val models by states.collectAsState()
+    return models[tier] == ModelState.Checking
 }
 
 @Composable
@@ -641,6 +680,7 @@ private fun ModeCard(
     separatedLabel: String?,
     selectedLabel: String,
     canReseparate: Boolean,
+    modelChecking: Boolean,
     running: Boolean,
     otherRunning: Boolean,
     stage: String?,
@@ -662,6 +702,10 @@ private fun ModeCard(
             }
             Switch(checked = aiOn, onCheckedChange = onToggleAi, enabled = !running, modifier = Modifier.semantics { contentDescription = "AI 악기 분리" })
         }
+        if (aiOn && modelChecking && !running && (!separated || canReseparate)) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text("모델 파일 확인 중…", style = MaterialTheme.typography.bodySmall)
+        }
         if (aiOn && running) {
             LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -670,7 +714,7 @@ private fun ModeCard(
             }
         } else if (aiOn && !separated) {
             Text("$selectedLabel · 처음 한 번만 분리하면 돼요", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = onStartSeparation, enabled = !otherRunning, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.small) {
+            Button(onClick = onStartSeparation, enabled = !otherRunning && !modelChecking, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.small) {
                 Text(if (otherRunning) "다른 곡 분리 중…" else "이 곡 분리하기")
             }
         } else if (aiOn && separated) {
@@ -678,7 +722,7 @@ private fun ModeCard(
             if (canReseparate) {
                 OutlinedButton(
                     onClick = onStartSeparation,
-                    enabled = !otherRunning,
+                    enabled = !otherRunning && !modelChecking,
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),

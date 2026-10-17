@@ -50,7 +50,8 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 해제 시 `releaseEpoch`를 올려 열린 화면의 엔진 재준비를 알린다. 종료 중 알림 재등록은 `PlaybackService.stopping`으로 막는다.
 - 알림·잠금화면·블루투스 명령은 `setPlaying(Boolean)`. 토글은 화면의 `playPause()`만 사용한다.
 - 재생 FGS는 `setPlaying`의 재생 의도 시점에 시작한다. `isPlaying` 관찰로 기동하지 않는다.
-- 곡끝 콜백은 실행 시점에 `released`를 확인한다. 이 플래그는 `release()`에서만 세운다.
+- 곡끝 콜백은 실행 시점에 `released`와 재시작 여부를 확인한다. `released`는 `release()`에서만 세운다.
+- 알림 종료는 제목·재생 상태 양쪽 변경에서 판정하고, 서비스 종료 요청 전에 `stopping`을 세워 재등록을 막는다.
 - `StemMixPlayer.renderChunk`는 양수를 반환한다. 입력이 없으면 무음, 닫힌 리더 예외는 스템별로 처리한다.
 - `ensureLoaded`는 `separatedTier`·`stemsDir` 변경 시 믹서를 다시 연다. 게인·키·배속은 setter로 적용한다.
 - 화면 편집값은 곡을 처음 열 때 저장값으로 초기화한다. 같은 곡의 엔진 재준비는 현재 편집값을 유지한다.
@@ -84,6 +85,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - `OrtSession`은 분리마다 열고 닫는다. 세션 캐시는 금지한다.
 - 추론은 `Tier.segmentSamples` 고정 shape, 마지막 청크는 0 패딩. 동적 축은 사용하지 않는다.
 - 취소는 `currentCoroutineContext()[Job]`으로 판정한다. 새 분리는 이전 Job을 join한 뒤 시작한다.
+- 입력 디코딩은 진행률·출력 유무와 무관하게 반복마다 취소를 확인하고, 캐시 승격 전에도 다시 확인한다.
 - 마지막 추론 후·결과 반환 전에도 취소를 확인한다. 승격·DB 갱신은 `commitSeparation`의 짧은 `NonCancellable` 구간에서 확정한다. 추론 전체를 감싸지 않는다.
 - `SepBus`는 마지막 시도의 진행·오류만 담고, 완료 여부는 `Song.isSeparated`로 판단한다.
 - 모델 다운로드는 Range 이어받기. `.tmp`는 네트워크 실패 시 보존하고 무결성 실패 시 삭제한다.
@@ -103,4 +105,6 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 스템 개별 저장은 열기·복사·close 실패 시 현재 문서만 삭제하고 앞서 완료한 파일은 보존한다. 성공 개수는 close 후 올린다.
 - `ModelConfig.stemOrder`는 `Tier.stemOrder`와 일치시킨다. 모델 규격·경로는 ModelCatalog/Tier를 기준으로 한다.
 - 모델 재업로드 시 `ModelCatalog.kt`의 SHA-256 핀을 갱신한다. [라이선스 고지](THIRD_PARTY_NOTICES.md)는 유지한다.
+- 기존 모델의 핀 검증은 IO에서 수행하고, 검증 전에는 분리에 공개하지 않는다. 다운로드 완료는 그동안의 수동 모델 선택을 덮지 않는다.
+- 플레이어는 모델 `Checking`을 미다운로드 오류로 처리하지 않는다. 확인 중에는 재생을 해제하지 않고 분리 버튼을 비활성화하며, 검증 완료를 관찰해 갱신한다.
 - 이전 id `light`·`balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.

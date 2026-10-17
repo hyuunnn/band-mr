@@ -9,7 +9,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
+import com.bandmr.app.separation.ModelState
+import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -19,6 +22,30 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerParametersTest {
+    @Test
+    fun `플레이어의 분리 잠금은 선택 모델의 Checking 완료에 맞춰 해제된다`() = runTest {
+        withPlayer { player ->
+            val first = Tier.S6_BALANCED
+            val second = Tier.S4_BALANCED
+            player.modelStates.value = mapOf(first to ModelState.Checking, second to ModelState.Checking)
+            player.selectedTier.value = first
+            player.recompose()
+            assertTrue(player.modelChecking)
+
+            player.modelStates.value = mapOf(first to ModelState.Ready, second to ModelState.Checking)
+            player.recompose()
+            assertFalse(player.modelChecking)
+
+            player.selectedTier.value = second
+            player.recompose()
+            assertTrue(player.modelChecking)
+
+            player.modelStates.value = mapOf(first to ModelState.Ready, second to ModelState.NotDownloaded)
+            player.recompose()
+            assertFalse(player.modelChecking)
+        }
+    }
+
     @Test
     fun `재분리 완료 시 아직 저장하지 않은 드래그 볼륨으로 엔진을 다시 연다`() = runTest {
         withPlayer { player ->
@@ -114,6 +141,7 @@ class PlayerParametersTest {
         val player = Player(this, initial)
         try {
             composition.setContent {
+                player.modelChecking = isModelChecking(player.modelStates, player.selectedTier.value)
                 player.parameters = rememberPlayerParameters(
                     player.song.value, player.aiOn.value, player.releaseEpoch.intValue,
                 ) { song, current ->
@@ -136,10 +164,15 @@ class PlayerParametersTest {
         val song = mutableStateOf(initial)
         val aiOn = mutableStateOf(true)
         val releaseEpoch = mutableIntStateOf(0)
+        val modelStates = MutableStateFlow<Map<Tier, ModelState>>(emptyMap())
+        val selectedTier = mutableStateOf(Tier.S6_BALANCED)
+        var modelChecking = false
         lateinit var parameters: PlayerParameters
         val loads = mutableListOf<Load>()
 
         fun recompose() {
+            // collectAsState의 코루틴이 쓴 Snapshot도 다음 프레임에 반영한다.
+            scope.runCurrent()
             Snapshot.sendApplyNotifications()
             scope.runCurrent()
         }
