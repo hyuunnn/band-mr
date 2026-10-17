@@ -53,6 +53,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 곡끝 콜백은 실행 시점에 `released`를 확인한다. 이 플래그는 `release()`에서만 세운다.
 - `StemMixPlayer.renderChunk`는 양수를 반환한다. 입력이 없으면 무음, 닫힌 리더 예외는 스템별로 처리한다.
 - `ensureLoaded`는 `separatedTier`·`stemsDir` 변경 시 믹서를 다시 연다. 게인·키·배속은 setter로 적용한다.
+- 화면 편집값은 곡을 처음 열 때 저장값으로 초기화한다. 같은 곡의 엔진 재준비는 현재 편집값을 유지한다.
 - A-B 반복은 오디오 스레드에서 처리한다. 곡 전환은 `setLoop(..., apply=false)` 후 새 엔진에 적용한다.
 - write 후 트랙 재시작은 `stateLock` 안에서 `isPlaying`을 확인해 pause와 직렬화한다.
 - pause의 flush만 제거하지 않는다. 변경하려면 재개 시 트랙 시작, `stopEngine`의 join 전 flush, 스테일 청크 flush도 함께 처리한다. 현재 최대 버퍼만큼의 위치 스킵은 허용된 동작이다.
@@ -96,6 +97,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 볼륨 기준은 `stemGainsPacked`. AI ON 게인과 AI OFF 체크·muteMask는 `Stem` 변환 함수로 파생한다. DB의 muteMask 컬럼은 이전 마이그레이션 전용이다.
 - 믹스 내보내기는 전체 곡·원곡 템포. 볼륨·키만 적용하고 배속·A-B는 제외한다. 피치는 `PitchShifter.renderTo`를 공유한다. 스템 개별 내보내기는 분리 WAV를 그대로 복사한다.
 - `writeMixWav`는 저장마다 고유 임시 WAV를 쓰며, close·취소 확인 후 목적지로 복사한다.
+- 스템 개별 저장은 열기·복사·close 실패 시 현재 문서만 삭제하고 앞서 완료한 파일은 보존한다. 성공 개수는 close 후 올린다.
 - `ModelConfig.stemOrder`는 `Tier.stemOrder`와 일치시킨다. 모델 규격·경로는 ModelCatalog/Tier를 기준으로 한다.
 - 모델 재업로드 시 `ModelCatalog.kt`의 SHA-256 핀을 갱신한다. [라이선스 고지](THIRD_PARTY_NOTICES.md)는 유지한다.
 - 이전 id `light`·`balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.

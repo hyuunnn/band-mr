@@ -177,19 +177,17 @@ class Exporter(private val context: Context) {
         val tree = DocumentFile.fromTreeUri(context, treeUri)
             ?: error("저장 폴더를 열 수 없습니다")
         val base = safeName(song.title)
-        var count = 0
-        Stem.entries.forEach { stem ->
-            val f = File(dir, "${stem.fileName}.wav")
-            if (!f.exists()) return@forEach
-            val target = tree.createFile("audio/wav", "${base}_${stem.fileName}.wav")
-                ?: return@forEach
-            context.contentResolver.openOutputStream(target.uri, "wt")?.use { out ->
-                f.inputStream().use { input -> input.copyTo(out) }
-            }
-            onEach(stem.label)
-            count++
-        }
-        count
+        copyStemFiles(
+            dir = dir,
+            createDestination = { stem ->
+                tree.createFile("audio/wav", "${base}_${stem.fileName}.wav")
+            },
+            openDestination = { context.contentResolver.openOutputStream(it.uri, "wt") },
+            discardDestination = {
+                if (!it.delete()) throw IOException("실패한 저장 파일을 삭제하지 못했습니다")
+            },
+            onEach = onEach,
+        )
     }
 
     private fun copyTmpToDest(tmp: File, dest: Uri) {
