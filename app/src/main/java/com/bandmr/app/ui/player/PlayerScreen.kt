@@ -288,7 +288,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
             subtitle = formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel}" else " · 원본 오디오",
         )
 
-        if (preparingSongId == songId && !separated) {
+        if (preparingSongId == songId) {
             Text(
                 "재생을 준비하고 있어요. 잠시만 기다려 주세요.",
                 style = MaterialTheme.typography.bodySmall,
