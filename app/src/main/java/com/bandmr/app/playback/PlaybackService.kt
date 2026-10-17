@@ -107,7 +107,8 @@ class PlaybackService : Service() {
         val skipButton = action?.let { SkipButton.of(it) }
         when {
             skipButton != null -> skip(skipButton)
-            action == ACTION_TOGGLE -> Locator.playerController.playPause()
+            action == ACTION_PLAY -> Locator.playerController.setPlaying(true)
+            action == ACTION_PAUSE -> Locator.playerController.setPlaying(false)
             action == ACTION_STOP -> {
                 stopPlaybackAndSelf()
                 return START_NOT_STICKY
@@ -265,7 +266,7 @@ class PlaybackService : Service() {
             action(
                 if (playing) R.drawable.ic_pause else R.drawable.ic_play,
                 if (playing) "일시정지" else "재생",
-                ACTION_TOGGLE, 1,
+                if (playing) ACTION_PAUSE else ACTION_PLAY, 1,
             )
         )
         SkipButton.forward.forEach { builder.addAction(action(it)) }
@@ -283,7 +284,8 @@ class PlaybackService : Service() {
         private const val TAG = "PlaybackService"
         private const val CHANNEL_ID = "playback"
         private const val NOTIF_ID = 1002
-        private const val ACTION_TOGGLE = "toggle"
+        private const val ACTION_PLAY = "play"
+        private const val ACTION_PAUSE = "pause"
         private const val ACTION_STOP = "stop"
 
         /** 재생 중 알림 진행바를 맞추는 주기 */

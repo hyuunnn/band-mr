@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composition
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
 import com.bandmr.app.data.Song
@@ -13,6 +14,7 @@ import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -22,6 +24,47 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerParametersTest {
+    @Test
+    fun `첫 Room 응답 전에는 로딩이고 보이던 곡이 사라지면 곡 부재다`() = runTest {
+        withPlayer { player ->
+            assertEquals(PlayerSongState.Loading, player.songState)
+            val current = song().copy(semitones = 5, speed = 0.75f)
+            player.incoming(1).emit(current)
+            player.recompose()
+            assertEquals(PlayerSongState.Ready(current), player.songState)
+
+            player.incoming(1).emit(null)
+            player.recompose()
+            assertEquals(PlayerSongState.Missing, player.songState)
+        }
+    }
+
+    @Test
+    fun `첫 Room 응답이 null이면 로딩으로 남지 않고 곡 부재가 된다`() = runTest {
+        withPlayer { player ->
+            player.incoming(1).emit(null)
+            player.recompose()
+            assertEquals(PlayerSongState.Missing, player.songState)
+        }
+    }
+
+    @Test
+    fun `다른 곡으로 바뀌면 이전 곡 대신 새 Room 응답을 기다린다`() = runTest {
+        withPlayer { player ->
+            player.incoming(1).emit(song())
+            player.recompose()
+            assertTrue(player.songState is PlayerSongState.Ready)
+
+            player.observedSongId.longValue = 2L
+            player.recompose()
+            assertEquals(PlayerSongState.Loading, player.songState)
+
+            player.incoming(2).emit(song(2))
+            player.recompose()
+            assertEquals(PlayerSongState.Ready(song(2)), player.songState)
+        }
+    }
+
     @Test
     fun `플레이어의 분리 잠금은 선택 모델의 Checking 완료에 맞춰 해제된다`() = runTest {
         withPlayer { player ->
@@ -141,6 +184,7 @@ class PlayerParametersTest {
         val player = Player(this, initial)
         try {
             composition.setContent {
+                player.songState = rememberPlayerSongState(player.observedSongId.longValue, player.incoming(player.observedSongId.longValue))
                 player.modelChecking = isModelChecking(player.modelStates, player.selectedTier.value)
                 player.parameters = rememberPlayerParameters(
                     player.song.value, player.aiOn.value, player.releaseEpoch.intValue,
@@ -164,6 +208,10 @@ class PlayerParametersTest {
         val song = mutableStateOf(initial)
         val aiOn = mutableStateOf(true)
         val releaseEpoch = mutableIntStateOf(0)
+        val observedSongId = mutableLongStateOf(1)
+        private val incomingSongs = mutableMapOf<Long, MutableSharedFlow<Song?>>()
+        var songState: PlayerSongState = PlayerSongState.Loading
+        fun incoming(id: Long) = incomingSongs.getOrPut(id) { MutableSharedFlow(replay = 1) }
         val modelStates = MutableStateFlow<Map<Tier, ModelState>>(emptyMap())
         val selectedTier = mutableStateOf(Tier.S6_BALANCED)
         var modelChecking = false
