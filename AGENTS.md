@@ -75,7 +75,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - MixCache는 디코딩을 `.part`의 WavWriter에 직접 쓰는 1패스. close 후 승격하고, 0프레임은 거부한다(44바이트 헤더는 일반 파일 검사·WavReader를 통과한다).
 - 열 수 없거나 길이가 0인 캐시는 `MixCache.delete`로 WAV·peaks를 함께 버린다.
 - 캐시 표시 용량·버튼·삭제 대상은 `CacheStorage.clearable*`로 맞춘다. 집계·삭제는 같은 술어를 쓰고, 일반 정리에서 작업 중 `.part/.tmp`를 제외한다.
-- 재생 캐시 비우기는 시작 사전 변환에 디코딩 취소를 전달하고 종료를 기다린 뒤 삭제한다. 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
+- 재생 캐시 비우기는 시작 사전 변환과 기존 재생 준비에 디코딩 취소를 전달하고 둘 다 종료한 뒤 삭제한다. 일반 재생 해제는 완료 콜백만 무효화하며, 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
 - 전체 스템 삭제는 분리를 취소하고 `withStemMutation` 안에서 `.part` 포함 삭제(`includeInFlight`)와 DB 해제를 함께 수행한다.
 - 스템 경로는 `StemFiles`로 통일한다. 분리·고아 정리·용량 집계·삭제에서 별도로 조합하지 않는다.
 - 파형 `.peaks`는 FilePromote 대상에서 제외한다. 막대 수·원본 크기 불일치나 손상 시 재계산하며 표시용 파일 오류는 전파하지 않는다.

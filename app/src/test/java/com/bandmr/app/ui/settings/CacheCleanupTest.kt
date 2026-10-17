@@ -1,5 +1,6 @@
 package com.bandmr.app.ui.settings
 
+import com.bandmr.app.audio.SourcePreparation
 import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
@@ -55,7 +56,6 @@ class CacheCleanupTest {
             assertFalse(clearing.isCompleted)
             assertTrue(cached.exists())
             assertTrue(part.exists())
-            assertFalse(released)
 
             resumeDecode.countDown()
             assertEquals(3L, clearing.await())
@@ -66,6 +66,67 @@ class CacheCleanupTest {
         } finally {
             resumeDecode.countDown()
             clearing.cancelAndJoin()
+            preCache.cancelAndJoin()
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun `재생 준비가 곡 잠금을 잡고 있어도 양쪽을 취소한 뒤 캐시를 삭제한다`() = runBlocking {
+        val dir = temp.newFolder("mixcache")
+        val cached = File(dir, "1.wav").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val part = File(dir, "2.wav.part")
+        val songLock = Any()
+        val enteredDecode = CompletableDeferred<Job>()
+        val enteredPreCache = CompletableDeferred<Unit>()
+        val resumeDecode = CountDownLatch(1)
+        val preparation = SourcePreparation(this, Dispatchers.IO, Dispatchers.Unconfined)
+        var callbackCalled = false
+        preparation.start({
+            val decodeContext = currentCoroutineContext()
+            synchronized(songLock) {
+                try {
+                    part.writeBytes(byteArrayOf(4, 5))
+                    enteredDecode.complete(decodeContext[Job]!!)
+                    AudioDecode.decodeUntilEos({ decodeContext.ensureActive() }) {
+                        check(resumeDecode.await(5, TimeUnit.SECONDS))
+                        true
+                    }
+                    check(part.renameTo(File(dir, "2.wav")))
+                } finally {
+                    part.delete()
+                }
+            }
+        }) { callbackCalled = true }
+        val playbackJob = enteredDecode.await()
+        val preCache = launch(Dispatchers.IO) {
+            val preCacheContext = currentCoroutineContext()
+            enteredPreCache.complete(Unit)
+            synchronized(songLock) {
+                preCacheContext.ensureActive()
+                error("취소한 사전 변환은 디코딩을 시작하면 안 된다")
+            }
+        }
+        enteredPreCache.await()
+        val clearing = async(start = CoroutineStart.UNDISPATCHED) {
+            clearMixCache(preCache, dir) { preparation.cancelAndJoin() }
+        }
+        try {
+            assertTrue(preCache.isCancelled)
+            assertTrue(playbackJob.isCancelled)
+            assertFalse(clearing.isCompleted)
+            assertTrue(cached.exists())
+            assertTrue(part.exists())
+
+            resumeDecode.countDown()
+            assertEquals(3L, clearing.await())
+            assertTrue(playbackJob.isCompleted)
+            assertTrue(preCache.isCompleted)
+            assertFalse(callbackCalled)
+            assertTrue(dir.listFiles()!!.isEmpty())
+        } finally {
+            resumeDecode.countDown()
+            clearing.cancelAndJoin()
+            preparation.cancelAndJoin()
             preCache.cancelAndJoin()
         }
     }
