@@ -236,6 +236,7 @@ abstract class AudioTrackEngine(
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
         track = buildTrack()
         applySpeed()
+        var writeFailed = false
         while (running) {
             if (!awaitPlayback()) break
             if (track == null) continue
@@ -259,7 +260,10 @@ abstract class AudioTrackEngine(
                 continue
             }
             val wrote = track?.write(outShort, 0, produced * 2, AudioTrack.WRITE_BLOCKING) ?: 0
-            if (wrote < 0) break
+            if (wrote < 0) {
+                writeFailed = true
+                break
+            }
             // 진행 중 시크가 끼어들었으면(framePos 변경) 스테일 값으로 덮어쓰지 않는다
             synchronized(stateLock) {
                 if (framePos == pos) framePos += produced
@@ -277,6 +281,18 @@ abstract class AudioTrackEngine(
         }
         track?.release()
         track = null
+        if (writeFailed) onOutputError()
+    }
+
+    /** 실패한 트랙을 닫은 뒤 호출한다. 곡 끝의 DSP flush 없이 위치를 보존해 재시도할 수 있다. */
+    private fun onOutputError() {
+        synchronized(stateLock) {
+            isPlaying = false
+            running = false
+            // 중단 통보 직후 재생을 누르면, 아직 반환 중인 이전 스레드 대신 새 트랙을 연다.
+            thread = null
+        }
+        postToMain { if (!released && !isPlaying) onEndedCallback() }
     }
 
     private fun awaitPlayback(): Boolean = synchronized(stateLock) {

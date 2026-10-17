@@ -59,9 +59,10 @@ class PlayerParametersTest {
             player.recompose()
             assertEquals(PlayerSongState.Loading, player.songState)
 
-            player.incoming(2).emit(song(2))
+            val next = song(2)
+            player.incoming(2).emit(next)
             player.recompose()
-            assertEquals(PlayerSongState.Ready(song(2)), player.songState)
+            assertEquals(PlayerSongState.Ready(next), player.songState)
         }
     }
 
