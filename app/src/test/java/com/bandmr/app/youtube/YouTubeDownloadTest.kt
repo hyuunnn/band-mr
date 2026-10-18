@@ -6,6 +6,7 @@ import kotlinx.coroutines.Job
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -143,20 +144,25 @@ class YouTubeDownloadTest {
     }
 
     @Test
-    fun `길이 미상이면 RST도 정상 종료`() {
+    fun `길이 미상 수신 중 RST는 실패로 전파한다`() {
         val out = ByteArrayOutputStream()
-        val n = runBlocking { copyHttpBody(RstAfterEndStream(payload), out, null) }
-        assertEquals(payload.size.toLong(), n)
-        assertArrayEquals(payload, out.toByteArray())
+        val prefix = payload.copyOfRange(0, 80)
+        assertThrows(IOException::class.java) {
+            runBlocking { copyHttpBody(RstAfterEndStream(prefix), out, null) }
+        }
+        assertArrayEquals(prefix, out.toByteArray())
+    }
+
+    @Test
+    fun `길이 미상 복사가 끝나지 않았으면 받은 바이트가 있어도 유지하지 않는다`() {
+        assertFalse(shouldKeepDownload(80, null, 80, copyReturned = false))
     }
 
     @Test
     fun `복사 완료 후 close 예외는 파일을 유지한다`() {
-        val e = IOException("unexpected end of stream")
-        assertTrue(shouldKeepDownload(e, 0, null, 200, copyReturned = true))
-        assertTrue(shouldKeepDownload(e, 200, 200, 200, copyReturned = false))
-        assertFalse(shouldKeepDownload(e, 50, 200, 50, copyReturned = false))
-        assertTrue(isBenignDisconnect(SocketException("Connection reset")))
+        assertTrue(shouldKeepDownload(0, null, 200, copyReturned = true))
+        assertTrue(shouldKeepDownload(200, 200, 200, copyReturned = false))
+        assertFalse(shouldKeepDownload(50, 200, 50, copyReturned = false))
     }
 }
 
