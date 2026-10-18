@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="860" viewBox="0 0 1180 860">
-  <title>라이브러리 · 플레이어 · 설정 — 모노 디자인</title>
-  <rect width="1180" height="860" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="1160" viewBox="0 0 1180 1160">
+  <title>라이브러리 · 플레이어 · 설정 — 모노 테마 화면 요약</title>
+  <desc>실제 캡처가 아닌 설명용 모식도. AI 분리 스위치와 완료 상태, Demucs 4·6스템과 SCNet XL·XL IHF, 저장공간 정리를 요약한다.</desc>
+  <rect width="1180" height="1160" fill="#ffffff"/>
 
   <defs>
     <g id="brand">
@@ -41,7 +42,7 @@
 
   <!-- 라이브러리 -->
   <g transform="translate(20,16)" font-family="-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
-    <rect width="360" height="740" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
+    <rect width="360" height="1040" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
     <use href="#brand" x="22" y="22"/>
     <text x="52" y="40" font-size="16" font-weight="650" fill="#1B1B1B">밴드 MR</text>
     <text x="286" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">테마</text>
@@ -77,18 +78,18 @@
     <text x="82" y="436" font-size="12" fill="#64645F">4:36 · 원본 오디오</text>
     <line x1="22" y1="456" x2="338" y2="456" stroke="#D9D9D2"/>
 
-    <line x1="0" y1="648" x2="360" y2="648" stroke="#F0F0EC"/>
-    <rect x="20" y="666" width="154" height="50" rx="14" fill="#FAFAF8" stroke="#85857D"/>
-    <text x="97" y="696" font-size="14" fill="#1B1B1B" text-anchor="middle">링크로 추가</text>
-    <rect x="186" y="666" width="154" height="50" rx="14" fill="#202020"/>
-    <text x="263" y="696" font-size="14" font-weight="650" fill="#FFFFFF" text-anchor="middle">곡 추가</text>
+    <line x1="0" y1="948" x2="360" y2="948" stroke="#F0F0EC"/>
+    <rect x="20" y="966" width="154" height="50" rx="14" fill="#FAFAF8" stroke="#85857D"/>
+    <text x="97" y="996" font-size="14" fill="#1B1B1B" text-anchor="middle">링크로 추가</text>
+    <rect x="186" y="966" width="154" height="50" rx="14" fill="#202020"/>
+    <text x="263" y="996" font-size="14" font-weight="650" fill="#FFFFFF" text-anchor="middle">곡 추가</text>
 
-    <text x="180" y="790" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">① 라이브러리 — 곡 찾기와 추가</text>
+    <text x="180" y="1090" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">① 라이브러리 — 곡 찾기와 추가</text>
   </g>
 
   <!-- 플레이어 -->
   <g transform="translate(410,16)" font-family="-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
-    <rect width="360" height="740" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
+    <rect width="360" height="1040" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
     <use href="#back" x="22" y="26"/>
     <text x="48" y="40" font-size="16" font-weight="650" fill="#1B1B1B">연습 스튜디오</text>
     <text x="286" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">테마</text>
@@ -167,27 +168,59 @@
     <text x="282" y="514" font-size="14" fill="#64645F" text-anchor="middle">저장</text>
     <line x1="232" y1="528" x2="332" y2="528" stroke="#D9D9D2"/>
 
-    <text x="22" y="562" font-size="16" font-weight="650" fill="#1B1B1B">나만의 믹스</text>
-    <text x="338" y="562" font-size="13" fill="#1B1B1B" text-anchor="end">초기화</text>
-    <text x="22" y="584" font-size="12" fill="#64645F">0%는 음소거, 100%는 원래 볼륨이에요</text>
-    <text x="22" y="616" font-size="14" font-weight="600" fill="#1B1B1B">보컬</text>
-    <rect x="286" y="600" width="52" height="22" rx="4" fill="#E8E8E5"/>
-    <text x="312" y="615" font-size="11" fill="#202020" text-anchor="middle">100%</text>
-    <rect x="22" y="630" width="316" height="4" rx="2" fill="#E4E4E0"/>
-    <rect x="22" y="630" width="316" height="4" rx="2" fill="#202020"/>
-    <circle cx="338" cy="632" r="7" fill="#202020"/>
-    <text x="22" y="668" font-size="14" font-weight="600" fill="#1B1B1B">드럼</text>
-    <rect x="286" y="652" width="52" height="22" rx="4" fill="#F0F0EC"/>
-    <text x="312" y="667" font-size="11" fill="#64645F" text-anchor="middle">음소거</text>
-    <rect x="22" y="682" width="316" height="4" rx="2" fill="#E4E4E0"/>
-    <circle cx="22" cy="684" r="7" fill="#202020"/>
+    <rect x="22" y="544" width="316" height="100" rx="10" fill="#FFFFFF" stroke="#D9D9D2"/>
+    <text x="36" y="568" font-size="15" font-weight="650" fill="#1B1B1B">AI 악기 분리</text>
+    <rect x="282" y="552" width="42" height="24" rx="12" fill="#202020"/>
+    <circle cx="312" cy="564" r="9" fill="#FFFFFF"/>
+    <text x="36" y="590" font-size="12" fill="#64645F">악기별 소리를 더 정교하게 조절해요</text>
+    <rect x="36" y="606" width="160" height="24" rx="4" fill="#E8E8E5"/>
+    <text x="116" y="622" font-size="11" fill="#202020" text-anchor="middle">분리 완료 · 6스템 균형형</text>
 
-    <text x="180" y="790" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">② 플레이어 — 파형 · 구간 반복 · 믹스</text>
+    <text x="22" y="676" font-size="16" font-weight="650" fill="#1B1B1B">나만의 믹스</text>
+    <text x="338" y="676" font-size="13" fill="#1B1B1B" text-anchor="end">초기화</text>
+    <text x="22" y="698" font-size="12" fill="#64645F">0%는 음소거, 100%는 원래 볼륨이에요</text>
+    <text x="22" y="730" font-size="14" font-weight="600" fill="#1B1B1B">보컬</text>
+    <rect x="286" y="714" width="52" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="312" y="729" font-size="11" fill="#202020" text-anchor="middle">100%</text>
+    <rect x="22" y="744" width="316" height="4" rx="2" fill="#E4E4E0"/>
+    <rect x="22" y="744" width="316" height="4" rx="2" fill="#202020"/>
+    <circle cx="338" cy="746" r="7" fill="#202020"/>
+    <text x="22" y="782" font-size="14" font-weight="600" fill="#1B1B1B">드럼</text>
+    <rect x="286" y="766" width="52" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="312" y="781" font-size="11" fill="#202020" text-anchor="middle">음소거</text>
+    <rect x="22" y="796" width="316" height="4" rx="2" fill="#E4E4E0"/>
+    <circle cx="22" cy="798" r="7" fill="#202020"/>
+    <text x="22" y="834" font-size="14" font-weight="600" fill="#1B1B1B">베이스</text>
+    <rect x="286" y="818" width="52" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="312" y="833" font-size="11" fill="#202020" text-anchor="middle">100%</text>
+    <rect x="22" y="848" width="316" height="4" rx="2" fill="#E4E4E0"/>
+    <rect x="22" y="848" width="316" height="4" rx="2" fill="#202020"/>
+    <circle cx="338" cy="850" r="7" fill="#202020"/>
+    <text x="22" y="886" font-size="14" font-weight="600" fill="#1B1B1B">기타</text>
+    <rect x="286" y="870" width="52" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="312" y="885" font-size="11" fill="#202020" text-anchor="middle">60%</text>
+    <rect x="22" y="900" width="316" height="4" rx="2" fill="#E4E4E0"/>
+    <rect x="22" y="900" width="189.6" height="4" rx="2" fill="#202020"/>
+    <circle cx="211.6" cy="902" r="7" fill="#202020"/>
+    <text x="22" y="938" font-size="14" font-weight="600" fill="#1B1B1B">피아노/키보드</text>
+    <rect x="286" y="922" width="52" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="312" y="937" font-size="11" fill="#202020" text-anchor="middle">100%</text>
+    <rect x="22" y="952" width="316" height="4" rx="2" fill="#E4E4E0"/>
+    <rect x="22" y="952" width="316" height="4" rx="2" fill="#202020"/>
+    <circle cx="338" cy="954" r="7" fill="#202020"/>
+    <text x="22" y="990" font-size="14" font-weight="600" fill="#1B1B1B">그 외 반주 (신스 등)</text>
+    <rect x="286" y="974" width="52" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="312" y="989" font-size="11" fill="#202020" text-anchor="middle">100%</text>
+    <rect x="22" y="1004" width="316" height="4" rx="2" fill="#E4E4E0"/>
+    <rect x="22" y="1004" width="316" height="4" rx="2" fill="#202020"/>
+    <circle cx="338" cy="1006" r="7" fill="#202020"/>
+
+    <text x="180" y="1090" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">② 플레이어 — AI 분리 · 6스템 믹스</text>
   </g>
 
   <!-- 설정 -->
   <g transform="translate(800,16)" font-family="-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif">
-    <rect width="360" height="740" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
+    <rect width="360" height="1040" rx="36" fill="#FAFAF8" stroke="#D9D9D2" stroke-width="2"/>
     <use href="#back" x="22" y="26"/>
     <text x="48" y="40" font-size="16" font-weight="650" fill="#1B1B1B">설정</text>
     <text x="338" y="40" font-size="14" fill="#1B1B1B" text-anchor="end">테마</text>
@@ -199,36 +232,58 @@
 
     <text x="22" y="184" font-size="16" font-weight="650" fill="#1B1B1B">Demucs 4스템</text>
     <text x="22" y="206" font-size="12" fill="#64645F">보컬 · 드럼 · 베이스 · 그 외 반주</text>
-    <line x1="22" y1="224" x2="338" y2="224" stroke="#D9D9D2"/>
-    <circle cx="34" cy="252" r="8" fill="none" stroke="#202020" stroke-width="1.6"/>
-    <circle cx="34" cy="252" r="4" fill="#202020"/>
-    <text x="52" y="248" font-size="15" font-weight="650" fill="#1B1B1B">균형형</text>
-    <text x="52" y="268" font-size="12" fill="#64645F">약 236 MB</text>
-    <rect x="262" y="238" width="56" height="22" rx="4" fill="#E8E8E5"/>
-    <text x="290" y="253" font-size="11" fill="#202020" text-anchor="middle">사용 중</text>
-    <text x="22" y="296" font-size="12" fill="#64645F">처리 속도와 분리 품질의 균형을 맞췄어요.</text>
-    <text x="22" y="320" font-size="13" fill="#202020">다운로드 완료</text>
+    <line x1="22" y1="214" x2="338" y2="214" stroke="#D9D9D2"/>
+    <circle cx="34" cy="230" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
+    <text x="52" y="230" font-size="14" font-weight="650" fill="#1B1B1B">균형형</text>
+    <text x="52" y="249" font-size="12" fill="#64645F">약 236 MB</text>
+    <text x="22" y="277" font-size="12" fill="#202020">다운로드 완료</text>
+    <line x1="22" y1="296" x2="338" y2="296" stroke="#D9D9D2"/>
+    <circle cx="34" cy="312" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
+    <text x="52" y="312" font-size="14" font-weight="650" fill="#1B1B1B">품질 우선</text>
+    <text x="52" y="331" font-size="12" fill="#64645F">약 236 MB</text>
+    <rect x="22" y="342" width="316" height="28" rx="8" fill="#FAFAF8" stroke="#85857D"/>
+    <text x="180" y="361" font-size="12" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
+    <text x="22" y="402" font-size="16" font-weight="650" fill="#1B1B1B">Demucs 6스템</text>
+    <text x="22" y="424" font-size="12" fill="#64645F">4개 파트에 기타와 피아노를 더 세밀하게</text>
+    <line x1="22" y1="432" x2="338" y2="432" stroke="#D9D9D2"/>
+    <circle cx="34" cy="448" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
+    <text x="52" y="448" font-size="14" font-weight="650" fill="#1B1B1B">균형형</text>
+    <text x="52" y="467" font-size="12" fill="#64645F">약 178 MB</text>
+    <circle cx="34" cy="448" r="4" fill="#202020"/>
+    <rect x="262" y="434" width="56" height="22" rx="4" fill="#E8E8E5"/>
+    <text x="290" y="449" font-size="11" fill="#202020" text-anchor="middle">사용 중</text>
+    <text x="22" y="495" font-size="12" fill="#202020">다운로드 완료</text>
+    <line x1="22" y1="514" x2="338" y2="514" stroke="#D9D9D2"/>
+    <circle cx="34" cy="530" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
+    <text x="52" y="530" font-size="14" font-weight="650" fill="#1B1B1B">품질 우선</text>
+    <text x="52" y="549" font-size="12" fill="#64645F">약 178 MB</text>
+    <rect x="22" y="560" width="316" height="28" rx="8" fill="#FAFAF8" stroke="#85857D"/>
+    <text x="180" y="579" font-size="12" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
+    <text x="22" y="620" font-size="16" font-weight="650" fill="#1B1B1B">SCNet XL</text>
+    <text x="22" y="642" font-size="12" fill="#64645F">악기 분리에 집중한 4파트 모델</text>
+    <line x1="22" y1="650" x2="338" y2="650" stroke="#D9D9D2"/>
+    <circle cx="34" cy="666" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
+    <text x="52" y="666" font-size="14" font-weight="650" fill="#1B1B1B">XL</text>
+    <text x="52" y="685" font-size="12" fill="#64645F">약 286 MB</text>
+    <rect x="22" y="696" width="316" height="28" rx="8" fill="#FAFAF8" stroke="#85857D"/>
+    <text x="180" y="715" font-size="12" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
+    <text x="22" y="756" font-size="16" font-weight="650" fill="#1B1B1B">SCNet XL IHF</text>
+    <text x="22" y="778" font-size="12" fill="#64645F">보컬과 고음역을 개선한 4파트 모델</text>
+    <line x1="22" y1="786" x2="338" y2="786" stroke="#D9D9D2"/>
+    <circle cx="34" cy="802" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
+    <text x="52" y="802" font-size="14" font-weight="650" fill="#1B1B1B">XL IHF</text>
+    <text x="52" y="821" font-size="12" fill="#64645F">약 283 MB</text>
+    <rect x="22" y="832" width="316" height="28" rx="8" fill="#FAFAF8" stroke="#85857D"/>
+    <text x="180" y="851" font-size="12" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
 
-    <line x1="22" y1="344" x2="338" y2="344" stroke="#D9D9D2"/>
-    <circle cx="34" cy="372" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
-    <text x="52" y="368" font-size="15" font-weight="650" fill="#1B1B1B">품질 우선</text>
-    <text x="52" y="388" font-size="12" fill="#64645F">약 236 MB</text>
-    <text x="22" y="416" font-size="12" fill="#64645F">더 정교하게 분리해요. 시간과 메모리가 더 필요해요.</text>
-    <rect x="22" y="432" width="316" height="44" rx="8" fill="#FAFAF8" stroke="#85857D"/>
-    <text x="180" y="459" font-size="14" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
+    <text x="22" y="892" font-size="16" font-weight="650" fill="#1B1B1B">저장공간</text>
+    <text x="22" y="918" font-size="12" fill="#64645F">정리할 수 있는 공간</text>
+    <text x="22" y="948" font-size="24" font-weight="650" fill="#1B1B1B">512 MB</text>
+    <rect x="22" y="962" width="316" height="30" rx="8" fill="#FAFAF8" stroke="#85857D"/>
+    <text x="180" y="982" font-size="12" fill="#1B1B1B" text-anchor="middle">재생 캐시 비우기</text>
+    <text x="180" y="1020" font-size="12" fill="#1B1B1B" text-anchor="middle">AI 분리 파일 삭제</text>
 
-    <text x="22" y="510" font-size="16" font-weight="650" fill="#1B1B1B">Demucs 6스템</text>
-    <text x="22" y="532" font-size="12" fill="#64645F">4개 파트에 기타와 피아노를 더 세밀하게</text>
-    <line x1="22" y1="550" x2="338" y2="550" stroke="#D9D9D2"/>
-    <circle cx="34" cy="578" r="8" fill="none" stroke="#85857D" stroke-width="1.6"/>
-    <text x="52" y="574" font-size="15" font-weight="650" fill="#1B1B1B">균형형</text>
-    <text x="52" y="594" font-size="12" fill="#64645F">약 178 MB</text>
-    <rect x="22" y="612" width="316" height="40" rx="8" fill="#FAFAF8" stroke="#85857D"/>
-    <text x="180" y="637" font-size="14" fill="#1B1B1B" text-anchor="middle">모델 다운로드</text>
-
-    <text x="22" y="684" font-size="16" font-weight="650" fill="#1B1B1B">저장공간</text>
-    <text x="22" y="706" font-size="12" fill="#64645F">재생 캐시나 AI 분리 파일을 정리해요.</text>
-
-    <text x="180" y="790" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">③ 설정 — 모델 받기와 저장공간</text>
+    <text x="180" y="1090" font-size="17" font-weight="650" fill="#333346" text-anchor="middle">③ 설정 — 4종 모델과 저장공간</text>
   </g>
+  <text x="590" y="1140" font-family="-apple-system,'Apple SD Gothic Neo',sans-serif" font-size="13" fill="#64645F" text-anchor="middle">모노 테마 · 화면 내용을 요약한 설명용 모식도 · 실제 앱에서는 스크롤해 조작</text>
 </svg>
