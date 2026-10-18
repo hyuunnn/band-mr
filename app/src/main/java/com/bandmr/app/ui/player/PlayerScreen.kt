@@ -371,7 +371,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
             ModeCard(
                 aiOn = aiOn,
                 separated = separated,
-                separatedLabel = separatedTier?.label,
+                separatedLabel = separatedTier?.label ?: "알 수 없는 모델",
                 selectedLabel = selectedTier?.label ?: "설정에서 모델을 선택하세요",
                 canReseparate = separated && selectedTier != null && selectedTier.id != s.separatedTier,
                 modelChecking = modelChecking,
