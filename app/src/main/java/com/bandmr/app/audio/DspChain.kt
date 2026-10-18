@@ -15,7 +15,8 @@ import com.bandmr.app.data.Stem
 class DspChain(private val sampleRate: Int, private val channels: Int) {
 
     /**
-     * 제거할 스템 비트마스크. 변경 시 [reset]으로 상태를 비운다.
+     * 제거할 스템 비트마스크. AI 전용 비트는 설정값으로 보존하되 처리·잔여 출력에서 무시한다.
+     * 변경 시 [reset]으로 상태를 비운다.
      *
      * **새로 만든 체인에만 설정할 것 — 재생 중인 체인에 대입하지 말 것.** [reset]은 오디오
      * 스레드 전용인데(아래 KDoc) 이 setter는 어느 스레드에서나 불릴 수 있다. 살아 있는 체인에
@@ -79,7 +80,7 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
 
     /** interleaved shorts [n]개를 제자리 처리 */
     fun processInPlace(data: ShortArray, n: Int) {
-        val mask = muteMask
+        val mask = muteMask and DSP_MASK
         if (mask == 0 || n == 0) return
         ensureBuffers(n)
 
@@ -130,7 +131,7 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
      * 무음 입력으로 밀어내며 결과를 [sink]로 방출한다.
      */
     fun drain(sink: (ShortArray, Int) -> Unit) {
-        val mask = muteMask
+        val mask = muteMask and DSP_MASK
         if (mask == 0) return
         val flushSamples = SpectralStage.BLOCK * 4
         val zeros = FloatArray(SpectralStage.HOP * 2)
@@ -179,5 +180,6 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
 
         private const val BUF = 4096
         private const val BASS_HP_HZ = 100f
+        private val DSP_MASK = Stem.VOCAL.bit or Stem.DRUMS.bit or Stem.BASS.bit or Stem.GUITAR.bit
     }
 }

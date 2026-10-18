@@ -68,6 +68,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
 - 시크는 `processorsDirty`만 세운다. 오디오 스레드가 `framePos`·곡끝 판정·렌더 전에 제자리 리셋한다. UI 스레드에서 DSP를 리셋하지 않는다.
 - 체인 객체 교체는 muteMask 변경 시에만 한다. `chain`은 `@Volatile`을 유지한다.
+- AI 전용 스템의 0% 설정은 보존하되 DSP 처리·drain에서는 제외한다. AI 전용 비트만 있으면 체인 입력 PCM을 그대로 내보내고 drain 출력을 만들지 않는다.
 - `SpectralStage.reset()`은 `magHist`까지 비운다. 리셋 출력은 새 체인 출력과 같아야 한다.
 - 0반음 피치는 패스스루. 기본 형식은 interleaved stereo PCM16이며 모노는 `chCount=1`을 처리한다.
 - WAV·FOURCC는 little-endian. 파이프라인과 ms↔프레임 수학은 `PIPELINE_SAMPLE_RATE`(44.1kHz) 고정이며 불일치 스템은 제외한다.
@@ -116,6 +117,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 모델 재업로드 시 `ModelCatalog.kt`의 SHA-256 핀을 갱신한다. [라이선스 고지](THIRD_PARTY_NOTICES.md)는 유지한다.
 - 기존 모델의 핀 검증은 IO에서 수행하고, 검증 전에는 분리에 공개하지 않는다. 다운로드 완료는 그동안의 수동 모델 선택을 덮지 않는다.
 - 다른 모델의 다운로드 버튼 잠금은 `ModelState.Downloading`도 확인해 설정 화면 재진입 후에도 유지한다.
+- 설정의 정리·모델 작업은 실패 시 오류를 표시하고 `finally`에서 버튼 잠금을 해제한다. `CancellationException`은 실패로 삼키지 않는다.
 - 플레이어는 모델 `Checking`을 미다운로드 오류로 처리하지 않는다. 확인 중에는 재생을 해제하지 않고 분리 버튼을 비활성화하며, 검증 완료를 관찰해 갱신한다.
 - 이전 id `balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.
 - 카탈로그에 없는 모델 ID는 `Tier.fromId`에서 null로 반환한다. 다른 모델로 대체하지 않고, 새 분리에는 설정에서 유효한 모델을 선택하도록 안내한다.

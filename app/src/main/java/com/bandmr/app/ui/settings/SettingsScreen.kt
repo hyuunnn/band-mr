@@ -1,5 +1,6 @@
 package com.bandmr.app.ui.settings
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,7 @@ import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -72,6 +74,7 @@ fun SettingsScreen() {
     val modelStates by Locator.modelManager.states.collectAsState()
     var busyTier by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<Tier?>(null) }
+    var modelError by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         DesignBackdrop()
@@ -104,23 +107,49 @@ fun SettingsScreen() {
                         busy = busyTier != null || modelStates.values.any { it is ModelState.Downloading },
                         onSelect = {
                             if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
-                                scope.launch { Locator.settings.setModelTier(tier.id) }
+                                modelError = null
+                                scope.launch {
+                                    try {
+                                        Locator.settings.setModelTier(tier.id)
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (failure: Exception) {
+                                        modelError = "모델 선택을 저장하지 못했습니다. 다시 선택해 주세요."
+                                        Log.w("Settings", "모델 선택 저장 실패", failure)
+                                    }
+                                }
                             }
                         },
                         onDownload = {
                             busyTier = tier.id
+                            modelError = null
                             val selectionVersion = Locator.settings.modelSelectionVersion
                             // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
                             Locator.appScope.launch {
-                                runCatching { Locator.modelManager.download(tier) }
-                                    .onSuccess { Locator.settings.selectDownloadedModel(tier.id, selectionVersion) }
-                                busyTier = null
+                                try {
+                                    Locator.modelManager.download(tier)
+                                    Locator.settings.selectDownloadedModel(tier.id, selectionVersion)
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (failure: Exception) {
+                                    // 다운로드 실패는 카드의 ModelState.Failed로 표시한다.
+                                    if (Locator.modelManager.states.value[tier] !is ModelState.Failed) {
+                                        modelError = "모델 선택을 저장하지 못했습니다. 다시 선택해 주세요."
+                                    }
+                                    Log.w("Settings", "모델 다운로드 또는 선택 저장 실패", failure)
+                                } finally {
+                                    busyTier = null
+                                }
                             }
                         },
                         onDelete = { pendingDelete = tier },
                     )
                 }
             }
+        }
+
+        modelError?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -246,16 +275,27 @@ private fun StorageSection() {
     var busy by remember { mutableStateOf(false) }
     var confirmStems by remember { mutableStateOf(false) }
     var lastFreed by remember { mutableStateOf<String?>(null) }
+    var cleanupError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshKey) { usage = withContext(Dispatchers.IO) { readUsage() } }
 
     /** 정리 실행 → 회수량 표시 → 사용량 재조회. 두 버튼이 같은 절차를 쓴다 */
     fun runCleanup(clear: suspend () -> Long) {
         busy = true
+        lastFreed = null
+        cleanupError = null
         scope.launch {
-            lastFreed = CacheStorage.formatBytes(runStorageCleanup(clear = clear))
-            refreshKey++
-            busy = false
+            try {
+                lastFreed = CacheStorage.formatBytes(runStorageCleanup(clear = clear))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                cleanupError = "정리를 완료하지 못했습니다. 다시 시도해 주세요."
+                Log.w("Settings", "저장공간 정리 실패", failure)
+            } finally {
+                refreshKey++
+                busy = false
+            }
         }
     }
 
@@ -269,6 +309,9 @@ private fun StorageSection() {
         StorageRow("AI 분리 파일", usage?.stems)
         lastFreed?.let {
             StatusBadge("${it}를 비웠어요", active = true)
+        }
+        cleanupError?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         OutlinedButton(
             enabled = !busy && (usage?.mixCache ?: 0L) > 0L,

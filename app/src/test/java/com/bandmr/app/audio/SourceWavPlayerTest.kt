@@ -10,6 +10,22 @@ class SourceWavPlayerTest {
     @get:Rule val tmp = TemporaryFolder()
 
     @Test
+    fun `피아노와 그 외만 제거해도 기본 원본 재생 출력은 바뀌지 않는다`() {
+        val file = tmp.newFile("source.wav")
+        val samples = ShortArray(2048 * 2) { ((it * 7919L % 60001) - 30000).toShort() }
+        WavWriter.create(file, PIPELINE_SAMPLE_RATE).use { it.writeShorts(samples, samples.size) }
+        val player = SourceWavPlayer(file)
+        val reference = SourceWavPlayer(file)
+        try {
+            player.muteMask = Stem.PIANO.bit or Stem.OTHER.bit
+            assertArrayEquals(render(reference, 0), render(player, 0))
+        } finally {
+            player.release()
+            reference.release()
+        }
+    }
+
+    @Test
     fun `같은 마스크 재적용은 다음 청크의 DSP 출력을 바꾸지 않는다`() {
         val file = tmp.newFile("source.wav")
         val samples = ShortArray(8192 * 2) { ((it * 7919L % 24001) - 12000).toShort() }
