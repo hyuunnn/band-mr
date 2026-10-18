@@ -80,11 +80,11 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - MixCache의 곡별 잠금은 suspend 가능한 Mutex로 유지한다. 캐시 승격은 `withStemMutation` 안에서 DB에 곡이 남아 있는지 확인한 뒤 수행해, 곡 삭제 이후 정식 캐시가 다시 생기지 않게 한다. 디코딩 전체를 확정 잠금으로 감싸지 않는다.
 - 로컬 곡 등록 후의 캐시 사전 변환은 `appScope`에서 실행해 화면 이탈로 중단하지 않는다. 취소 확인은 그 작업의 코루틴 컨텍스트에 연결하고, 취소 예외는 일반 실패로 삼키지 않는다.
 - 캐시 표시 용량·버튼·삭제 대상은 `CacheStorage.clearable*`로 맞춘다. 집계·삭제는 같은 술어를 쓰고, 일반 정리에서 작업 중 `.part/.tmp`를 제외한다.
-- 재생 캐시 비우기는 시작 사전 변환과 기존 재생 준비에 디코딩 취소를 전달하고 둘 다 종료한 뒤 삭제한다. 일반 재생 해제는 완료 콜백만 무효화하며, 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
+- 재생 캐시 비우기는 시작 사전 변환과 기존 재생 준비에 디코딩 취소를 전달하고 둘 다 종료한 뒤 삭제한다. 정리는 `appScope`에서 완료해 설정 화면 이탈로 중단하지 않는다. 일반 재생 해제는 완료 콜백만 무효화하며, 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
 - 전체 스템 삭제는 분리를 취소하고 `withStemMutation` 안에서 `.part` 포함 삭제(`includeInFlight`)와 DB 해제를 함께 수행한다.
 - 스템 경로는 `StemFiles`로 통일한다. 분리·고아 정리·용량 집계·삭제에서 별도로 조합하지 않는다.
 - 파형 `.peaks`는 FilePromote 대상에서 제외한다. 막대 수·원본 크기 불일치나 손상 시 재계산하며 표시용 파일 오류는 전파하지 않는다.
-- 파형 상태는 songId로 remember한다. 준비 상태 변화로 비우지 않으며 캐시 대기는 `MixCache.awaitReady`를 쓴다.
+- 파형 상태는 songId로 remember한다. 준비 상태 변화로 비우지 않으며 캐시 대기는 `MixCache.awaitReady`를 쓴다. 원본 재생 모드에서는 재생기의 준비 결과를 기다리고, 스템 재생 모드에서만 파형이 캐시 생성을 요청한다.
 
 ## 분리·유튜브
 
@@ -113,6 +113,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - `ModelConfig.stemOrder`는 `Tier.stemOrder`와 일치시킨다. 모델 규격·경로는 ModelCatalog/Tier를 기준으로 한다.
 - 모델 재업로드 시 `ModelCatalog.kt`의 SHA-256 핀을 갱신한다. [라이선스 고지](THIRD_PARTY_NOTICES.md)는 유지한다.
 - 기존 모델의 핀 검증은 IO에서 수행하고, 검증 전에는 분리에 공개하지 않는다. 다운로드 완료는 그동안의 수동 모델 선택을 덮지 않는다.
+- 다른 모델의 다운로드 버튼 잠금은 `ModelState.Downloading`도 확인해 설정 화면 재진입 후에도 유지한다.
 - 플레이어는 모델 `Checking`을 미다운로드 오류로 처리하지 않는다. 확인 중에는 재생을 해제하지 않고 분리 버튼을 비활성화하며, 검증 완료를 관찰해 갱신한다.
 - 이전 id `balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.
 - 카탈로그에 없는 모델 ID는 `Tier.fromId`에서 null로 반환한다. 다른 모델로 대체하지 않고, 새 분리에는 설정에서 유효한 모델을 선택하도록 안내한다.

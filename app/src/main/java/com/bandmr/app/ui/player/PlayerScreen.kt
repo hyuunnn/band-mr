@@ -164,7 +164,8 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
         ctrl.setVocalStrength(vocalStrength)
     }
 
-    LaunchedEffect(songId, song?.uri, prepareFailedSongId) {
+    val waveformNeedsPreparation = aiOn && song?.isSeparated == true
+    LaunchedEffect(songId, song?.uri, waveformNeedsPreparation, prepareFailedSongId) {
         val sourceUri = song?.uri ?: return@LaunchedEffect
         val file = MixCache.cacheFile(Locator.context, songId)
         if (!file.exists() && prepareFailedSongId == songId) return@LaunchedEffect
@@ -173,12 +174,14 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
                 val waveformContext = currentCoroutineContext()
                 prepareWaveformPeaks(
                     file, MixCache.peaksFile(Locator.context, songId),
-                    prepare = {
-                        MixCache.prepare(
-                            Locator.context, songId, sourceUri.toUri(),
-                            checkCancelled = { waveformContext.ensureActive() },
-                        )
-                    },
+                    prepare = if (waveformNeedsPreparation) {
+                        {
+                            MixCache.prepare(
+                                Locator.context, songId, sourceUri.toUri(),
+                                checkCancelled = { waveformContext.ensureActive() },
+                            )
+                        }
+                    } else null,
                     awaitReady = { MixCache.awaitReady(Locator.context, songId) },
                 )
             }
@@ -487,14 +490,14 @@ internal fun rememberPlayerSongState(songId: Long, songs: Flow<com.bandmr.app.da
     state
 }
 
-/** AI ON도 캐시를 비운 뒤에는 파형 입력을 먼저 만든다. IO 디스패처에서 호출한다. */
+/** 원본 재생은 준비 결과를 기다리고, 스템 재생만 [prepare]로 파형 입력을 만든다. IO에서 호출한다. */
 internal suspend fun prepareWaveformPeaks(
     file: File,
     peaksFile: File,
-    prepare: suspend () -> Unit,
+    prepare: (suspend () -> Unit)?,
     awaitReady: suspend () -> Unit,
 ): FloatArray {
-    if (!file.exists()) prepare()
+    if (!file.exists()) prepare?.invoke()
     awaitReady()
     return WaveformPeaks.fromWavCached(file, peaksFile)
 }

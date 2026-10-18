@@ -3,9 +3,11 @@ package com.bandmr.app.ui.settings
 import com.bandmr.app.audio.SourcePreparation
 import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
@@ -22,6 +24,62 @@ import java.util.concurrent.TimeUnit
 
 class CacheCleanupTest {
     @get:Rule val temp = TemporaryFolder()
+
+    @Test(timeout = 10_000)
+    fun `설정 화면을 닫아도 디코딩 종료를 기다린 뒤 캐시 삭제를 마친다`() = runBlocking {
+        val dir = temp.newFolder("mixcache")
+        val cached = File(dir, "1.wav").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val part = File(dir, "2.wav.part")
+        val enteredDecode = CompletableDeferred<Unit>()
+        val resumeDecode = CountDownLatch(1)
+        val completed = CompletableDeferred<Long>()
+        val appJob = SupervisorJob()
+        val appScope = CoroutineScope(appJob + Dispatchers.Unconfined)
+        val screenJob = Job()
+        val screenScope = CoroutineScope(screenJob + Dispatchers.Unconfined)
+        val preCache = launch(Dispatchers.IO) {
+            val decodeContext = currentCoroutineContext()
+            try {
+                part.writeBytes(byteArrayOf(4, 5))
+                enteredDecode.complete(Unit)
+                AudioDecode.decodeUntilEos({ decodeContext.ensureActive() }) {
+                    check(resumeDecode.await(5, TimeUnit.SECONDS))
+                    true
+                }
+                check(part.renameTo(File(dir, "2.wav")))
+            } finally {
+                part.delete()
+            }
+        }
+        try {
+            enteredDecode.await()
+            val clearing = screenScope.launch {
+                runStorageCleanup(appScope) {
+                    clearMixCache(preCache, dir) {}.also { completed.complete(it) }
+                }
+            }
+            assertTrue(preCache.isCancelled)
+            assertFalse(completed.isCompleted)
+            assertTrue(cached.exists())
+
+            screenJob.cancelAndJoin()
+            assertTrue(clearing.isCancelled)
+            assertTrue(appJob.isActive)
+            assertTrue(part.exists())
+
+            resumeDecode.countDown()
+            appJob.children.toList().forEach { it.join() }
+            assertTrue("화면 종료 후에도 캐시 삭제가 완료되어야 한다", completed.isCompleted)
+            assertEquals(3L, completed.await())
+            assertTrue(preCache.isCompleted)
+            assertTrue(dir.listFiles()!!.isEmpty())
+        } finally {
+            resumeDecode.countDown()
+            screenJob.cancelAndJoin()
+            appJob.cancelAndJoin()
+            preCache.cancelAndJoin()
+        }
+    }
 
     @Test(timeout = 10_000)
     fun `사전 변환의 디코딩 취소와 임시 파일 정리가 끝나야 캐시를 삭제한다`() = runBlocking {

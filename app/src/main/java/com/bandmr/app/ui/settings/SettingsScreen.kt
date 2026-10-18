@@ -57,8 +57,10 @@ import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -99,7 +101,7 @@ fun SettingsScreen() {
                         tier = tier,
                         state = modelStates[tier],
                         selected = currentTier == tier.id,
-                        busy = busyTier != null,
+                        busy = busyTier != null || modelStates.values.any { it is ModelState.Downloading },
                         onSelect = {
                             if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
                                 scope.launch { Locator.settings.setModelTier(tier.id) }
@@ -251,7 +253,7 @@ private fun StorageSection() {
     fun runCleanup(clear: suspend () -> Long) {
         busy = true
         scope.launch {
-            lastFreed = CacheStorage.formatBytes(clear())
+            lastFreed = CacheStorage.formatBytes(runStorageCleanup(clear = clear))
             refreshKey++
             busy = false
         }
@@ -297,6 +299,12 @@ private fun StorageSection() {
         )
     }
 }
+
+/** 삭제는 앱 수명으로 마치고, 호출 화면은 결과 대기만 취소할 수 있다. */
+internal suspend fun runStorageCleanup(
+    scope: CoroutineScope = Locator.appScope,
+    clear: suspend () -> Long,
+): Long = scope.async { clear() }.await()
 
 /** 분리 결과 삭제 확인. 곡당 수 분이 드는 작업을 되돌리므로 되묻는다 */
 @Composable

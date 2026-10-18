@@ -1,7 +1,16 @@
 package com.bandmr.app.ui.player
 
 import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
+import com.bandmr.app.audio.CacheReadyGate
+import com.bandmr.app.audio.SourcePreparation
 import com.bandmr.app.audio.WavWriter
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Rule
@@ -10,8 +19,69 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class WaveformPreparationTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    @Test
+    fun `원본 재생의 캐시 준비가 실패해도 파형이 다시 디코딩하지 않는다`() = runTest {
+        val wav = File(tmp.root, "song.wav")
+        val ready = CacheReadyGate()
+        val finishDecode = CompletableDeferred<Unit>()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val preparation = SourcePreparation(backgroundScope, dispatcher, dispatcher)
+        var attempts = 0
+        val waveform = async(start = CoroutineStart.UNDISPATCHED) {
+            prepareWaveformPeaks(wav, File(tmp.root, "song.peaks"),
+                prepare = null,
+                awaitReady = { ready.await(1L) { wav.exists() } },
+            )
+        }
+        preparation.start({
+            attempts++
+            finishDecode.await()
+            throw IOException("source unavailable")
+        }) { ok ->
+            assertFalse(ok)
+            // 화면은 준비 실패 상태를 관찰하면 파형 대기를 취소한다.
+            waveform.cancel()
+        }
+        runCurrent()
+        assertEquals(1, attempts)
+        assertFalse(waveform.isCompleted)
+        finishDecode.complete(Unit)
+        runCurrent()
+        waveform.join()
+
+        assertTrue(waveform.isCancelled)
+        assertEquals(1, attempts)
+        assertFalse(wav.exists())
+        assertFalse(File(tmp.root, "song.peaks").exists())
+    }
+
+    @Test
+    fun `원본 재생의 캐시가 완성되면 대기 중인 파형을 계산한다`() = runTest {
+        val wav = File(tmp.root, "song.wav")
+        val peaksFile = File(tmp.root, "song.peaks")
+        val ready = CacheReadyGate()
+        val waveform = async(start = CoroutineStart.UNDISPATCHED) {
+            prepareWaveformPeaks(wav, peaksFile,
+                prepare = null,
+                awaitReady = { ready.await(1L) { wav.exists() } },
+            )
+        }
+        try {
+            runCurrent()
+            assertFalse(waveform.isCompleted)
+            assertFalse(wav.exists())
+            writeWav(wav)
+            ready.signal(1L)
+            assertTrue(waveform.await().isNotEmpty())
+            assertTrue(peaksFile.exists())
+        } finally {
+            waveform.cancelAndJoin()
+        }
+    }
 
     @Test
     fun `재생기가 캐시를 만들지 않는 AI ON도 파형 입력을 준비한다`() = runTest {
