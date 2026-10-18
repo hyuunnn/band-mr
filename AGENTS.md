@@ -77,6 +77,8 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 내부 산출물 승격은 `FilePromote`를 사용한다. 복사 실패 시 목적지를 지우며, 분리 중 기존 정식 스템을 먼저 지우지 않는다.
 - MixCache는 디코딩을 `.part`의 WavWriter에 직접 쓰는 1패스. close 후 승격하고, 0프레임은 거부한다(44바이트 헤더는 일반 파일 검사·WavReader를 통과한다).
 - 열 수 없거나 길이가 0인 캐시는 `MixCache.delete`로 WAV·peaks를 함께 버린다.
+- MixCache의 곡별 잠금은 suspend 가능한 Mutex로 유지한다. 캐시 승격은 `withStemMutation` 안에서 DB에 곡이 남아 있는지 확인한 뒤 수행해, 곡 삭제 이후 정식 캐시가 다시 생기지 않게 한다. 디코딩 전체를 확정 잠금으로 감싸지 않는다.
+- 로컬 곡 등록 후의 캐시 사전 변환은 `appScope`에서 실행해 화면 이탈로 중단하지 않는다. 취소 확인은 그 작업의 코루틴 컨텍스트에 연결하고, 취소 예외는 일반 실패로 삼키지 않는다.
 - 캐시 표시 용량·버튼·삭제 대상은 `CacheStorage.clearable*`로 맞춘다. 집계·삭제는 같은 술어를 쓰고, 일반 정리에서 작업 중 `.part/.tmp`를 제외한다.
 - 재생 캐시 비우기는 시작 사전 변환과 기존 재생 준비에 디코딩 취소를 전달하고 둘 다 종료한 뒤 삭제한다. 일반 재생 해제는 완료 콜백만 무효화하며, 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
 - 전체 스템 삭제는 분리를 취소하고 `withStemMutation` 안에서 `.part` 포함 삭제(`includeInFlight`)와 DB 해제를 함께 수행한다.

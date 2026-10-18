@@ -85,6 +85,8 @@ import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -150,12 +152,21 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     return@launch
                 }
                 revealAddedSong()
-                // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환.
+                // 등록된 곡의 첫 재생을 위한 변환은 화면을 떠나도 앱 수명으로 마친다.
                 // 캐시 실패는 재생 시점 prepareFailedSongId로 노출되므로 여기선 로그만 남긴다
-                withContext(Dispatchers.IO) {
+                Locator.appScope.launch(Dispatchers.IO) {
+                    val cacheContext = currentCoroutineContext()
                     if (!MixCache.cacheFile(Locator.context, newId).exists()) {
-                        runCatching { MixCache.prepare(Locator.context, newId, uri) }
-                            .onFailure { Log.w(TAG, "곡 $newId 캐시 준비 실패", it) }
+                        try {
+                            MixCache.prepare(
+                                Locator.context, newId, uri,
+                                checkCancelled = { cacheContext.ensureActive() },
+                            )
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (failure: Exception) {
+                            Log.w(TAG, "곡 $newId 캐시 준비 실패", failure)
+                        }
                     }
                 }
             }

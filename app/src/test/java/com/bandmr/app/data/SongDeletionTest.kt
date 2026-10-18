@@ -1,10 +1,12 @@
 package com.bandmr.app.data
 
+import com.bandmr.app.audio.commitMixCache
 import com.bandmr.app.separation.withStemMutation
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -17,6 +19,103 @@ import org.junit.rules.TemporaryFolder
 
 class SongDeletionTest {
     @get:Rule val temp = TemporaryFolder()
+
+    @Test(timeout = 10_000)
+    fun `곡 삭제 뒤 디코딩이 끝나도 정식 캐시를 다시 만들지 않는다`() = runBlocking {
+        val song = song(null)
+        val dao = RecordingSongDao(song)
+        val part = temp.newFile("mix.wav.part").apply { writeBytes(byteArrayOf(1, 2)) }
+        val cache = File(temp.root, "mix.wav")
+
+        deleteSong(song, dao, temp.root) { cache.delete() }
+        val result = runCatching { commitMixCache(part, cache) { dao.get(song.id) != null } }
+
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
+        assertFalse(cache.exists())
+        assertNull(dao.row)
+    }
+
+    @Test(timeout = 10_000)
+    fun `캐시 승격이 먼저 확정 중이면 곡 삭제가 기다렸다가 완성 캐시를 지운다`() = runBlocking {
+        val song = song(null)
+        val dao = RecordingSongDao(song)
+        val part = temp.newFile("mix.wav.part").apply { writeBytes(byteArrayOf(1, 2)) }
+        val cache = File(temp.root, "mix.wav")
+        val validating = CompletableDeferred<Unit>()
+        val finishValidation = CompletableDeferred<Unit>()
+        val promotion = launch(start = CoroutineStart.UNDISPATCHED) {
+            commitMixCache(part, cache) {
+                validating.complete(Unit)
+                finishValidation.await()
+                dao.get(song.id) != null
+            }
+        }
+        validating.await()
+        var cacheDeleted = false
+        val deletion = launch(start = CoroutineStart.UNDISPATCHED) {
+            deleteSong(song, dao, temp.root) {
+                assertTrue("승격이 끝난 캐시를 삭제해야 한다", cache.exists())
+                cacheDeleted = cache.delete()
+            }
+        }
+        try {
+            assertFalse(cacheDeleted)
+            assertFalse(deletion.isCompleted)
+            finishValidation.complete(Unit)
+            promotion.join()
+            deletion.join()
+            assertTrue(cacheDeleted)
+            assertFalse(cache.exists())
+            assertFalse(part.exists())
+            assertNull(dao.row)
+        } finally {
+            finishValidation.complete(Unit)
+            promotion.cancelAndJoin()
+            deletion.cancelAndJoin()
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun `삭제 확정 중 시작한 승격은 DB 삭제까지 기다린 뒤 곡 부재를 확인한다`() = runBlocking {
+        val song = song(null)
+        val dao = RecordingSongDao(song)
+        val part = temp.newFile("mix.wav.part").apply { writeBytes(byteArrayOf(1, 2)) }
+        val cache = File(temp.root, "mix.wav")
+        val deletingRow = CompletableDeferred<Unit>()
+        val finishDelete = CompletableDeferred<Unit>()
+        dao.beforeDelete = {
+            deletingRow.complete(Unit)
+            finishDelete.await()
+        }
+        val deletion = launch(start = CoroutineStart.UNDISPATCHED) {
+            deleteSong(song, dao, temp.root) { cache.delete() }
+        }
+        deletingRow.await()
+        var validated = false
+        val promotion = async(start = CoroutineStart.UNDISPATCHED) {
+            runCatching {
+                commitMixCache(part, cache) {
+                    validated = true
+                    dao.get(song.id) != null
+                }
+            }
+        }
+        try {
+            assertNotNull(dao.row)
+            assertFalse(validated)
+            assertFalse(promotion.isCompleted)
+            finishDelete.complete(Unit)
+            deletion.join()
+            assertTrue(promotion.await().exceptionOrNull() is IllegalStateException)
+            assertTrue(validated)
+            assertFalse(cache.exists())
+            assertNull(dao.row)
+        } finally {
+            finishDelete.complete(Unit)
+            deletion.cancelAndJoin()
+            promotion.cancelAndJoin()
+        }
+    }
 
     @Test(timeout = 10_000)
     fun `스템 삭제 후 취소되어도 캐시와 DB 행까지 삭제한다`() = runBlocking {

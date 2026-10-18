@@ -5,12 +5,15 @@ import android.net.Uri
 import com.bandmr.app.Locator
 import com.bandmr.app.io.FilePromote
 import com.bandmr.app.separation.AudioDecode
+import com.bandmr.app.separation.withStemMutation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
@@ -48,7 +51,7 @@ object MixCache {
     }
 
     // 같은 곡을 앱 시작 프리캐시와 재생 시점 준비가 동시에 만들지 않도록 곡 단위 직렬화
-    private val locks = java.util.concurrent.ConcurrentHashMap<Long, Any>()
+    private val locks = java.util.concurrent.ConcurrentHashMap<Long, Mutex>()
 
     private val ready = CacheReadyGate()
 
@@ -81,11 +84,12 @@ object MixCache {
     ): File {
         checkCancelled()
         Locator.awaitStartupCleanup()
-        val lock = locks.computeIfAbsent(songId) { Any() }
-        synchronized(lock) {
+        val lock = locks.computeIfAbsent(songId) { Mutex() }
+        return lock.withLock {
             checkCancelled()
+            check(Locator.songDao.get(songId) != null) { "삭제된 곡의 캐시는 만들 수 없습니다" }
             val final = cacheFile(context, songId)
-            if (final.exists()) return final
+            if (final.exists()) return@withLock final
             val dir = dir(context).apply { mkdirs() }
             val part = File(dir, "${final.name}.part")
             try {
@@ -100,17 +104,25 @@ object MixCache {
                 // 여기서 던지면 호출부의 실패 경로로 나간다(prepareFailedSongId·내보내기 오류).
                 check(frames > 0) { "곡에서 소리를 찾지 못했습니다 (빈 오디오)" }
                 checkCancelled()
-                FilePromote.file(part, final)
+                commitMixCache(part, final) { Locator.songDao.get(songId) != null }
                 // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
                 // 이 emit을 놓쳐도 파일이 있으면 바로 끝난다
                 ready.signal(songId)
-                return final
+                final
             } finally {
                 // 성공 시 part는 이미 final로 rename됨. 실패 시 남은 부분 파일을
                 // final로 승격하면 손상 캐시가 재생에 쓰이므로 반드시 삭제만 한다.
                 part.delete()
             }
         }
+    }
+}
+
+/** 곡 삭제와 같은 확정 잠금 안에서 존재를 확인해야 삭제 뒤 캐시가 다시 생기지 않는다. */
+internal suspend fun commitMixCache(part: File, final: File, songExists: suspend () -> Boolean) {
+    withStemMutation {
+        check(songExists()) { "삭제된 곡의 캐시는 만들 수 없습니다" }
+        FilePromote.file(part, final)
     }
 }
 
