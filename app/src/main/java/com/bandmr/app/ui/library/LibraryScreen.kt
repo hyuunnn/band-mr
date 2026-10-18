@@ -92,7 +92,7 @@ private const val TAG = "Library"
 
 @Composable
 fun LibraryScreen(onOpenSong: (Long) -> Unit) {
-    val songs by Locator.songDao.observeAll().collectAsState(initial = Locator.librarySongs())
+    val songs by Locator.librarySongState.collectAsState()
     val design = LocalAppDesign.current
     val scope = rememberCoroutineScope()
     var pendingDelete by remember { mutableStateOf<Song?>(null) }
