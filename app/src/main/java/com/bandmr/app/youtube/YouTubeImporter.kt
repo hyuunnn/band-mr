@@ -160,7 +160,10 @@ object YouTubeImport {
                 publish(owner, ImportState.PreparingCache(song.title))
                 withContext(Dispatchers.IO) {
                     val decodeJob = currentCoroutineContext()[Job]
-                    MixCache.prepare(context, song.id, song.uri.toUri()) { decodeJob?.ensureActive() }
+                    MixCache.prepare(
+                        context, song.id, song.uri.toUri(),
+                        checkCancelled = { decodeJob?.ensureActive() },
+                    )
                 }
             },
             rollback = { deleteSong(it, keepSource = true) },
@@ -247,6 +250,8 @@ internal suspend fun downloadAudioSource(
     onProgress: (received: Long, total: Long?) -> Unit = { _, _ -> },
 ): File {
     coroutineContext.ensureActive()
+    // 참조가 없는 완성 원본도 시작 정리 대상이다. exists 재사용 판정 전부터 기다린다.
+    Locator.awaitStartupCleanup()
     dir.mkdirs()
     val final = File(dir, "$videoId.$ext")
     if (final.exists()) return final

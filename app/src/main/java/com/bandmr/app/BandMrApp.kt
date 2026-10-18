@@ -13,7 +13,9 @@ import com.bandmr.app.export.ExportTasks
 import com.bandmr.app.separation.ModelManager
 import com.bandmr.app.separation.StemFiles
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -38,12 +40,21 @@ class BandMrApp : Application() {
 
     /** 캐시 없는 기존 곡들을 백그라운드로 미리 변환해 첫 재생이 즉시 되도록 한다 */
     private fun preCacheMixes() {
-        Locator.startupPreCacheJob = Locator.appScope.launch(Dispatchers.IO) {
+        // UI·서비스가 시작되기 전에 대기 대상을 등록한다. 사전 변환 전체가 아니라
+        // DB 스냅샷 조회부터 고아 삭제까지 끝난 시점에 새 파일 작업을 허용한다.
+        val cleanupDone = CompletableDeferred<Unit>()
+        Locator.startupCleanup = cleanupDone
+        val preCache = Locator.appScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             try {
                 val preCacheContext = currentCoroutineContext()
-                val songs = Locator.songDao.getAllOnce()
-                cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
-                cleanUpSourceFiles(songs)
+                val songs = try {
+                    Locator.songDao.getAllOnce().also { songs ->
+                        cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
+                        cleanUpSourceFiles(songs)
+                    }
+                } finally {
+                    cleanupDone.complete(Unit)
+                }
                 songs.forEach { song ->
                     preCacheContext.ensureActive()
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
@@ -65,6 +76,10 @@ class BandMrApp : Application() {
                 Log.w(TAG, "시작 캐시 준비 실패", failure)
             }
         }
+        Locator.startupPreCacheJob = preCache
+        // 코루틴 본문 실행 전에 취소되어도 대기를 남기지 않는다.
+        preCache.invokeOnCompletion { cleanupDone.complete(Unit) }
+        preCache.start()
     }
 
     /**
@@ -113,6 +128,14 @@ object Locator {
 
     /** 캐시 비우기가 취소·종료를 기다릴 대상. 앱 시작 때 한 번만 등록한다. */
     internal var startupPreCacheJob: Job? = null
+
+    /** 새 파일 작업이 기다릴 시작 삭제 구간. 이후의 사전 변환은 대기 대상이 아니다. */
+    @Volatile
+    internal var startupCleanup: CompletableDeferred<Unit>? = null
+
+    internal suspend fun awaitStartupCleanup() {
+        startupCleanup?.await()
+    }
 
     fun init(app: Application) {
         appContext = app

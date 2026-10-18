@@ -2,6 +2,7 @@ package com.bandmr.app.audio
 
 import android.content.Context
 import android.net.Uri
+import com.bandmr.app.Locator
 import com.bandmr.app.io.FilePromote
 import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.CompletableDeferred
@@ -67,10 +68,11 @@ object MixCache {
      * 디코딩 결과를 `.part`에 WAV로 곧바로 쓴다(중간 raw 파일 없음 — 쓰기량·피크 절반).
      * 헤더 크기 필드는 [WavWriter]가 close 시 패치하므로 총 길이를 미리 알 필요가 없다.
      * 승격([FilePromote])은 반드시 close 뒤에 일어나야 한다(헤더 패치 완료 후 공개).
+     * 시작 고아 정리가 끝날 때까지 중단한 뒤 파일을 확인·생성한다. 디코딩 자체는 블로킹이다.
      *
      * @return 캐시된 WAV 파일 (총 프레임 수는 [WavReader]로 확인)
      */
-    fun prepare(
+    suspend fun prepare(
         context: Context,
         songId: Long,
         sourceUri: Uri,
@@ -78,6 +80,7 @@ object MixCache {
         onProgress: (Float) -> Unit = {},
     ): File {
         checkCancelled()
+        Locator.awaitStartupCleanup()
         val lock = locks.computeIfAbsent(songId) { Any() }
         synchronized(lock) {
             checkCancelled()
