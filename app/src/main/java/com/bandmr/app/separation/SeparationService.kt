@@ -100,7 +100,9 @@ class SeparationService : Service() {
         try {
             acquireWakeLock()
             val song = dao.get(songId) ?: error("곡을 찾을 수 없습니다")
-            val tier = Tier.fromId(Locator.settings.modelTier.first())
+            val tier = requireNotNull(Tier.fromId(Locator.settings.modelTier.first())) {
+                "설정에서 사용할 모델을 선택하세요"
+            }
             val modelFile = Locator.modelManager.requireModel(tier)
 
             setState(SepState.Running(songId, "입력 준비 중…", 0f))

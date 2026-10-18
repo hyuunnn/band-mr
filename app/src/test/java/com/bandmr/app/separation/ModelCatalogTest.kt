@@ -3,22 +3,28 @@ package com.bandmr.app.separation
 import com.bandmr.app.data.Stem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModelCatalogTest {
 
     @Test
-    fun `경량과 구 id는 6스템 균형형으로 읽는다`() {
-        assertEquals(Tier.S6_BALANCED, Tier.fromId(null))
-        assertEquals(Tier.S6_BALANCED, Tier.fromId(""))
-        assertEquals(Tier.S6_BALANCED, Tier.fromId("light"))
+    fun `구 id는 6스템으로 읽는다`() {
         assertEquals(Tier.S6_BALANCED, Tier.fromId("balanced"))
         assertEquals(Tier.S6_QUALITY, Tier.fromId("quality"))
         assertEquals(Tier.S4_BALANCED, Tier.fromId("4s-balanced"))
         assertEquals(Tier.S4_QUALITY, Tier.fromId("4s-quality"))
         assertEquals(Tier.S4_SCNET_XL, Tier.fromId("scnet-xl"))
         assertEquals(Tier.S4_SCNET_XL_IHF, Tier.fromId("scnet-xl-ihf"))
+    }
+
+    @Test
+    fun `제거되거나 알 수 없는 모델은 균형형으로 대체하지 않는다`() {
+        assertNull(Tier.fromId("light"))
+        assertNull(Tier.fromId("unknown-model"))
+        assertNull(Tier.fromId(null))
+        assertNull(Tier.fromId(""))
     }
 
     @Test

@@ -112,4 +112,5 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 모델 재업로드 시 `ModelCatalog.kt`의 SHA-256 핀을 갱신한다. [라이선스 고지](THIRD_PARTY_NOTICES.md)는 유지한다.
 - 기존 모델의 핀 검증은 IO에서 수행하고, 검증 전에는 분리에 공개하지 않는다. 다운로드 완료는 그동안의 수동 모델 선택을 덮지 않는다.
 - 플레이어는 모델 `Checking`을 미다운로드 오류로 처리하지 않는다. 확인 중에는 재생을 해제하지 않고 분리 버튼을 비활성화하며, 검증 완료를 관찰해 갱신한다.
-- 이전 id `light`·`balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.
+- 이전 id `balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.
+- 카탈로그에 없는 모델 ID는 `Tier.fromId`에서 null로 반환한다. 다른 모델로 대체하지 않고, 새 분리에는 설정에서 유효한 모델을 선택하도록 안내한다.

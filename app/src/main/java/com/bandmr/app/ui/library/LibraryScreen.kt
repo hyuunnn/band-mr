@@ -469,7 +469,7 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
+                        formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier)?.chipLabel ?: "분리됨"}" else " · 원본 오디오",
                         style = MaterialTheme.typography.labelMedium,
                         color = if (song.isSeparated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )

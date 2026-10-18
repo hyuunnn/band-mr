@@ -174,12 +174,8 @@ enum class Tier(
         ?: if (layout == StemLayout.SIX) "model-6s.onnx" else "model-4s.onnx"
 
     companion object {
-        fun fromId(id: String?): Tier = when (id) {
-            // 경량(light) 폐지. 이미 받은 파일은 ModelManager가 지우고, 설정·DB는 6스템 균형형으로
-            "light", "balanced", null, "" -> S6_BALANCED
-            "quality" -> S6_QUALITY
-            else -> entries.firstOrNull { it.id == id } ?: S6_BALANCED
-        }
+        /** 현재 카탈로그에 없는 ID는 다른 모델로 대체하지 않는다. */
+        fun fromId(id: String?): Tier? = entries.firstOrNull { it.id == id }
 
         /** Demucs 레이아웃×품질. SCNet은 같은 FOUR/BALANCED를 쓰므로 제외한다. */
         fun of(layout: StemLayout, quality: Quality): Tier =

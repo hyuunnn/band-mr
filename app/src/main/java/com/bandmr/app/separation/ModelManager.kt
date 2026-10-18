@@ -41,8 +41,6 @@ class ModelManager internal constructor(
     val states: StateFlow<Map<Tier, ModelState>> = _states
 
     private val initialization = scope.async(ioDispatcher) {
-        // 경량 티어는 카탈로그에서 빠졌다. 받아 둔 파일은 고아로 남지 않게 지운다
-        File(filesDir, "models/light").deleteRecursively()
         // 다운로드 직후 SHA는 이미 본다. 여기 검사는 디스크에 남은 파일을 카탈로그 핀과
         // 다시 맞추는 것. 핀이 바뀌었거나 같은 경로에 옛 파일이 있으면 지운다.
         Tier.entries.forEach { tier ->

@@ -232,7 +232,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
     }
     val separated = s.isSeparated
     val selectedTier = Tier.fromId(selectedTierId)
-    val modelChecking = if (aiOn) isModelChecking(Locator.modelManager.states, selectedTier) else false
+    val modelChecking = if (aiOn && selectedTier != null) isModelChecking(Locator.modelManager.states, selectedTier) else false
     val separatedTier = if (separated) Tier.fromId(s.separatedTier) else null
     val mixerStems = separatedTier?.displayStems ?: Stem.entries
     val fourStemMixer = separatedTier?.layout == StemLayout.FOUR
@@ -247,6 +247,10 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
 
     fun startSeparation() {
         if (running || otherRunning || modelChecking) return
+        if (selectedTier == null) {
+            SepBus.state.value = SepState.Error(songId, "설정에서 사용할 모델을 선택하세요")
+            return
+        }
         // 확인 중은 미다운로드가 아니다. 확인이 끝날 때까지 재생도 해제하지 않는다.
         if (Locator.modelManager.states.value[selectedTier] == ModelState.Checking) return
         // 파일이 없으면 서비스가 곧바로 실패한다. 그 전에 release하면 재생이 멈추고 위치가 처음으로 돌아간다.
@@ -285,7 +289,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
         PlayerHeading(
             songId = s.id,
             title = s.title,
-            subtitle = formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel}" else " · 원본 오디오",
+            subtitle = formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel ?: "분리됨"}" else " · 원본 오디오",
         )
 
         if (preparingSongId == songId) {
@@ -368,8 +372,8 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
                 aiOn = aiOn,
                 separated = separated,
                 separatedLabel = separatedTier?.label,
-                selectedLabel = selectedTier.label,
-                canReseparate = separated && selectedTier.id != s.separatedTier,
+                selectedLabel = selectedTier?.label ?: "설정에서 모델을 선택하세요",
+                canReseparate = separated && selectedTier != null && selectedTier.id != s.separatedTier,
                 modelChecking = modelChecking,
                 running = running,
                 otherRunning = otherRunning,
@@ -454,9 +458,9 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
         }
     }
 
-    if (confirmReseparation && separatedTier != null) {
+    if (confirmReseparation && selectedTier != null) {
         ConfirmReseparationDialog(
-            currentLabel = separatedTier.label,
+            currentLabel = separatedTier?.label ?: "알 수 없는 모델",
             selectedLabel = selectedTier.label,
             onDismiss = { confirmReseparation = false },
             onConfirm = {
