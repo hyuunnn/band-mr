@@ -264,7 +264,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
             )
             return
         }
-        if (separated) ctrl.release()
+        // 기존 스템 리더는 교체 후에도 유효하다. 완료 시 ensureLoaded가 위치를 유지하며 다시 연다.
         notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 

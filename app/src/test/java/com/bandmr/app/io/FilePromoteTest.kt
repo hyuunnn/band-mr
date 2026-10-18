@@ -1,5 +1,8 @@
 package com.bandmr.app.io
 
+import com.bandmr.app.audio.StemWavSet
+import com.bandmr.app.audio.WavWriter
+import com.bandmr.app.data.Stem
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,6 +61,32 @@ class FilePromoteTest {
         assertEquals(listOf("vocals.wav"), dest.list()!!.sorted())
         assertArrayEquals(payload, File(dest, "vocals.wav").readBytes())
         assertFalse(part.exists())
+    }
+
+    @Test
+    fun `스템 교체 중 열린 리더는 이전 오디오를 읽고 새 리더는 새 오디오를 읽는다`() {
+        val dest = tmp.newFolder("stems")
+        val part = tmp.newFolder("stems.part")
+        val oldSamples = shortArrayOf(100, -100, 200, -200)
+        val newSamples = shortArrayOf(300, -300, 400, -400)
+        WavWriter.create(File(dest, "vocals.wav"), 44_100).use {
+            it.writeShorts(oldSamples, oldSamples.size)
+        }
+        WavWriter.create(File(part, "vocals.wav"), 44_100).use {
+            it.writeShorts(newSamples, newSamples.size)
+        }
+
+        StemWavSet.open(dest).use { current ->
+            FilePromote.directory(part, dest)
+
+            val samples = ShortArray(4)
+            assertEquals(2, current.readerAt(Stem.VOCAL.ordinal)!!.read(0, samples, 2))
+            assertArrayEquals(oldSamples, samples)
+            StemWavSet.open(dest).use { next ->
+                assertEquals(2, next.readerAt(Stem.VOCAL.ordinal)!!.read(0, samples, 2))
+                assertArrayEquals(newSamples, samples)
+            }
+        }
     }
 
     /**

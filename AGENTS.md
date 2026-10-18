@@ -56,6 +56,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 알림 종료는 제목·재생 상태 양쪽 변경에서 판정하고, 서비스 종료 요청 전에 `stopping`을 세워 재등록을 막는다.
 - `StemMixPlayer.renderChunk`는 양수를 반환한다. 입력이 없으면 무음, 닫힌 리더 예외는 스템별로 처리한다.
 - `ensureLoaded`는 `separatedTier`·`stemsDir` 변경 시 믹서를 다시 연다. 게인·키·배속은 setter로 적용한다.
+- 재분리 시작 시 `release()`를 호출하지 않는다. 기존 스템 리더는 파일 교체 중에도 유지하고, 완료 후 `ensureLoaded`로 위치·재생 상태를 이어 새 스템을 연다.
 - 화면 편집값은 곡을 처음 열 때 저장값으로 초기화한다. 같은 곡의 엔진 재준비는 현재 편집값을 유지한다.
 - 플레이어의 곡 로딩과 실제 곡 부재를 구분한다. 곡 부재는 안내와 라이브러리 이동을 제공하고, 처음 읽은 목록 캐시를 편집값 초기화에 재사용하지 않는다.
 - A-B 반복은 오디오 스레드에서 처리한다. 곡 전환은 `setLoop(..., apply=false)` 후 새 엔진에 적용한다.
