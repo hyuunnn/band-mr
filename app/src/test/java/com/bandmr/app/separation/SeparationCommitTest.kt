@@ -34,6 +34,7 @@ class SeparationCommitTest {
                     inference.countDown()
                     check(finishInference.await(5, TimeUnit.SECONDS))
                     commitSeparation(
+                        songExists = { true },
                         promote = { FilePromote.directory(part, dest); dest },
                         record = { dbTier = "new" },
                     )
@@ -70,6 +71,7 @@ class SeparationCommitTest {
         val task = launch(Dispatchers.Default) {
             withContext(Dispatchers.IO) {
                 commitSeparation(
+                    songExists = { true },
                     promote = { FilePromote.directory(part, dest); dest },
                     record = { dir ->
                         promoted.complete(Unit)
@@ -110,6 +112,7 @@ class SeparationCommitTest {
         val task = launch(Dispatchers.Default) {
             withContext(Dispatchers.IO) {
                 commitSeparation(
+                    songExists = { true },
                     promote = { FilePromote.directory(part, dest); dest },
                     record = {
                         promoted.complete(Unit)

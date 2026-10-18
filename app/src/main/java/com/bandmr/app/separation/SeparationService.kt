@@ -128,10 +128,13 @@ class SeparationService : Service() {
                 check(stems.isNotEmpty()) { "분리 결과가 없습니다" }
                 // 취소를 확인한 뒤 파일·DB를 함께 확정한다. DB 갱신을 IO 밖에 두면 복귀 시
                 // 취소가 전달되어 파일만 새 결과로 바뀔 수 있다.
-                commitSeparation(
+                // 삭제가 먼저 끝나면 정식 디렉터리로 올리지 않고 임시 산출물만 지운다.
+                val committed = commitSeparation(
+                    songExists = { dao.get(songId) != null },
                     promote = { promoteStems(partDir, StemFiles.songDir(this@SeparationService, songId)) },
                     record = { dir -> dao.updateSeparation(songId, tier.id, dir.absolutePath) },
                 )
+                if (!committed) partDir.deleteRecursively()
             }
             // 완료 여부는 Song.isSeparated가 갖는다 — 버스는 진행/오류 표시 전용이라 Idle로 되돌린다
             setState(SepState.Idle)

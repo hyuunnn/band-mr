@@ -1,6 +1,8 @@
 package com.bandmr.app.data
 
 import com.bandmr.app.audio.commitMixCache
+import com.bandmr.app.io.FilePromote
+import com.bandmr.app.separation.commitSeparation
 import com.bandmr.app.separation.withStemMutation
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -19,6 +21,95 @@ import org.junit.rules.TemporaryFolder
 
 class SongDeletionTest {
     @get:Rule val temp = TemporaryFolder()
+
+    @Test(timeout = 10_000)
+    fun `삭제 중 대기한 스템 승격은 락 안에서 곡 부재를 확인하고 건너뛴다`() = runBlocking {
+        val dest = temp.newFolder("stems")
+        File(dest, "old.wav").writeBytes(byteArrayOf(1))
+        val part = temp.newFolder("stems.part")
+        File(part, "new.wav").writeBytes(byteArrayOf(2, 3))
+        val song = song(dest)
+        val dao = RecordingSongDao(song)
+        val deletingRow = CompletableDeferred<Unit>()
+        val finishDelete = CompletableDeferred<Unit>()
+        dao.beforeDelete = {
+            deletingRow.complete(Unit)
+            finishDelete.await()
+        }
+        val deletion = launch(start = CoroutineStart.UNDISPATCHED) {
+            deleteSong(song, dao, temp.root) {}
+        }
+        deletingRow.await()
+        var checked = false
+        var recorded = false
+        val promotion = async(start = CoroutineStart.UNDISPATCHED) {
+            commitSeparation(
+                songExists = { checked = true; dao.get(song.id) != null },
+                promote = { FilePromote.directory(part, dest); dest },
+                record = { recorded = true; dao.updateSeparation(song.id, "new", it.absolutePath) },
+            )
+        }
+        try {
+            assertFalse(checked)
+            assertFalse(promotion.isCompleted)
+            finishDelete.complete(Unit)
+            deletion.join()
+            assertFalse(promotion.await())
+            assertTrue(checked)
+            assertFalse(recorded)
+            assertNull(dao.row)
+            assertFalse(dest.exists())
+            assertTrue("승격하지 않은 산출물 정리는 호출자가 맡는다", part.exists())
+        } finally {
+            finishDelete.complete(Unit)
+            deletion.cancelAndJoin()
+            promotion.cancelAndJoin()
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun `스템 승격이 먼저 확정 중이면 삭제가 DB 갱신까지 기다려 새 스템도 지운다`() = runBlocking {
+        val dest = temp.newFolder("stems")
+        File(dest, "old.wav").writeBytes(byteArrayOf(1))
+        val part = temp.newFolder("stems.part")
+        File(part, "new.wav").writeBytes(byteArrayOf(2, 3))
+        val song = song(dest)
+        val dao = RecordingSongDao(song)
+        val promoted = CompletableDeferred<Unit>()
+        val finishRecord = CompletableDeferred<Unit>()
+        val promotion = async(start = CoroutineStart.UNDISPATCHED) {
+            commitSeparation(
+                songExists = { dao.get(song.id) != null },
+                promote = { FilePromote.directory(part, dest); dest },
+                record = {
+                    promoted.complete(Unit)
+                    finishRecord.await()
+                    dao.updateSeparation(song.id, "new", it.absolutePath)
+                },
+            )
+        }
+        promoted.await()
+        var cleared = false
+        val deletion = launch(start = CoroutineStart.UNDISPATCHED) {
+            deleteSong(song, dao, temp.root) { cleared = true }
+        }
+        try {
+            assertFalse(cleared)
+            assertFalse(deletion.isCompleted)
+            assertTrue(File(dest, "new.wav").exists())
+            finishRecord.complete(Unit)
+            assertTrue(promotion.await())
+            deletion.join()
+            assertTrue(cleared)
+            assertNull(dao.row)
+            assertFalse(dest.exists())
+            assertFalse(part.exists())
+        } finally {
+            finishRecord.complete(Unit)
+            promotion.cancelAndJoin()
+            deletion.cancelAndJoin()
+        }
+    }
 
     @Test(timeout = 10_000)
     fun `곡 삭제 뒤 디코딩이 끝나도 정식 캐시를 다시 만들지 않는다`() = runBlocking {
@@ -250,7 +341,9 @@ class SongDeletionTest {
         override suspend fun updateSemitones(id: Long, semitones: Int): Unit = error("unused")
         override suspend fun updateSpeed(id: Long, speed: Float): Unit = error("unused")
         override suspend fun updateLoop(id: Long, startMs: Long?, endMs: Long?): Unit = error("unused")
-        override suspend fun updateSeparation(id: Long, tier: String, dir: String): Unit = error("unused")
+        override suspend fun updateSeparation(id: Long, tier: String, dir: String) {
+            row?.takeIf { it.id == id }?.let { row = it.copy(separatedTier = tier, stemsDir = dir) }
+        }
         override suspend fun clearAllSeparation(): Unit = error("unused")
     }
 }

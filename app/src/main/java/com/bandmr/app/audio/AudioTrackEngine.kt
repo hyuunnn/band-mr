@@ -67,14 +67,12 @@ abstract class AudioTrackEngine(
     /** [release]가 시작됐는지. 해제 중에 생기는 정상적인 실패(닫힌 리더 읽기 등)를 구분하는 데 쓴다 */
     protected val isReleased: Boolean get() = released
 
+    /**
+     * 키. 값은 여기만 두고, [PitchShifter] 반영은 오디오 스레드의 [prepareProcessors]가 한다.
+     * setter에서 시프터를 건드리면 재생 중이던 위상과 비율을 호출 스레드가 중간에 지운다.
+     */
     @Volatile
     var semitones: Int = 0
-        set(value) {
-            if (field != value) {
-                field = value
-                shifter.semitones = value
-            }
-        }
 
     /** 재생 속도(0.25~2.0). 키와 독립 — AudioTrack 타임스트레치 */
     @Volatile
@@ -192,16 +190,19 @@ abstract class AudioTrackEngine(
     // ---------- 내부 ----------
 
     /**
-     * 시크 요청이 있었으면 프로세서를 제자리 리셋한다. 반드시 오디오 스레드에서,
+     * 시크 요청이 있었으면 프로세서를 제자리 리셋하고 요청된 키를 적용한다. 반드시 오디오 스레드에서,
      * framePos를 읽기 전에(그리고 곡 끝 판정보다도 먼저) stateLock 아래에서 호출할 것.
      * 순서가 뒤바뀌면 "pos 읽음 → 시크 끼어듦 → 리셋" 이 되어 방금 비운 체인에
      * 시크 이전 오디오가 들어간다 — 리셋이 막으려던 잡음을 리셋이 만든다.
      */
-    private fun consumeResetRequest() {
-        if (!processorsDirty) return
-        processorsDirty = false
-        shifter.reset()
-        resetProcessors()
+    private fun prepareProcessors() {
+        if (processorsDirty) {
+            processorsDirty = false
+            shifter.reset()
+            resetProcessors()
+        }
+        // 같은 키는 PitchShifter의 setter가 건너뛴다. 키 변경만으로 다른 DSP를 리셋하지 않는다.
+        shifter.semitones = semitones
     }
 
     /** interleaved shorts [frames]프레임 → 피치 적용해 [outShort]에 기록 */
@@ -243,9 +244,9 @@ abstract class AudioTrackEngine(
 
             val pos: Long
             val limit: Long
-            // 리셋 소비는 framePos·limit 읽기와 원자적이어야 한다(위 consumeResetRequest 주석 참조)
+            // 리셋 소비는 framePos·limit 읽기와 원자적이어야 한다(위 prepareProcessors 주석 참조)
             synchronized(stateLock) {
-                consumeResetRequest()
+                prepareProcessors()
                 pos = framePos
                 limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
             }

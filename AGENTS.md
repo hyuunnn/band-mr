@@ -67,6 +67,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 ## DSP
 
 - 시크는 `processorsDirty`만 세운다. 오디오 스레드가 `framePos`·곡끝 판정·렌더 전에 제자리 리셋한다. UI 스레드에서 DSP를 리셋하지 않는다.
+- 키 변경은 요청값만 기록하고 피치 상태는 오디오 스레드의 청크 경계에서 적용한다. 키 변경만으로 제거 DSP를 리셋하지 않는다.
 - 체인 객체 교체는 muteMask 변경 시에만 한다. `chain`은 `@Volatile`을 유지한다.
 - AI 전용 스템의 0% 설정은 보존하되 DSP 처리·drain에서는 제외한다. AI 전용 비트만 있으면 체인 입력 PCM을 그대로 내보내고 drain 출력을 만들지 않는다.
 - `SpectralStage.reset()`은 `magHist`까지 비운다. 리셋 출력은 새 체인 출력과 같아야 한다.
@@ -96,6 +97,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 취소는 `currentCoroutineContext()[Job]`으로 판정한다. 새 분리는 이전 Job을 join한 뒤 시작한다.
 - 입력 디코딩은 진행률·출력 유무와 무관하게 반복마다 취소를 확인하고, 캐시 승격 전에도 다시 확인한다. `MixCache.prepare`의 취소 확인은 `checkCancelled` 이름 인자로 전달한다(마지막 람다는 진행률 콜백).
 - 마지막 추론 후·결과 반환 전에도 취소를 확인한다. 승격·DB 갱신은 `commitSeparation`의 짧은 `NonCancellable` 구간에서 확정한다. 추론 전체를 감싸지 않는다.
+- 스템 승격도 확정 잠금 안에서 곡 존재를 확인한다. 삭제가 먼저 끝났으면 승격·DB 갱신을 건너뛰고 분리 작업이 임시 산출물을 정리한다.
 - `SepBus`는 마지막 시도의 진행·오류만 담고, 완료 여부는 `Song.isSeparated`로 판단한다.
 - 모델 다운로드는 Range 이어받기. `.tmp`는 네트워크 실패 시 보존하고 무결성 실패 시 삭제한다.
 - 같은 유튜브 영상도 키·배속을 따로 설정할 수 있게 매번 새 Song으로 등록한다. 중복 등록은 의도된 기능이며, 버그 수정 명목으로 기존 행 재사용이나 중복 차단으로 바꾸지 않는다.
