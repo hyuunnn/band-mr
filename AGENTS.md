@@ -78,6 +78,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
 - 시작 고아 정리의 DB 목록 조회부터 삭제 완료까지는 `startupCleanup`으로 새 파일 작업과 분리한다. `MixCache.prepare`와 유튜브 원본 생성·재사용은 이 신호를 기다리며, 이후의 사전 변환 전체를 기다리지 않는다. 시작 작업의 실패·실행 전 취소도 대기를 해제해야 한다.
 - 내부 산출물 승격은 `FilePromote`를 사용한다. 복사 실패 시 목적지를 지우며, 분리 중 기존 정식 스템을 먼저 지우지 않는다.
+- WAV의 버퍼 출력·헤더 작성 실패는 전파하고 승격하지 않는다. 분리는 작성기를 모두 닫으며, 기존 오류·취소가 있으면 닫기 실패를 suppressed로 보존한다.
 - MixCache는 디코딩을 `.part`의 WavWriter에 직접 쓰는 1패스. close 후 승격하고, 0프레임은 거부한다(44바이트 헤더는 일반 파일 검사·WavReader를 통과한다).
 - 열 수 없거나 길이가 0인 캐시는 `MixCache.delete`로 WAV·peaks를 함께 버린다.
 - MixCache의 곡별 잠금은 suspend 가능한 Mutex로 유지한다. 캐시 승격은 `withStemMutation` 안에서 DB에 곡이 남아 있는지 확인한 뒤 수행해, 곡 삭제 이후 정식 캐시가 다시 생기지 않게 한다. 디코딩 전체를 확정 잠금으로 감싸지 않는다.
