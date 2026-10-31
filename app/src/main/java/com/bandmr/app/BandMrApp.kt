@@ -8,6 +8,8 @@ import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.AppDatabase
 import com.bandmr.app.data.SettingsStore
 import com.bandmr.app.data.Song
+import com.bandmr.app.data.cleanUpUnusedSongPermissions
+import com.bandmr.app.data.releaseSongReadPermission
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.export.ExportTasks
 import com.bandmr.app.separation.ModelManager
@@ -51,6 +53,11 @@ class BandMrApp : Application() {
                     Locator.songDao.getAllOnce().also { songs ->
                         cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
                         cleanUpSourceFiles(songs)
+                        cleanUpUnusedSongPermissions(
+                            Locator.songDao,
+                            contentResolver.persistedUriPermissions.filter { it.isReadPermission }.map { it.uri.toString() },
+                            releasePermission = { releaseSongReadPermission(this@BandMrApp, it) },
+                        )
                     }
                 } finally {
                     cleanupDone.complete(Unit)
@@ -99,10 +106,7 @@ class BandMrApp : Application() {
             }
             if (id == null || id !in validIds) f.delete()
         }
-        StemFiles.dir(this).listFiles()?.forEach { d ->
-            val id = d.name.toLongOrNull()
-            if (id == null || id !in validIds) d.deleteRecursively()
-        }
+        StemFiles.cleanUpOrphans(StemFiles.dir(this), validIds)
     }
 
     /**

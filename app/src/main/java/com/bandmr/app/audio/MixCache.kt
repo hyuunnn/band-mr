@@ -7,6 +7,7 @@ import com.bandmr.app.io.FilePromote
 import com.bandmr.app.separation.AudioDecode
 import com.bandmr.app.separation.withStemMutation
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -105,8 +106,8 @@ object MixCache {
                 check(frames > 0) { "곡에서 소리를 찾지 못했습니다 (빈 오디오)" }
                 checkCancelled()
                 commitMixCache(part, final) { Locator.songDao.get(songId) != null }
-                // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
-                // 이 emit을 놓쳐도 파일이 있으면 바로 끝난다
+                // 승격 뒤에만 알린다. awaitReady는 구독 직후와 이후의 모든 알림에서
+                // 파일을 다시 확인하므로 알림이 합쳐져도 완성을 놓치지 않는다.
                 ready.signal(songId)
                 final
             } finally {
@@ -129,9 +130,13 @@ internal suspend fun commitMixCache(part: File, final: File, songExists: suspend
 /**
  * 곡 캐시 완료 신호. [signal]은 파일이 이미 보이는 뒤에만 호출한다.
  * [await]는 구독을 건 다음 현재 상태를 다시 확인해, signal과 exists 검사 사이 경쟁을 막는다.
+ * 알림이 몰리면 최신 알림만 남기고 모든 대기자가 파일 상태를 다시 확인한다.
  */
 internal class CacheReadyGate {
-    private val ready = MutableSharedFlow<Long>(extraBufferCapacity = 16)
+    private val ready = MutableSharedFlow<Long>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     /** 테스트에서 구독 시점 경쟁을 확인하는 용도 */
     @androidx.annotation.VisibleForTesting
@@ -148,7 +153,7 @@ internal class CacheReadyGate {
             val job = launch {
                 ready
                     .onSubscription { subscribed.complete(Unit) }
-                    .first { it == songId }
+                    .first { it == songId || isReady() }
             }
             subscribed.await()
             if (isReady()) job.cancel() else job.join()

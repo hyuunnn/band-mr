@@ -22,9 +22,11 @@ internal suspend fun deleteSong(song: Song, keepSource: Boolean = false) {
         SeparationService.cancel(context)
     }
     withContext(Dispatchers.IO) {
-        deleteSong(song, Locator.songDao, File(context.filesDir, "sources"), keepSource) {
-            MixCache.delete(context, song.id)
-        }
+        deleteSong(
+            song, Locator.songDao, File(context.filesDir, "sources"), keepSource,
+            releaseSourcePermission = { releaseSongReadPermission(context, it) },
+            deleteMixCache = { MixCache.delete(context, song.id) },
+        )
     }
 }
 
@@ -38,16 +40,17 @@ internal suspend fun deleteSong(
     dao: SongDao,
     sourcesDir: File,
     keepSource: Boolean = false,
+    releaseSourcePermission: (String) -> Unit = {},
     deleteMixCache: () -> Unit,
 ) {
     withStemMutation {
         // 캐시 준비 중 사용자가 연 곡은 분리가 먼저 끝났을 수 있으므로 락 안에서 다시 읽는다.
         val latest = dao.get(song.id) ?: song
+        val shared = dao.getAllOnce().any { it.id != song.id && it.uri == latest.uri }
         latest.stemsDir?.let { File(it).deleteRecursively() }
         deleteMixCache()
         // 다른 곡이 참조하지 않는 앱 내부 다운로드 원본만 정리한다.
         if (!keepSource) {
-            val shared = dao.getAllOnce().any { it.id != song.id && it.uri == latest.uri }
             if (!shared && latest.uri.startsWith("file://")) {
                 val sourceRoot = sourcesDir.canonicalFile
                 latest.uri.toUri().path?.let { path ->
@@ -56,5 +59,7 @@ internal suspend fun deleteSong(
             }
         }
         dao.delete(song)
+        // DB 삭제에 실패했거나 다른 곡이 같은 파일을 쓰는 경우에는 권한을 유지한다.
+        if (!shared && latest.uri.startsWith("content://")) releaseSourcePermission(latest.uri)
     }
 }

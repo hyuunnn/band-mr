@@ -1,6 +1,7 @@
 package com.bandmr.app.ui.settings
 
 import com.bandmr.app.audio.SourcePreparation
+import com.bandmr.app.io.CacheCleanupException
 import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -231,5 +233,45 @@ class CacheCleanupTest {
         assertTrue(released)
         assertEquals(5L, freed)
         assertTrue(dir.listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun `스템 부분 삭제에 실패해도 DB 분리 표시는 내리고 실패를 호출자에게 알린다`() = runBlocking {
+        val dir = temp.newFolder("stems")
+        val blocked = File(dir, "1/vocals.wav").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(64)) }
+        val removable = File(blocked.parentFile, "drums.wav").apply { writeBytes(ByteArray(32)) }
+        val refusing = object : File(blocked.path) { override fun delete() = false }
+        val child = object : File(blocked.parentFile!!.path) {
+            override fun listFiles(): Array<File> = arrayOf(refusing, removable)
+        }
+        val root = object : File(dir.path) { override fun listFiles(): Array<File> = arrayOf(child) }
+        val events = mutableListOf<String>()
+
+        val result = runCatching {
+            deleteAllStems(root, { events += "cancel" }, { events += "release" }) {
+                assertTrue(blocked.exists())
+                assertFalse(removable.exists())
+                events += "clear DB"
+            }
+        }
+
+        assertTrue(result.exceptionOrNull() is CacheCleanupException)
+        assertEquals(listOf("cancel", "release", "clear DB"), events)
+    }
+
+    @Test
+    fun `스템 삭제 실패와 DB 해제 실패를 함께 보존한다`() = runBlocking {
+        val dir = temp.newFolder("stems")
+        val child = File(dir, "1").apply { mkdirs() }
+        val refusing = object : File(child.path) { override fun delete() = false }
+        val root = object : File(dir.path) { override fun listFiles(): Array<File> = arrayOf(refusing) }
+        val recordFailure = IOException("DB failure")
+
+        val failure = runCatching {
+            deleteAllStems(root, {}, {}) { throw recordFailure }
+        }.exceptionOrNull()
+
+        assertTrue(failure is CacheCleanupException)
+        assertArrayEquals(arrayOf(recordFailure), failure!!.suppressed)
     }
 }

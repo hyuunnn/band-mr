@@ -31,7 +31,7 @@ internal fun rememberPlayerParameters(
     song: Song?,
     aiOn: Boolean,
     releaseEpoch: Int,
-    load: (Song, PlayerParameters) -> Unit,
+    load: suspend (Song, PlayerParameters) -> Unit,
 ): PlayerParameters {
     val parameters = remember(song?.id) { PlayerParameters(song) }
     LaunchedEffect(song?.id, song?.separatedTier, song?.stemsDir, aiOn, releaseEpoch) {

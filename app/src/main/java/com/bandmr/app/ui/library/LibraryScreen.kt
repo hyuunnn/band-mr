@@ -76,6 +76,8 @@ import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.deleteSong
+import com.bandmr.app.data.registerLocalSong
+import com.bandmr.app.data.releaseSongReadPermission
 import com.bandmr.app.separation.Tier
 import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.StatusBadge
@@ -134,13 +136,18 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
         if (uri != null) {
             scope.launch {
                 val newId = try {
-                    Locator.context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
                     val (title, durationMs) = readMetadata(uri)
-                    Locator.songDao.insert(
-                        Song(title = title, uri = uri.toString(), durationMs = durationMs)
+                    // 기존 잔여 권한을 먼저 정리해 새 권한 획득이 OS 한도를 불필요하게 넘기지 않게 한다.
+                    Locator.awaitStartupCleanup()
+                    registerLocalSong(
+                        Song(title = title, uri = uri.toString(), durationMs = durationMs),
+                        Locator.songDao,
+                        takePermission = {
+                            Locator.context.contentResolver.takePersistableUriPermission(
+                                uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                            )
+                        },
+                        releasePermission = { releaseSongReadPermission(Locator.context, it) },
                     )
                 } catch (ce: CancellationException) {
                     throw ce // 취소는 실패가 아니다 (YouTubeImport와 같은 규약)

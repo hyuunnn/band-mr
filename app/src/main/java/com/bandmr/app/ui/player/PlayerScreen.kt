@@ -124,6 +124,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
     // 알림 '종료'로 해제된 엔진도 현재 편집값으로 다시 준비한다.
     val releaseEpoch by ctrl.releaseEpoch.collectAsState()
     val parameters = rememberPlayerParameters(song, aiOn, releaseEpoch) { s, current ->
+        Locator.awaitStartupCleanup()
         ctrl.setLoop(current.loopStartMs, current.loopEndMs, apply = false)
         ctrl.ensureLoaded(s, aiOn, current.stemGainsPacked, current.semitones, current.speed)
     }

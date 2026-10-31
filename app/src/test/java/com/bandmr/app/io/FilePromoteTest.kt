@@ -6,11 +6,13 @@ import com.bandmr.app.data.Stem
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 
 /**
  * 승격 계약: 목적지가 이미 있어도(= rename이 false를 돌려주는 기기 조건) 결과가 완성본이어야 하고
@@ -114,7 +116,7 @@ class FilePromoteTest {
     }
 
     @Test
-    fun `디렉터리 승격이 실패하면 목적지를 남기지 않는다`() {
+    fun `없는 디렉터리를 승격해도 기존 결과는 보존한다`() {
         val missing = File(tmp.root, "없는폴더.part")
         val dest = tmp.newFolder("stems")
         File(dest, "vocals.wav").writeBytes(payload)
@@ -127,6 +129,137 @@ class FilePromoteTest {
         }
 
         assertTrue(threw)
-        assertFalse("스템 일부만 있는 디렉터리가 남으면 분리 완료로 오인된다", dest.exists())
+        assertArrayEquals(payload, File(dest, "vocals.wav").readBytes())
+    }
+
+    @Test
+    fun `디렉터리 복사 도중 실패하면 부분 결과를 지우고 이전 스템을 복원한다`() {
+        val part = tmp.newFolder("stems.part")
+        File(part, "new.wav").writeBytes(payload)
+        val unreadable = File(part, "unreadable").apply { mkdirs() }
+        val dest = tmp.newFolder("stems")
+        File(dest, "vocals.wav").writeBytes(byteArrayOf(7, 8, 9))
+        val failure = IOException("주입한 복사 오류")
+        var copiedBeforeFailure = false
+        val source = object : File(part.path) {
+            override fun renameTo(dest: File) = false
+            override fun listFiles(): Array<File> = arrayOf(
+                File(part, "new.wav"),
+                object : File(unreadable.path) {
+                    override fun listFiles(): Array<File>? {
+                        copiedBeforeFailure = File(dest, "new.wav").exists()
+                        throw failure
+                    }
+                },
+            )
+        }
+
+        try {
+            FilePromote.directory(source, dest)
+            org.junit.Assert.fail("복사 실패가 전파되어야 한다")
+        } catch (actual: IOException) {
+            assertSame(failure, actual)
+        }
+
+        assertTrue(copiedBeforeFailure)
+        assertEquals(listOf("vocals.wav"), dest.list()!!.toList())
+        assertArrayEquals(byteArrayOf(7, 8, 9), File(dest, "vocals.wav").readBytes())
+        assertEquals(setOf("stems", "stems.part"), tmp.root.list()!!.toSet())
+    }
+
+    @Test
+    fun `디렉터리 복사 폴백도 이전 파일을 섞지 않고 교체한다`() {
+        val part = tmp.newFolder("stems.part")
+        File(part, "new.wav").writeBytes(payload)
+        val dest = tmp.newFolder("stems")
+        File(dest, "old.wav").writeBytes(byteArrayOf(1))
+        val source = object : File(part.path) {
+            override fun renameTo(dest: File) = false
+        }
+
+        FilePromote.directory(source, dest)
+
+        assertEquals(listOf("new.wav"), dest.list()!!.toList())
+        assertArrayEquals(payload, File(dest, "new.wav").readBytes())
+        assertFalse(part.exists())
+        assertEquals(listOf("stems"), tmp.root.list()!!.toList())
+    }
+
+    @Test
+    fun `최초 스템 저장이 복사 중 실패하면 부분 디렉터리를 남기지 않는다`() {
+        val part = tmp.newFolder("stems.part")
+        val dest = File(tmp.root, "stems")
+        val failure = IOException("주입한 읽기 오류")
+        val source = object : File(part.path) {
+            override fun renameTo(dest: File) = false
+            override fun listFiles(): Array<File>? = throw failure
+        }
+
+        try {
+            FilePromote.directory(source, dest)
+            org.junit.Assert.fail("복사 실패가 전파되어야 한다")
+        } catch (actual: IOException) {
+            assertSame(failure, actual)
+        }
+
+        assertFalse(dest.exists())
+        assertTrue(part.exists())
+        assertEquals(listOf("stems.part"), tmp.root.list()!!.toList())
+    }
+
+    @Test
+    fun `기존 디렉터리를 백업할 수 없으면 기존 결과를 건드리지 않는다`() {
+        val part = tmp.newFolder("stems.part")
+        File(part, "new.wav").writeBytes(payload)
+        val existing = tmp.newFolder("stems")
+        File(existing, "old.wav").writeBytes(byteArrayOf(1))
+        val dest = object : File(existing.path) {
+            override fun renameTo(dest: File) = false
+        }
+
+        try {
+            FilePromote.directory(part, dest)
+            org.junit.Assert.fail("백업 실패 시 교체하면 안 된다")
+        } catch (_: IOException) {
+            assertEquals(listOf("old.wav"), existing.list()!!.toList())
+            assertArrayEquals(byteArrayOf(1), File(existing, "old.wav").readBytes())
+            assertTrue(part.exists())
+            assertEquals(setOf("stems", "stems.part"), tmp.root.list()!!.toSet())
+        }
+    }
+
+    @Test
+    fun `교체 완료 후 남은 입력 임시 폴더를 백업으로 잘못 복구하지 않는다`() {
+        val dest = tmp.newFolder("stems")
+        File(dest, "new.wav").writeBytes(payload)
+        val part = tmp.newFolder("stems.part")
+        File(part, "old.wav").writeBytes(byteArrayOf(1))
+
+        FilePromote.recoverDirectory(dest)
+
+        assertEquals(listOf("new.wav"), dest.list()!!.toList())
+        assertArrayEquals(payload, File(dest, "new.wav").readBytes())
+    }
+
+    @Test
+    fun `부분 목적지를 지울 수 없으면 백업을 남기고 이후 복구를 재시도한다`() {
+        val dest = tmp.newFolder("stems")
+        val backup = tmp.newFolder("stems.backup.tmp")
+        File(backup, "old.wav").writeBytes(payload)
+        val blocked = object : File(dest.path) {
+            override fun delete() = false
+        }
+
+        try {
+            FilePromote.recoverDirectory(blocked)
+            org.junit.Assert.fail("정리 실패 시 백업을 지우면 안 된다")
+        } catch (_: IOException) {
+            assertArrayEquals(payload, File(backup, "old.wav").readBytes())
+        }
+
+        FilePromote.recoverDirectory(dest)
+
+        assertFalse(backup.exists())
+        assertArrayEquals(payload, File(dest, "old.wav").readBytes())
     }
 }

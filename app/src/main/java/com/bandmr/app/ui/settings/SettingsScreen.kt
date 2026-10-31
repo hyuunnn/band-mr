@@ -46,6 +46,7 @@ import com.bandmr.app.Locator
 import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.io.CacheStorage
+import com.bandmr.app.io.CacheCleanupException
 import com.bandmr.app.separation.ModelFamily
 import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.SepBus
@@ -290,7 +291,9 @@ private fun StorageSection() {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                cleanupError = "정리를 완료하지 못했습니다. 다시 시도해 주세요."
+                cleanupError = if (failure is CacheCleanupException) {
+                    "일부 파일을 삭제하지 못했습니다. 다시 시도해 주세요."
+                } else "정리를 완료하지 못했습니다. 다시 시도해 주세요."
                 Log.w("Settings", "저장공간 정리 실패", failure)
             } finally {
                 refreshKey++
@@ -385,20 +388,37 @@ internal suspend fun clearMixCache(
 }
 
 /** 모든 곡의 스템을 버리고 DB의 분리 표시도 내린다. @return 회수한 바이트 */
-private suspend fun deleteAllStems(): Long {
+internal suspend fun deleteAllStems(
+    stemsDir: File = StemFiles.dir(Locator.context),
+    stopSeparation: () -> Unit = {
+        if (SepBus.state.value is SepState.Running) SeparationService.cancel(Locator.context)
+    },
+    releasePlayback: () -> Unit = { Locator.playerController.release() },
+    clearSeparation: suspend () -> Unit = { Locator.songDao.clearAllSeparation() },
+): Long {
     // 진행 중인 분리를 취소하고 .part까지 지운다. 블로킹 추론이 아직 끝나지 않은
     // 경우에도 쓰던 디렉터리를 버려 고아 산출물을 남기지 않는다.
-    if (SepBus.state.value is SepState.Running) {
-        SeparationService.cancel(Locator.context)
-    }
-    Locator.playerController.release()
+    stopSeparation()
+    releasePlayback()
     return withContext(Dispatchers.IO) {
         // 확정 중인 분리는 파일·DB 기록까지 마친 뒤 지운다. 화면 이탈로 이 정리가
         // 취소되더라도 파일 삭제와 DB 표시 해제가 갈라지지 않도록 같은 확정 락을 쓴다.
         withStemMutation {
-            val freed = CacheStorage.clearSubdirectories(StemFiles.dir(Locator.context), includeInFlight = true)
-            Locator.songDao.clearAllSeparation()
-            freed
+            var failure: Throwable? = null
+            try {
+                CacheStorage.clearSubdirectories(stemsDir, includeInFlight = true)
+            } catch (error: Throwable) {
+                failure = error
+                throw error
+            } finally {
+                // 부분 삭제된 스템을 정상 결과로 재생하지 않는다. 실패는 DB 해제 뒤 UI에 전달한다.
+                try {
+                    clearSeparation()
+                } catch (recordError: Throwable) {
+                    if (failure == null) throw recordError
+                    failure.addSuppressed(recordError)
+                }
+            }
         }
     }
 }

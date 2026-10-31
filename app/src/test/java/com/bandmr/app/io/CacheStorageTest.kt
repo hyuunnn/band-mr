@@ -3,6 +3,7 @@ package com.bandmr.app.io
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -125,6 +126,46 @@ class CacheStorageTest {
         assertEquals(160L, freed)
         assertFalse(File(root, "1").exists())
         assertFalse(File(root, "3.part").exists())
+    }
+
+    @Test
+    fun `파일 삭제 실패를 보고하고 나머지 캐시도 정리한다`() {
+        val root = tmp.newFolder("mix")
+        val blocked = write(root, "1.wav", 64)
+        val removable = write(root, "2.wav", 32)
+        val refusing = object : File(blocked.path) { override fun delete() = false }
+        val listing = object : File(root.path) {
+            override fun listFiles(): Array<File> = arrayOf(refusing, removable)
+        }
+
+        assertThrows(CacheCleanupException::class.java) { CacheStorage.clearFiles(listing) }
+
+        assertTrue(blocked.exists())
+        assertFalse(removable.exists())
+        assertEquals(64L, CacheStorage.clearableFileSize(root))
+    }
+
+    @Test
+    fun `스템 폴더의 일부만 지워져도 성공으로 반환하지 않는다`() {
+        val root = tmp.newFolder("stems")
+        val blocked = write(root, "1/vocals.wav", 64)
+        val removable = write(root, "1/drums.wav", 32)
+        val child = blocked.parentFile!!
+        val refusing = object : File(blocked.path) { override fun delete() = false }
+        val listing = object : File(child.path) {
+            override fun listFiles(): Array<File> = arrayOf(refusing, removable)
+        }
+        val stemRoot = object : File(root.path) {
+            override fun listFiles(): Array<File> = arrayOf(listing)
+        }
+
+        assertThrows(CacheCleanupException::class.java) {
+            CacheStorage.clearSubdirectories(stemRoot, includeInFlight = true)
+        }
+
+        assertTrue(blocked.exists())
+        assertFalse(removable.exists())
+        assertEquals(64L, CacheStorage.clearableSubdirectorySize(root))
     }
 
     @Test

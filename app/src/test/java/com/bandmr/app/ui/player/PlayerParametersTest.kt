@@ -13,6 +13,7 @@ import com.bandmr.app.data.Stem
 import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.Tier
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -169,7 +170,23 @@ class PlayerParametersTest {
         }
     }
 
-    private suspend fun TestScope.withPlayer(initial: Song? = song(), test: suspend (Player) -> Unit) {
+    @Test
+    fun `시작 복구를 기다린 뒤 최신 편집값으로 엔진을 연다`() = runTest {
+        val startup = CompletableDeferred<Unit>()
+        withPlayer(beforeLoad = { startup.await() }) { player ->
+            assertTrue(player.loads.isEmpty())
+            player.parameters.semitones = 5
+            startup.complete(Unit)
+            player.recompose()
+            assertEquals(5, player.loads.single().semitones)
+        }
+    }
+
+    private suspend fun TestScope.withPlayer(
+        initial: Song? = song(),
+        beforeLoad: suspend () -> Unit = {},
+        test: suspend (Player) -> Unit,
+    ) {
         val clock = object : MonotonicFrameClock {
             override suspend fun <R> withFrameNanos(onFrame: (Long) -> R): R = onFrame(System.nanoTime())
         }
@@ -190,6 +207,7 @@ class PlayerParametersTest {
                 player.parameters = rememberPlayerParameters(
                     player.song.value, player.aiOn.value, player.releaseEpoch.intValue,
                 ) { song, current ->
+                    beforeLoad()
                     player.loads += Load(
                         song.id, current.stemGainsPacked, current.semitones,
                         current.speed, current.loopStartMs, current.loopEndMs,

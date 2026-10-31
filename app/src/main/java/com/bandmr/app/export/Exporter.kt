@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
+import com.bandmr.app.Locator
 import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.audio.PIPELINE_SAMPLE_RATE
@@ -14,6 +15,7 @@ import com.bandmr.app.audio.WavReader
 import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.Stem
+import com.bandmr.app.separation.withStemMutation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -67,6 +69,7 @@ class Exporter(private val context: Context) {
         dest: Uri,
         onProgress: (Float) -> Unit,
     ) = withContext(Dispatchers.IO) {
+        Locator.awaitStartupCleanup()
         val shifter = PitchShifter().also { it.semitones = semitones }
         val gains = Stem.gainArrayFromPacked(stemGainsPacked)
         val stemShort = ShortArray(CHUNK * 2)
@@ -75,7 +78,7 @@ class Exporter(private val context: Context) {
         writeMixTo(dest) { writer ->
             // 열기 규칙(누락·레이트 불일치 제외, 최장 스템 기준 길이)은 재생과 공유한다.
             // use를 writer 안쪽에 두어 리더 6개가 dest 복사(수십 MB) 전에 닫히게 한다
-            StemWavSet.open(File(song.stemsDir!!)).use { stems ->
+            withStemMutation { StemWavSet.open(File(song.stemsDir!!)) }.use { stems ->
                 if (stems.isEmpty) error("분리된 스템이 없습니다")
                 val total = stems.totalFrames
                 var pos = 0L
@@ -173,6 +176,7 @@ class Exporter(private val context: Context) {
         treeUri: Uri,
         onEach: (String) -> Unit = {},
     ): Int = withContext(Dispatchers.IO) {
+        Locator.awaitStartupCleanup()
         val dir = File(song.stemsDir ?: error("분리된 스템이 없습니다"))
         val tree = DocumentFile.fromTreeUri(context, treeUri)
             ?: error("저장 폴더를 열 수 없습니다")
