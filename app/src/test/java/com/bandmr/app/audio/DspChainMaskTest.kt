@@ -26,10 +26,11 @@ class DspChainMaskTest {
     }
 
     @Test
-    fun `지원하는 DSP 효과는 수정 전 PCM과 잔여 출력까지 바이트 단위로 같다`() {
-        // 5d4e522의 DspChain으로 모노·스테레오 각각 15가지 지원 마스크를 렌더한 SHA-256.
-        assertEquals("d39bb9e0ab751427d8d3990726cb8eddfc512d342d25e6b821997102ed23ace0", digest(1))
-        assertEquals("8e2fc15413bf108ab743cad78968eb8770799aab362414ae4e6ae5c97020e2b7", digest(2))
+    fun `지원하는 DSP 효과의 고정 지연 PCM과 잔여 출력을 보존한다`() {
+        // 청크 끝의 무음 삽입을 초기 고정 지연으로 바꾼 뒤의 15가지 마스크 전체 출력.
+        // 수정 전 연속 PCM 자체와의 비교는 DspChainChunkTest가 별도로 고정한다.
+        assertEquals("21a6d796aec7971ccf76ae0641bd39fbd6120dbbbb2caba2b513e99cb1167240", digest(1))
+        assertEquals("b47a031e58a1dd8f6db927a95023e97f013d873eefe5b39e220a7e4781c57a08", digest(2))
     }
 
     @Test
