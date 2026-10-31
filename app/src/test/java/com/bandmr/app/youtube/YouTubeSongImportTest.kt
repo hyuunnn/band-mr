@@ -2,9 +2,12 @@ package com.bandmr.app.youtube
 
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.SongDao
+import com.bandmr.app.separation.withStemMutation
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -12,8 +15,13 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
 import org.junit.Assert.*
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -21,11 +29,16 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicInteger
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class YouTubeSongImportTest {
     @get:Rule val temp = TemporaryFolder()
 
-    private val prefix = "file:///files/sources/dQw4w9WgXcQ."
-    private val downloaded = Song(title = "video", uri = "${prefix}m4a", durationMs = 1000)
+    @Before fun setMain() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
+    @After fun resetMain() { Dispatchers.resetMain() }
+
+    private val downloaded by lazy {
+        Song(title = "video", uri = temp.newFile("video.m4a").toURI().toString(), durationMs = 1000)
+    }
 
     @Test
     fun `캐시 실패 후 재시도하면 실패한 등록 없이 새 곡 하나만 남는다`() = runTest {
@@ -225,6 +238,146 @@ class YouTubeSongImportTest {
             assertNotEquals(added.id, repeated.id)
             assertEquals(listOf(existing, added, repeated), dao.rows)
             assertEquals(setOf(added.id, repeated.id), cache)
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun `재사용 결정 뒤 삭제된 원본은 잠금 밖에서 다시 받고 한 번만 등록한다`() = runTest {
+        val source = File(java.net.URI(downloaded.uri))
+        val dao = MemoryDao(downloaded.copy(id = 9))
+        val deleting = CompletableDeferred<Unit>()
+        val reused = CompletableDeferred<Unit>()
+        val deletion = launch(start = CoroutineStart.UNDISPATCHED) {
+            withStemMutation {
+                deleting.complete(Unit)
+                reused.await()
+                check(source.delete())
+                dao.delete(requireNotNull(dao.get(9)))
+            }
+        }
+        deleting.await()
+        var downloads = 0
+        val added = importYouTubeSong(dao, downloadSong = {
+            downloads++
+            if (downloads == 1) {
+                assertTrue(source.exists())
+                reused.complete(Unit)
+            } else {
+                // 다시 받는 동안 확정 잠금을 잡지 않아야 한다.
+                withStemMutation { source.writeBytes(byteArrayOf(1, 2, 3)) }
+            }
+            downloaded
+        }, prepareCache = {
+            assertTrue("등록 시점에 원본이 살아 있어야 한다", source.isFile)
+        }, rollback = { dao.delete(it) })
+        deletion.join()
+        assertEquals(2, downloads)
+        assertEquals(1, dao.inserts)
+        assertEquals(listOf(added), dao.rows)
+    }
+
+    @Test(timeout = 10_000)
+    fun `등록이 먼저 확정 중이면 삭제는 새 공유 참조를 확인한 뒤 원본을 보존한다`() = runTest {
+        val source = File(java.net.URI(downloaded.uri))
+        val existing = downloaded.copy(id = 9)
+        val dao = MemoryDao(existing)
+        val inserting = CompletableDeferred<Unit>()
+        val finishInsert = CompletableDeferred<Unit>()
+        dao.afterInsert = { inserting.complete(Unit); finishInsert.await() }
+        val registration = launch(start = CoroutineStart.UNDISPATCHED) {
+            importYouTubeSong(dao, { downloaded }, {}, { dao.delete(it) })
+        }
+        inserting.await()
+        val deletion = launch(start = CoroutineStart.UNDISPATCHED) {
+            withStemMutation {
+                val shared = dao.getAllOnce().any { it.id != existing.id && it.uri == existing.uri }
+                if (!shared) source.delete()
+                dao.delete(existing)
+            }
+        }
+        try {
+            assertFalse("삭제는 등록 확정이 끝날 때까지 기다린다", deletion.isCompleted)
+        } finally {
+            finishInsert.complete(Unit)
+            registration.join()
+            deletion.join()
+        }
+        assertTrue(source.isFile)
+        assertEquals(1, dao.rows.size)
+        assertNotEquals(existing.id, dao.rows.single().id)
+    }
+
+    @Test(timeout = 10_000)
+    fun `다운로드는 곡 확정 잠금 밖에서 실행한다`() = runTest {
+        val dao = MemoryDao()
+        val added = importYouTubeSong(dao, downloadSong = {
+            withStemMutation { downloaded }
+        }, prepareCache = {}, rollback = { dao.delete(it) })
+        assertEquals(listOf(added), dao.rows)
+    }
+
+    @Test(timeout = 10_000)
+    fun `원본 재확인 잠금을 기다리는 중 취소하면 행을 만들지 않는다`() = runTest {
+        val dao = MemoryDao()
+        val locked = CompletableDeferred<Unit>()
+        val unlock = CompletableDeferred<Unit>()
+        val downloadedSource = CompletableDeferred<Unit>()
+        val holder = launch(start = CoroutineStart.UNDISPATCHED) {
+            withStemMutation { locked.complete(Unit); unlock.await() }
+        }
+        locked.await()
+        val registration = launch(start = CoroutineStart.UNDISPATCHED) {
+            importYouTubeSong(dao, downloadSong = {
+                downloaded.also { downloadedSource.complete(Unit) }
+            }, prepareCache = { error("취소된 곡의 캐시 준비 금지") }, rollback = { dao.delete(it) })
+        }
+        try {
+            downloadedSource.await()
+            registration.cancelAndJoin()
+            assertTrue(dao.rows.isEmpty())
+            assertEquals(0, dao.inserts)
+            assertTrue(File(java.net.URI(downloaded.uri)).isFile)
+        } finally {
+            unlock.complete(Unit)
+            holder.join()
+            registration.cancelAndJoin()
+        }
+    }
+
+    @Test(timeout = 15_000)
+    fun `다운로드 직후 원본이 삭제되면 HTTP로 다시 받아 등록한다`() = runTest {
+        val dir = temp.newFolder("retry-source")
+        val payload = byteArrayOf(1, 2, 3, 4)
+        val requests = AtomicInteger()
+        val dao = MemoryDao()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/audio") { exchange ->
+                requests.incrementAndGet()
+                exchange.sendResponseHeaders(200, payload.size.toLong())
+                exchange.responseBody.use { it.write(payload) }
+                exchange.close()
+            }
+            start()
+        }
+        try {
+            var first = true
+            val result = importYouTubeSong(dao, downloadSong = {
+                val source = withContext(Dispatchers.IO) {
+                    downloadAudioSource(dir, "same-video", "http://127.0.0.1:${server.address.port}/audio", "m4a")
+                }
+                if (first) {
+                    first = false
+                    withStemMutation { check(source.delete()) }
+                }
+                downloaded.copy(uri = source.toURI().toString())
+            }, prepareCache = { song ->
+                assertArrayEquals(payload, File(java.net.URI(song.uri)).readBytes())
+            }, rollback = { dao.delete(it) })
+            assertEquals(2, requests.get())
+            assertEquals(1, dao.inserts)
+            assertEquals(listOf(result), dao.rows)
         } finally {
             server.stop(0)
         }
