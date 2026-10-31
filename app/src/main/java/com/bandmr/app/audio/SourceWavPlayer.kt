@@ -1,6 +1,5 @@
 package com.bandmr.app.audio
 
-import android.media.AudioTrack
 import java.io.File
 
 /**
@@ -73,15 +72,11 @@ class SourceWavPlayer(
     }
 
     /** 트랙 종료 처리: DSP 파이프라인 잔여분(약 1블록)을 밀어낸 뒤 끝난다 */
-    override fun finish() {
+    override fun drainProcessors(write: (ShortArray, Int) -> Unit) {
         val c = chain // @Volatile — 락 불필요
         if (c.muteMask != 0) {
-            c.drain { arr, n ->
-                track?.write(arr, 0, n, AudioTrack.WRITE_BLOCKING)
-            }
+            c.drain(write)
         }
-        framePos = totalFrames
-        super.finish()
     }
 
     // ---------- 내부 ----------

@@ -53,6 +53,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 알림·잠금화면·블루투스 명령은 `setPlaying(Boolean)`. 토글은 화면의 `playPause()`만 사용한다.
 - 재생 FGS는 `setPlaying`의 재생 의도 시점에 시작한다. `isPlaying` 관찰로 기동하지 않는다.
 - 곡끝 콜백은 실행 시점에 `released`와 재시작 여부를 확인한다. `released`는 `release()`에서만 세운다.
+- 자연 종료는 DSP 잔여분까지 쓴 뒤 AudioTrack 재생 헤드가 따라올 때까지 기다린다. write 완료를 재생 완료로 보지 않으며, pause·시크·해제는 대기와 늦은 종료 콜백을 무효화한다.
 - 알림 종료는 제목·재생 상태 양쪽 변경에서 판정하고, 서비스 종료 요청 전에 `stopping`을 세워 재등록을 막는다.
 - `StemMixPlayer.renderChunk`는 양수를 반환한다. 입력이 없으면 무음, 닫힌 리더 예외는 스템별로 처리한다.
 - `ensureLoaded`는 `separatedTier`·`stemsDir` 변경 시 믹서를 다시 연다. 게인·키·배속은 setter로 적용한다.
@@ -61,6 +62,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 플레이어의 곡 로딩과 실제 곡 부재를 구분한다. 곡 부재는 안내와 라이브러리 이동을 제공하고, 처음 읽은 목록 캐시를 편집값 초기화에 재사용하지 않는다.
 - A-B 반복은 오디오 스레드에서 처리한다. 곡 전환은 `setLoop(..., apply=false)` 후 새 엔진에 적용한다.
 - write 후 트랙 재시작은 `stateLock` 안에서 `isPlaying`을 확인해 pause와 직렬화한다.
+- AudioTrack write의 0 반환은 일시적 중단일 수 있다. 재생 의도가 남으면 트랙을 시작해 같은 데이터를 재시도하고, 음수 오류와 구분한다.
 - pause의 flush만 제거하지 않는다. 변경하려면 재개 시 트랙 시작, `stopEngine`의 join 전 flush, 스테일 청크 flush도 함께 처리한다. 현재 최대 버퍼만큼의 위치 스킵은 허용된 동작이다.
 - 배속은 `AudioTrack.setPlaybackParams(speed, pitch=1)`로만 적용하고 시크·재개 때 다시 건다.
 

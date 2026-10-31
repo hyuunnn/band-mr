@@ -156,6 +156,36 @@ class AudioTrackEngineTest {
     }
 
     @Test
+    fun `곡끝 판정 직후 시크했으면 이전 종료가 새 위치와 재생을 덮지 않는다`() {
+        var ended = 0
+        val engine = Engine { ended++ }
+        val epoch = engine.outputEpoch()
+        engine.setFlag("isPlaying", true)
+        engine.seekToFrame(123)
+
+        engine.end(epoch)
+
+        assertEquals(123L, engine.positionFrames())
+        assertTrue(engine.isPlaying)
+        assertFalse(engine.hasCallbacks())
+        assertEquals(0, ended)
+    }
+
+    @Test
+    fun `종료 뒤 시크하고 다시 끝나도 이전 세대의 콜백은 폐기한다`() {
+        var ended = 0
+        val engine = Engine { ended++ }
+        engine.end()
+        engine.seekToFrame(0)
+        engine.end()
+
+        engine.deliver()
+        assertEquals(0, ended)
+        engine.deliver()
+        assertEquals(1, ended)
+    }
+
+    @Test
     fun `정상 곡 끝은 알리고 해제 뒤 늦게 도착한 콜백은 무시한다`() {
         var ended = 0
         val engine = Engine { ended++ }
@@ -232,7 +262,7 @@ class AudioTrackEngineTest {
         override fun closeSources() {}
         override fun resetProcessors() { resetCalls++ }
         override fun postToMain(callback: () -> Unit) { callbacks.addLast(callback) }
-        override fun finish() { finishCalls++; super.finish() }
+        override fun finish(epoch: Long) { finishCalls++; super.finish(epoch) }
         val lock get() = stateLock
         private fun shifter() = AudioTrackEngine::class.java.getDeclaredField("shifter")
             .apply { isAccessible = true }.get(this) as PitchShifter
@@ -258,7 +288,10 @@ class AudioTrackEngineTest {
             AudioTrackEngine::class.java.getDeclaredMethod("onOutputError")
                 .apply { isAccessible = true }.invoke(this)
         }
-        fun end() = finish()
+        fun outputEpoch(): Long = (AudioTrackEngine::class.java.getDeclaredField("output")
+            .apply { isAccessible = true }.get(this) as PlaybackDrain).epoch
+        fun end(epoch: Long = outputEpoch()) = finish(epoch)
+        fun hasCallbacks() = callbacks.isNotEmpty()
         fun deliver() = callbacks.removeFirst().invoke()
         fun stop() = stopEngine()
         fun setFlag(name: String, value: Boolean) {
