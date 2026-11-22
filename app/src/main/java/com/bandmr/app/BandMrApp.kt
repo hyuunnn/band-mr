@@ -19,6 +19,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -120,12 +123,19 @@ object Locator {
     val database: AppDatabase by lazy { AppDatabase.build(appContext) }
     val songDao get() = database.songDao()
 
-    /** 첫 화면의 곡 목록. 빈 목록으로 그리면 '첫 곡' 안내가 떴다가 실제 목록으로 바뀐다. */
-    @Volatile
-    private var librarySongCache: List<Song>? = null
+    /**
+     * 첫 목록은 화면을 그리기 전에 읽고, 이후에는 화면 수명과 무관하게 Room 변경을 반영한다.
+     * 같은 StateFlow를 화면에서도 사용해 재진입 때 시작 시점의 목록이 다시 표시되지 않게 한다.
+     */
+    val librarySongState: StateFlow<List<Song>> by lazy {
+        songDao.observeAll().stateIn(
+            appScope,
+            SharingStarted.Eagerly,
+            runBlocking { songDao.getAllOnce() },
+        )
+    }
 
-    fun librarySongs(): List<Song> =
-        librarySongCache ?: runBlocking { songDao.getAllOnce() }.also { librarySongCache = it }
+    fun librarySongs(): List<Song> = librarySongState.value
     val settings: SettingsStore by lazy { SettingsStore(appContext) }
     val modelManager: ModelManager by lazy { ModelManager(appContext, appScope) }
     val playerController: PlayerController by lazy { PlayerController(appContext) }

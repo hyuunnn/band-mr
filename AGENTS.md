@@ -40,6 +40,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - ABI는 `arm64-v8a`만. `material-icons-extended`는 추가하지 않고 필요한 아이콘은 벡터 리소스로 둔다.
 - R8을 켜면 NewPipeExtractor/rhino keep 규칙이 필요하다.
 - 첫 프레임 전에 테마는 `startupDesign()`, 곡 목록은 `librarySongs()`로 읽는다.
+- 라이브러리 목록은 `librarySongState`를 구독한다. Room 관찰은 `appScope`에서 계속해 화면 밖의 추가·삭제·분리 상태 변경도 반영한다. 화면 수명에 목록 캐시 갱신을 묶지 않는다.
 - 시작 화면은 `setSplashScreenTheme(Theme.BandMR.*)`로 설정한다. 기존 스타일 이름을 유지하고 배경색은 `Theme.kt`와 맞춘다. 아이콘은 따로 지정하지 않는다.
 - 시스템 바 아이콘은 `SideEffect`에서 앱 테마로 재설정한다. 구성 변경 시에도 적용해야 한다.
 
