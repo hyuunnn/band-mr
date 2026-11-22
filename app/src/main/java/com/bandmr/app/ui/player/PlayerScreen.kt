@@ -247,9 +247,9 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
 
     fun startSeparation() {
         if (running || otherRunning || modelChecking) return
-        // 확인 중은 미다운로드가 아니다. 확인이 끝날 때까지 재생도 해제하지 않는다.
+        // 확인 중은 미다운로드가 아니다.
         if (Locator.modelManager.states.value[selectedTier] == ModelState.Checking) return
-        // 파일이 없으면 서비스가 곧바로 실패한다. 그 전에 release하면 재생이 멈추고 위치가 처음으로 돌아간다.
+        // 파일이 없으면 서비스가 곧바로 실패한다.
         if (!Locator.modelManager.isDownloaded(selectedTier)) {
             SepBus.state.value = SepState.Error(
                 songId,
@@ -257,7 +257,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
             )
             return
         }
-        if (separated) ctrl.release()
+        // 재생은 그대로 둔다. 열린 스템 리더는 교체 뒤에도 유효하고, 완료 시 ensureLoaded가 위치를 유지하며 다시 연다.
         notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
