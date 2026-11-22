@@ -160,7 +160,10 @@ object YouTubeImport {
                 publish(owner, ImportState.PreparingCache(song.title))
                 withContext(Dispatchers.IO) {
                     val decodeJob = currentCoroutineContext()[Job]
-                    MixCache.prepare(context, song.id, song.uri.toUri()) { decodeJob?.ensureActive() }
+                    MixCache.prepare(
+                        context, song.id, song.uri.toUri(),
+                        checkCancelled = { decodeJob?.ensureActive() },
+                    )
                 }
             },
             rollback = { deleteSong(it, keepSource = true) },

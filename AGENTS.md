@@ -88,7 +88,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - `OrtSession`은 분리마다 열고 닫는다. 세션 캐시는 금지한다.
 - 추론은 `Tier.segmentSamples` 고정 shape, 마지막 청크는 0 패딩. 동적 축은 사용하지 않는다.
 - 취소는 `currentCoroutineContext()[Job]`으로 판정한다. 새 분리는 이전 Job을 join한 뒤 시작한다.
-- 입력 디코딩은 진행률·출력 유무와 무관하게 반복마다 취소를 확인하고, 캐시 승격 전에도 다시 확인한다.
+- 입력 디코딩은 진행률·출력 유무와 무관하게 반복마다 취소를 확인하고, 캐시 승격 전에도 다시 확인한다. `MixCache.prepare`의 취소 확인은 `checkCancelled` 이름 인자로 전달한다(마지막 람다는 진행률 콜백).
 - 마지막 추론 후·결과 반환 전에도 취소를 확인한다. 승격·DB 갱신은 `commitSeparation`의 짧은 `NonCancellable` 구간에서 확정한다. 추론 전체를 감싸지 않는다.
 - `SepBus`는 마지막 시도의 진행·오류만 담고, 완료 여부는 `Song.isSeparated`로 판단한다.
 - 모델 다운로드는 Range 이어받기. `.tmp`는 네트워크 실패 시 보존하고 무결성 실패 시 삭제한다.
