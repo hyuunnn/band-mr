@@ -91,7 +91,8 @@ object AudioDecode {
                         resampler.reset(inSr, PIPELINE_SAMPLE_RATE)
                     }
                     MediaCodec.INFO_TRY_AGAIN_LATER -> {}
-                    else -> {
+                    // 그 밖의 음수(INFO_OUTPUT_BUFFERS_CHANGED 등)는 버퍼 인덱스가 아니다 — 무시하고 다시 받는다
+                    else -> if (outIdx >= 0) {
                         val ob = codec.getOutputBuffer(outIdx)!!
                         ob.order(ByteOrder.LITTLE_ENDIAN)
                         // 출력 버퍼마다 배열을 새로 만들지 않고 재사용한다(곡당 수천 회 호출)
