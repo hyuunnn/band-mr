@@ -15,8 +15,7 @@ import com.bandmr.app.data.Stem
 class DspChain(private val sampleRate: Int, private val channels: Int) {
 
     /**
-     * 제거할 스템 비트마스크. AI 전용 비트는 설정값으로 보존하되 처리·잔여 출력에서 무시한다.
-     * 변경 시 [reset]으로 상태를 비운다.
+     * 제거할 스템 비트마스크. 변경 시 [reset]으로 상태를 비운다.
      *
      * **새로 만든 체인에만 설정할 것 — 재생 중인 체인에 대입하지 말 것.** [reset]은 오디오
      * 스레드 전용인데(아래 KDoc) 이 setter는 어느 스레드에서나 불릴 수 있다. 살아 있는 체인에
@@ -50,7 +49,6 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
 
     private var floatIn = FloatArray(BUF)
     private var floatOut = FloatArray(BUF)
-    private var latencySamples = 0
 
     init {
         rebuild()
@@ -77,28 +75,19 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
             hpL[i].reset(); hpR[i].reset(); dipL[i].reset(); dipR[i].reset()
         }
         spectral.reset()
-        // 작은 입력에서도 첫 STFT 블록을 모을 수 있도록 지연은 한 블록으로 고정한다.
-        // 청크 끝을 무음으로 채우면 호출 크기마다 소리가 끊기는 위치가 달라진다.
-        val mask = muteMask and DSP_MASK
-        latencySamples = if (drumsOn(mask) || bassOn(mask) || vocalOn(mask)) {
-            SpectralStage.BLOCK * channels
-        } else 0
     }
 
     /** interleaved shorts [n]개를 제자리 처리 */
     fun processInPlace(data: ShortArray, n: Int) {
-        val mask = muteMask and DSP_MASK
+        val mask = muteMask
         if (mask == 0 || n == 0) return
         ensureBuffers(n)
 
         for (i in 0 until n) floatIn[i] = data[i] / 32768f
         spectral.feed(floatIn, 0, n, drumsOn(mask), bassOn(mask), vocalOn(mask))
 
-        val silent = minOf(n, latencySamples)
-        java.util.Arrays.fill(floatOut, 0, silent, 0f)
-        latencySamples -= silent
-        val got = spectral.read(floatOut, silent, n - silent)
-        check(got == n - silent) { "스펙트럼 출력이 고정 지연보다 부족합니다" }
+        var got = spectral.read(floatOut, 0, n)
+        while (got < n) floatOut[got++] = 0f
 
         applyTimeDomain(floatOut, n, mask)
         for (i in 0 until n) data[i] = DspChain.clampShort(floatOut[i])
@@ -141,20 +130,12 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
      * 무음 입력으로 밀어내며 결과를 [sink]로 방출한다.
      */
     fun drain(sink: (ShortArray, Int) -> Unit) {
-        val mask = muteMask and DSP_MASK
+        val mask = muteMask
         if (mask == 0) return
         val flushSamples = SpectralStage.BLOCK * 4
         val zeros = FloatArray(SpectralStage.HOP * 2)
         // floatOut은 ensureBuffers로 BUF보다 커질 수 있으므로 크기를 맞춘다
         val out = ShortArray(floatOut.size)
-        // 짧은 곡도 초기 지연을 끝낸 뒤 마지막 STFT 출력을 내보내야 한다.
-        if (latencySamples > 0) {
-            java.util.Arrays.fill(floatOut, 0, latencySamples, 0f)
-            applyTimeDomain(floatOut, latencySamples, mask)
-            for (i in 0 until latencySamples) out[i] = clampShort(floatOut[i])
-            sink(out, latencySamples)
-            latencySamples = 0
-        }
         var emitted = 0
         while (emitted < flushSamples) {
             val chunk = minOf(zeros.size, flushSamples - emitted)
@@ -198,6 +179,5 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
 
         private const val BUF = 4096
         private const val BASS_HP_HZ = 100f
-        private val DSP_MASK = Stem.VOCAL.bit or Stem.DRUMS.bit or Stem.BASS.bit or Stem.GUITAR.bit
     }
 }

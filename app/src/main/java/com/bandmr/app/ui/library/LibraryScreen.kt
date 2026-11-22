@@ -76,8 +76,6 @@ import com.bandmr.app.audio.MixCache
 import com.bandmr.app.data.AppDesign
 import com.bandmr.app.data.Song
 import com.bandmr.app.data.deleteSong
-import com.bandmr.app.data.registerLocalSong
-import com.bandmr.app.data.releaseSongReadPermission
 import com.bandmr.app.separation.Tier
 import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.StatusBadge
@@ -87,8 +85,6 @@ import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -96,7 +92,7 @@ private const val TAG = "Library"
 
 @Composable
 fun LibraryScreen(onOpenSong: (Long) -> Unit) {
-    val songs by Locator.librarySongState.collectAsState()
+    val songs by Locator.songDao.observeAll().collectAsState(initial = Locator.librarySongs())
     val design = LocalAppDesign.current
     val scope = rememberCoroutineScope()
     var pendingDelete by remember { mutableStateOf<Song?>(null) }
@@ -136,18 +132,13 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
         if (uri != null) {
             scope.launch {
                 val newId = try {
+                    Locator.context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
                     val (title, durationMs) = readMetadata(uri)
-                    // 기존 잔여 권한을 먼저 정리해 새 권한 획득이 OS 한도를 불필요하게 넘기지 않게 한다.
-                    Locator.awaitStartupCleanup()
-                    registerLocalSong(
-                        Song(title = title, uri = uri.toString(), durationMs = durationMs),
-                        Locator.songDao,
-                        takePermission = {
-                            Locator.context.contentResolver.takePersistableUriPermission(
-                                uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                            )
-                        },
-                        releasePermission = { releaseSongReadPermission(Locator.context, it) },
+                    Locator.songDao.insert(
+                        Song(title = title, uri = uri.toString(), durationMs = durationMs)
                     )
                 } catch (ce: CancellationException) {
                     throw ce // 취소는 실패가 아니다 (YouTubeImport와 같은 규약)
@@ -159,21 +150,12 @@ fun LibraryScreen(onOpenSong: (Long) -> Unit) {
                     return@launch
                 }
                 revealAddedSong()
-                // 등록된 곡의 첫 재생을 위한 변환은 화면을 떠나도 앱 수명으로 마친다.
+                // 첫 재생이 바로 되도록 원본을 앱 내부 WAV 캐시로 미리 변환.
                 // 캐시 실패는 재생 시점 prepareFailedSongId로 노출되므로 여기선 로그만 남긴다
-                Locator.appScope.launch(Dispatchers.IO) {
-                    val cacheContext = currentCoroutineContext()
+                withContext(Dispatchers.IO) {
                     if (!MixCache.cacheFile(Locator.context, newId).exists()) {
-                        try {
-                            MixCache.prepare(
-                                Locator.context, newId, uri,
-                                checkCancelled = { cacheContext.ensureActive() },
-                            )
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (failure: Exception) {
-                            Log.w(TAG, "곡 $newId 캐시 준비 실패", failure)
-                        }
+                        runCatching { MixCache.prepare(Locator.context, newId, uri) }
+                            .onFailure { Log.w(TAG, "곡 $newId 캐시 준비 실패", it) }
                     }
                 }
             }
@@ -487,7 +469,7 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier)?.chipLabel ?: "분리됨"}" else " · 원본 오디오",
+                        formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
                         style = MaterialTheme.typography.labelMedium,
                         color = if (song.isSeparated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )

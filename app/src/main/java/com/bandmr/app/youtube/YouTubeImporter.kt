@@ -160,10 +160,7 @@ object YouTubeImport {
                 publish(owner, ImportState.PreparingCache(song.title))
                 withContext(Dispatchers.IO) {
                     val decodeJob = currentCoroutineContext()[Job]
-                    MixCache.prepare(
-                        context, song.id, song.uri.toUri(),
-                        checkCancelled = { decodeJob?.ensureActive() },
-                    )
+                    MixCache.prepare(context, song.id, song.uri.toUri()) { decodeJob?.ensureActive() }
                 }
             },
             rollback = { deleteSong(it, keepSource = true) },
@@ -250,8 +247,6 @@ internal suspend fun downloadAudioSource(
     onProgress: (received: Long, total: Long?) -> Unit = { _, _ -> },
 ): File {
     coroutineContext.ensureActive()
-    // 참조가 없는 완성 원본도 시작 정리 대상이다. exists 재사용 판정 전부터 기다린다.
-    Locator.awaitStartupCleanup()
     dir.mkdirs()
     val final = File(dir, "$videoId.$ext")
     if (final.exists()) return final
@@ -292,13 +287,13 @@ internal suspend fun downloadAudioSource(
                             onProgress(rec, null)
                         }
                     }
+                    copyReturned = true
                 }
-                copyReturned = true
             }
         } catch (e: IOException) {
             coroutineContext.ensureActive()
             // 본문 복사 완료 뒤 close/RST, 또는 디스크에 전량이 있으면 정상 종료한다.
-            if (!shouldKeepDownload(received, total, part.length(), copyReturned)) throw e
+            if (!shouldKeepDownload(e, received, total, part.length(), copyReturned)) throw e
         }
         coroutineContext.ensureActive()
         if (part.length() <= 0L) throw IOException("다운로드 파일이 비어 있습니다")
@@ -369,18 +364,32 @@ internal fun newPipeResponse(
 internal fun downloadReachedTotal(received: Long, total: Long?): Boolean =
     total != null && received >= total
 
+internal fun isBenignDisconnect(e: IOException): Boolean {
+    if (e is java.net.SocketException) return true
+    val m = e.message?.lowercase() ?: return false
+    return "unexpected end" in m ||
+        "connection reset" in m ||
+        "connection closed" in m ||
+        "broken pipe" in m ||
+        "software caused connection abort" in m
+}
+
 /** 본문 복사가 끝났거나, 디스크/카운터가 이미 전량이면 close/RST 예외를 무시한다. */
 internal fun shouldKeepDownload(
+    e: IOException,
     received: Long,
     total: Long?,
     fileLength: Long,
     copyReturned: Boolean,
-): Boolean = copyReturned || downloadReachedTotal(received, total) ||
-    (total != null && fileLength >= total)
+): Boolean {
+    if (copyReturned) return true
+    if (downloadReachedTotal(received, total) || (total != null && fileLength >= total)) return true
+    return isBenignDisconnect(e) && fileLength > 0L && total == null
+}
 
 /**
- * HTTP 본문을 [output]에 복사한다. Content-Length 전량 수신이나 정상 EOF를 완료로 본다.
- * 길이 미상 수신 중의 연결 오류는 완료 여부를 알 수 없으므로 전파한다.
+ * HTTP 본문을 [output]에 복사한다. Content-Length만큼 받은 뒤의 read 예외와
+ * 길이 미상일 때의 RST는 서버가 연결을 끊은 정상 종료로 본다.
  */
 internal suspend fun copyHttpBody(
     input: InputStream,
@@ -396,7 +405,11 @@ internal suspend fun copyHttpBody(
             input.read(buf)
         } catch (e: IOException) {
             coroutineContext.ensureActive()
-            if (downloadReachedTotal(received, total)) break
+            if (downloadReachedTotal(received, total) ||
+                (total == null && received > 0 && isBenignDisconnect(e))
+            ) {
+                break
+            }
             throw e
         }
         // read 중 취소될 수 있다. 마지막 read/EOF도 쓰기·진행률·승격 전에 취소를 소비한다.

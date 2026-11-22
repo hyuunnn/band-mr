@@ -1,12 +1,7 @@
 package com.bandmr.app.io
 
 import java.io.File
-import java.io.IOException
 import java.util.Locale
-
-/** 일부가 지워진 뒤 실패해도 호출자가 성공으로 표시하지 않도록 끝에 보고한다. */
-internal class CacheCleanupException(files: List<File>) :
-    IOException("파일 삭제 실패: ${files.joinToString { it.name }}")
 
 /**
  * 캐시 저장공간 집계·정리. 순수 파일 연산이라 [File] 루트만 받는다(Context 의존 없음 → JVM 테스트 가능).
@@ -60,7 +55,10 @@ object CacheStorage {
      * MixCache처럼 파일이 평평하게 놓인 디렉터리용.
      * @return 실제로 지운 바이트 수 — [clearableFileSize]와 같아야 한다
      */
-    fun clearFiles(dir: File): Long = clearEntries(clearableFiles(dir), File::length, File::delete)
+    fun clearFiles(dir: File): Long = clearableFiles(dir).sumOf { f ->
+        val size = f.length() // 삭제 전에 읽어야 한다
+        if (f.delete()) size else 0L
+    }
 
     /**
      * [dir] 바로 아래의 **하위 디렉터리**를 통째로 지운다. 스템처럼 곡별 폴더가 놓인 구조용.
@@ -72,22 +70,10 @@ object CacheStorage {
      * @return 실제로 지운 바이트 수 — [clearableSubdirectorySize]와 같아야 한다
      */
     fun clearSubdirectories(dir: File, includeInFlight: Boolean = false): Long =
-        clearEntries(clearableSubdirs(dir, includeInFlight), ::dirSize) { it.deleteRecursively() }
-
-    private fun clearEntries(
-        files: List<File>,
-        size: (File) -> Long,
-        delete: (File) -> Boolean,
-    ): Long {
-        var freed = 0L
-        val failed = mutableListOf<File>()
-        for (file in files) {
-            val bytes = size(file)
-            if (delete(file) || !file.exists()) freed += bytes else failed += file
+        clearableSubdirs(dir, includeInFlight).sumOf { d ->
+            val size = dirSize(d) // 삭제 전에 읽어야 한다
+            if (d.deleteRecursively()) size else 0L
         }
-        if (failed.isNotEmpty()) throw CacheCleanupException(failed)
-        return freed
-    }
 
     /** 사람이 읽는 크기. 소수 첫째 자리까지 (예: `1.5GB`, `242.0MB`, `0B`) */
     fun formatBytes(bytes: Long): String {

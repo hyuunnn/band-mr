@@ -13,42 +13,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class SeparationCommitTest {
     @get:Rule val temp = TemporaryFolder()
-
-    @Test
-    fun `파일 교체 실패 시 기존 스템을 복원하고 DB 갱신은 실행하지 않는다`() = runBlocking {
-        val dest = temp.newFolder("stems")
-        val old = File(dest, "old.wav").apply { writeBytes(byteArrayOf(1, 2, 3)) }
-        val part = temp.newFolder("stems.part")
-        val failure = IOException("주입한 복사 오류")
-        val source = object : File(part.path) {
-            override fun renameTo(dest: File) = false
-            override fun listFiles(): Array<File>? = throw failure
-        }
-        var recorded = false
-        try {
-            commitSeparation(
-                songExists = { true },
-                promote = { FilePromote.directory(source, dest); dest },
-                record = { recorded = true },
-            )
-            fail("파일 교체 실패가 전파되어야 한다")
-        } catch (actual: IOException) {
-            // 코루틴 경계의 스택 복구가 예외 인스턴스를 복제할 수 있다.
-            assertEquals(failure.message, actual.message)
-        } finally {
-            part.deleteRecursively()
-        }
-
-        assertFalse(recorded)
-        assertArrayEquals(byteArrayOf(1, 2, 3), old.readBytes())
-        assertEquals(listOf("stems"), temp.root.list()!!.toList())
-    }
 
     @Test(timeout = 10_000)
     fun `마지막 블로킹 추론 중 취소하면 기존 파일과 DB를 보존한다`() = runBlocking {
@@ -65,7 +34,6 @@ class SeparationCommitTest {
                     inference.countDown()
                     check(finishInference.await(5, TimeUnit.SECONDS))
                     commitSeparation(
-                        songExists = { true },
                         promote = { FilePromote.directory(part, dest); dest },
                         record = { dbTier = "new" },
                     )
@@ -102,7 +70,6 @@ class SeparationCommitTest {
         val task = launch(Dispatchers.Default) {
             withContext(Dispatchers.IO) {
                 commitSeparation(
-                    songExists = { true },
                     promote = { FilePromote.directory(part, dest); dest },
                     record = { dir ->
                         promoted.complete(Unit)
@@ -143,7 +110,6 @@ class SeparationCommitTest {
         val task = launch(Dispatchers.Default) {
             withContext(Dispatchers.IO) {
                 commitSeparation(
-                    songExists = { true },
                     promote = { FilePromote.directory(part, dest); dest },
                     record = {
                         promoted.complete(Unit)

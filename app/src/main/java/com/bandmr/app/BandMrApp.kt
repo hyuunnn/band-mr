@@ -8,24 +8,17 @@ import com.bandmr.app.audio.PlayerController
 import com.bandmr.app.data.AppDatabase
 import com.bandmr.app.data.SettingsStore
 import com.bandmr.app.data.Song
-import com.bandmr.app.data.cleanUpUnusedSongPermissions
-import com.bandmr.app.data.releaseSongReadPermission
 import com.bandmr.app.export.Exporter
 import com.bandmr.app.export.ExportTasks
 import com.bandmr.app.separation.ModelManager
 import com.bandmr.app.separation.StemFiles
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -42,26 +35,12 @@ class BandMrApp : Application() {
 
     /** 캐시 없는 기존 곡들을 백그라운드로 미리 변환해 첫 재생이 즉시 되도록 한다 */
     private fun preCacheMixes() {
-        // UI·서비스가 시작되기 전에 대기 대상을 등록한다. 사전 변환 전체가 아니라
-        // DB 스냅샷 조회부터 고아 삭제까지 끝난 시점에 새 파일 작업을 허용한다.
-        val cleanupDone = CompletableDeferred<Unit>()
-        Locator.startupCleanup = cleanupDone
-        val preCache = Locator.appScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+        Locator.startupPreCacheJob = Locator.appScope.launch(Dispatchers.IO) {
             try {
                 val preCacheContext = currentCoroutineContext()
-                val songs = try {
-                    Locator.songDao.getAllOnce().also { songs ->
-                        cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
-                        cleanUpSourceFiles(songs)
-                        cleanUpUnusedSongPermissions(
-                            Locator.songDao,
-                            contentResolver.persistedUriPermissions.filter { it.isReadPermission }.map { it.uri.toString() },
-                            releasePermission = { releaseSongReadPermission(this@BandMrApp, it) },
-                        )
-                    }
-                } finally {
-                    cleanupDone.complete(Unit)
-                }
+                val songs = Locator.songDao.getAllOnce()
+                cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
+                cleanUpSourceFiles(songs)
                 songs.forEach { song ->
                     preCacheContext.ensureActive()
                     if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
@@ -83,10 +62,6 @@ class BandMrApp : Application() {
                 Log.w(TAG, "시작 캐시 준비 실패", failure)
             }
         }
-        Locator.startupPreCacheJob = preCache
-        // 코루틴 본문 실행 전에 취소되어도 대기를 남기지 않는다.
-        preCache.invokeOnCompletion { cleanupDone.complete(Unit) }
-        preCache.start()
     }
 
     /**
@@ -106,7 +81,10 @@ class BandMrApp : Application() {
             }
             if (id == null || id !in validIds) f.delete()
         }
-        StemFiles.cleanUpOrphans(StemFiles.dir(this), validIds)
+        StemFiles.dir(this).listFiles()?.forEach { d ->
+            val id = d.name.toLongOrNull()
+            if (id == null || id !in validIds) d.deleteRecursively()
+        }
     }
 
     /**
@@ -133,14 +111,6 @@ object Locator {
     /** 캐시 비우기가 취소·종료를 기다릴 대상. 앱 시작 때 한 번만 등록한다. */
     internal var startupPreCacheJob: Job? = null
 
-    /** 새 파일 작업이 기다릴 시작 삭제 구간. 이후의 사전 변환은 대기 대상이 아니다. */
-    @Volatile
-    internal var startupCleanup: CompletableDeferred<Unit>? = null
-
-    internal suspend fun awaitStartupCleanup() {
-        startupCleanup?.await()
-    }
-
     fun init(app: Application) {
         appContext = app
     }
@@ -150,19 +120,12 @@ object Locator {
     val database: AppDatabase by lazy { AppDatabase.build(appContext) }
     val songDao get() = database.songDao()
 
-    /**
-     * 첫 목록은 화면을 그리기 전에 읽고, 이후에는 화면 수명과 무관하게 Room 변경을 반영한다.
-     * 같은 StateFlow를 화면에서도 사용해 재진입 때 시작 시점의 목록이 다시 표시되지 않게 한다.
-     */
-    val librarySongState: StateFlow<List<Song>> by lazy {
-        songDao.observeAll().stateIn(
-            appScope,
-            SharingStarted.Eagerly,
-            runBlocking { songDao.getAllOnce() },
-        )
-    }
+    /** 첫 화면의 곡 목록. 빈 목록으로 그리면 '첫 곡' 안내가 떴다가 실제 목록으로 바뀐다. */
+    @Volatile
+    private var librarySongCache: List<Song>? = null
 
-    fun librarySongs(): List<Song> = librarySongState.value
+    fun librarySongs(): List<Song> =
+        librarySongCache ?: runBlocking { songDao.getAllOnce() }.also { librarySongCache = it }
     val settings: SettingsStore by lazy { SettingsStore(appContext) }
     val modelManager: ModelManager by lazy { ModelManager(appContext, appScope) }
     val playerController: PlayerController by lazy { PlayerController(appContext) }

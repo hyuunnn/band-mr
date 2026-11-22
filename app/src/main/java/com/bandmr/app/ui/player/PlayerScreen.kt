@@ -124,7 +124,6 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
     // 알림 '종료'로 해제된 엔진도 현재 편집값으로 다시 준비한다.
     val releaseEpoch by ctrl.releaseEpoch.collectAsState()
     val parameters = rememberPlayerParameters(song, aiOn, releaseEpoch) { s, current ->
-        Locator.awaitStartupCleanup()
         ctrl.setLoop(current.loopStartMs, current.loopEndMs, apply = false)
         ctrl.ensureLoaded(s, aiOn, current.stemGainsPacked, current.semitones, current.speed)
     }
@@ -165,8 +164,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
         ctrl.setVocalStrength(vocalStrength)
     }
 
-    val waveformNeedsPreparation = aiOn && song?.isSeparated == true
-    LaunchedEffect(songId, song?.uri, waveformNeedsPreparation, prepareFailedSongId) {
+    LaunchedEffect(songId, song?.uri, prepareFailedSongId) {
         val sourceUri = song?.uri ?: return@LaunchedEffect
         val file = MixCache.cacheFile(Locator.context, songId)
         if (!file.exists() && prepareFailedSongId == songId) return@LaunchedEffect
@@ -175,14 +173,12 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
                 val waveformContext = currentCoroutineContext()
                 prepareWaveformPeaks(
                     file, MixCache.peaksFile(Locator.context, songId),
-                    prepare = if (waveformNeedsPreparation) {
-                        {
-                            MixCache.prepare(
-                                Locator.context, songId, sourceUri.toUri(),
-                                checkCancelled = { waveformContext.ensureActive() },
-                            )
-                        }
-                    } else null,
+                    prepare = {
+                        MixCache.prepare(
+                            Locator.context, songId, sourceUri.toUri(),
+                            checkCancelled = { waveformContext.ensureActive() },
+                        )
+                    },
                     awaitReady = { MixCache.awaitReady(Locator.context, songId) },
                 )
             }
@@ -236,7 +232,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
     }
     val separated = s.isSeparated
     val selectedTier = Tier.fromId(selectedTierId)
-    val modelChecking = if (aiOn && selectedTier != null) isModelChecking(Locator.modelManager.states, selectedTier) else false
+    val modelChecking = if (aiOn) isModelChecking(Locator.modelManager.states, selectedTier) else false
     val separatedTier = if (separated) Tier.fromId(s.separatedTier) else null
     val mixerStems = separatedTier?.displayStems ?: Stem.entries
     val fourStemMixer = separatedTier?.layout == StemLayout.FOUR
@@ -251,10 +247,6 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
 
     fun startSeparation() {
         if (running || otherRunning || modelChecking) return
-        if (selectedTier == null) {
-            SepBus.state.value = SepState.Error(songId, "설정에서 사용할 모델을 선택하세요")
-            return
-        }
         // 확인 중은 미다운로드가 아니다. 확인이 끝날 때까지 재생도 해제하지 않는다.
         if (Locator.modelManager.states.value[selectedTier] == ModelState.Checking) return
         // 파일이 없으면 서비스가 곧바로 실패한다. 그 전에 release하면 재생이 멈추고 위치가 처음으로 돌아간다.
@@ -265,7 +257,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
             )
             return
         }
-        // 기존 스템 리더는 교체 후에도 유효하다. 완료 시 ensureLoaded가 위치를 유지하며 다시 연다.
+        if (separated) ctrl.release()
         notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
@@ -293,7 +285,7 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
         PlayerHeading(
             songId = s.id,
             title = s.title,
-            subtitle = formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel ?: "분리됨"}" else " · 원본 오디오",
+            subtitle = formatTime(s.durationMs) + if (aiOn && separated) " · AI ${separatedTier?.chipLabel}" else " · 원본 오디오",
         )
 
         if (preparingSongId == songId) {
@@ -375,9 +367,9 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
             ModeCard(
                 aiOn = aiOn,
                 separated = separated,
-                separatedLabel = separatedTier?.label ?: "알 수 없는 모델",
-                selectedLabel = selectedTier?.label ?: "설정에서 모델을 선택하세요",
-                canReseparate = separated && selectedTier != null && selectedTier.id != s.separatedTier,
+                separatedLabel = separatedTier?.label,
+                selectedLabel = selectedTier.label,
+                canReseparate = separated && selectedTier.id != s.separatedTier,
                 modelChecking = modelChecking,
                 running = running,
                 otherRunning = otherRunning,
@@ -462,9 +454,9 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
         }
     }
 
-    if (confirmReseparation && selectedTier != null) {
+    if (confirmReseparation && separatedTier != null) {
         ConfirmReseparationDialog(
-            currentLabel = separatedTier?.label ?: "알 수 없는 모델",
+            currentLabel = separatedTier.label,
             selectedLabel = selectedTier.label,
             onDismiss = { confirmReseparation = false },
             onConfirm = {
@@ -491,14 +483,14 @@ internal fun rememberPlayerSongState(songId: Long, songs: Flow<com.bandmr.app.da
     state
 }
 
-/** 원본 재생은 준비 결과를 기다리고, 스템 재생만 [prepare]로 파형 입력을 만든다. IO에서 호출한다. */
+/** AI ON도 캐시를 비운 뒤에는 파형 입력을 먼저 만든다. IO 디스패처에서 호출한다. */
 internal suspend fun prepareWaveformPeaks(
     file: File,
     peaksFile: File,
-    prepare: (suspend () -> Unit)?,
+    prepare: suspend () -> Unit,
     awaitReady: suspend () -> Unit,
 ): FloatArray {
-    if (!file.exists()) prepare?.invoke()
+    if (!file.exists()) prepare()
     awaitReady()
     return WaveformPeaks.fromWavCached(file, peaksFile)
 }

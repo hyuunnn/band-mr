@@ -1,7 +1,6 @@
 package com.bandmr.app.separation
 
 import android.content.Context
-import com.bandmr.app.io.FilePromote
 import java.io.File
 
 /**
@@ -19,19 +18,8 @@ object StemFiles {
     fun dir(context: Context): File = File(context.filesDir, DIR)
 
     /** 곡의 정식 스템 디렉터리 */
-    fun songDir(context: Context, songId: Long): File = songDir(dir(context), songId)
-
-    private fun songDir(root: File, songId: Long): File = File(root, "$songId")
+    fun songDir(context: Context, songId: Long): File = File(dir(context), "$songId")
 
     /** 분리 진행 중 산출물. 성공 시에만 [songDir]로 승격한다 */
     fun partDir(context: Context, songId: Long): File = File(dir(context), "$songId.part")
-
-    /** 유효한 곡의 교체 백업을 먼저 복구한다. 실패 시 고아 삭제도 중단해 백업을 보존한다. */
-    internal fun cleanUpOrphans(root: File, validIds: Set<Long>) {
-        validIds.forEach { FilePromote.recoverDirectory(songDir(root, it)) }
-        root.listFiles()?.forEach { file ->
-            val id = file.name.toLongOrNull()
-            if (id == null || id !in validIds) file.deleteRecursively()
-        }
-    }
 }

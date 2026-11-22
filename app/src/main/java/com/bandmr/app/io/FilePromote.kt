@@ -1,7 +1,6 @@
 package com.bandmr.app.io
 
 import java.io.File
-import java.io.IOException
 
 /**
  * 임시 산출물(`.part`/`.tmp`)을 정식 경로로 승격한다.
@@ -54,63 +53,21 @@ object FilePromote {
     }
 
     /**
-     * [part] 디렉터리를 [dest]로 옮긴다. 기존 결과는 같은 부모의 임시 백업으로 옮겨 두고,
-     * 교체 실패 시 부분 결과를 지운 뒤 복원한다. 열린 스템 리더는 백업 이동에도 유지된다.
-     * 백업 이동이 실패하면 기존 결과를 건드리지 않는다. 복원까지 실패하면 백업은 남기고
-     * 해당 오류를 원래 실패의 suppressed에 보존한다. 시작 정리는 [recoverDirectory]를
-     * 고아 삭제보다 먼저 실행한다. 호출자는 같은 목적지의 변경을 직렬화해야 한다.
+     * [part] 디렉터리를 [dest]로 옮긴다. 복사 폴백이 실패하면 [dest]를 지우고 예외를 그대로 던진다
+     * (스템 일부만 있는 디렉터리가 남으면 분리 완료로 오인될 수 있다).
      */
     fun directory(part: File, dest: File) {
-        recoverDirectory(dest)
-        if (!part.isDirectory) throw IOException("승격할 디렉터리가 없습니다: $part")
-        val parent = dest.absoluteFile.parentFile
-            ?: throw IOException("목적지의 부모 디렉터리가 없습니다: $dest")
-        parent.mkdirs()
-        val backup = if (dest.exists()) {
-            directoryBackup(dest).also {
-                if (!dest.renameTo(it)) {
-                    throw IOException("기존 디렉터리를 백업하지 못했습니다: $dest")
-                }
-            }
-        } else null
-        try {
-            if (!part.renameTo(dest)) {
-                part.copyRecursively(dest, overwrite = true)
-            }
-            check(dest.isDirectory) { "디렉터리 이동 실패: $part → $dest" }
-            // 교체가 끝난 백업은 입력 임시 경로로 옮긴다. 이후 삭제가 실패하거나
-            // 종료되어도 시작 복구가 성공한 교체를 이전 결과로 되돌리지 않게 한다.
-            if (backup != null && (!part.deleteRecursively() || !backup.renameTo(part))) {
-                throw IOException("교체한 디렉터리의 백업 정리 실패: $backup")
-            }
-        } catch (failure: Throwable) {
-            // 정리 실패가 원래 복사 오류나 백업 복원 시도를 가리지 않도록 따로 보존한다.
+        dest.deleteRecursively()
+        dest.parentFile?.mkdirs()
+        if (!part.renameTo(dest)) {
             try {
-                if (!dest.deleteRecursively()) throw IOException("부분 디렉터리 삭제 실패: $dest")
-            } catch (cleanup: Throwable) {
-                failure.addSuppressed(cleanup)
+                part.copyRecursively(dest, overwrite = true)
+            } catch (t: Throwable) {
+                dest.deleteRecursively()
+                throw t
             }
-            if (backup != null) {
-                try {
-                    if (!backup.renameTo(dest)) throw IOException("기존 디렉터리 복원 실패: $backup → $dest")
-                } catch (restore: Throwable) {
-                    failure.addSuppressed(restore)
-                }
-            }
-            throw failure
+            part.deleteRecursively()
         }
-        part.deleteRecursively()
+        check(dest.isDirectory) { "디렉터리 이동 실패: $part → $dest" }
     }
-
-    /** 중단된 교체의 이전 결과를 되살린다. 백업이 남아 있으면 부분 목적지보다 우선한다. */
-    internal fun recoverDirectory(dest: File) {
-        val backup = directoryBackup(dest)
-        if (!backup.exists()) return
-        if (!backup.isDirectory) throw IOException("디렉터리 백업을 열 수 없습니다: $backup")
-        if (!dest.deleteRecursively()) throw IOException("복구할 목적지를 비우지 못했습니다: $dest")
-        if (!backup.renameTo(dest)) throw IOException("기존 디렉터리 복원 실패: $backup → $dest")
-    }
-
-    private fun directoryBackup(dest: File): File =
-        File(dest.absoluteFile.parentFile, "${dest.name}.backup.tmp")
 }

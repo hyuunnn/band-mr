@@ -14,7 +14,6 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 ./gradlew :app:assembleRelease
 ```
 
-- Homebrew JDK 17이 `java_home`에 등록되지 않았다면 `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`을 사용한다.
 - 배포는 release APK. `local.properties`·서명 키·`keystore.properties`는 커밋하지 않는다. adb/sdkmanager는 `/opt/homebrew/bin`.
 - AGP 내장 Kotlin을 사용한다. `kotlin.android`를 추가하거나 KSP를 Kotlin과 같은 버전으로 맞추지 않는다.
 - 로직 수정 후 `testDebugUnitTest` 필수. DSP 수정은 기존 구현과 수치·바이트 비교 테스트를 추가한다.
@@ -41,7 +40,6 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - ABI는 `arm64-v8a`만. `material-icons-extended`는 추가하지 않고 필요한 아이콘은 벡터 리소스로 둔다.
 - R8을 켜면 NewPipeExtractor/rhino keep 규칙이 필요하다.
 - 첫 프레임 전에 테마는 `startupDesign()`, 곡 목록은 `librarySongs()`로 읽는다.
-- 목록은 `librarySongState`를 구독한다. 초기 목록은 첫 프레임 전에 읽고, Room 관찰은 `appScope`에서 계속해 화면 밖의 곡 추가·삭제·분리 상태 변경도 반영한다. 화면 수명에만 캐시 갱신을 묶지 않는다.
 - 시작 화면은 `setSplashScreenTheme(Theme.BandMR.*)`로 설정한다. 기존 스타일 이름을 유지하고 배경색은 `Theme.kt`와 맞춘다. 아이콘은 따로 지정하지 않는다.
 - 시스템 바 아이콘은 `SideEffect`에서 앱 테마로 재설정한다. 구성 변경 시에도 적용해야 한다.
 
@@ -53,46 +51,35 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 알림·잠금화면·블루투스 명령은 `setPlaying(Boolean)`. 토글은 화면의 `playPause()`만 사용한다.
 - 재생 FGS는 `setPlaying`의 재생 의도 시점에 시작한다. `isPlaying` 관찰로 기동하지 않는다.
 - 곡끝 콜백은 실행 시점에 `released`와 재시작 여부를 확인한다. `released`는 `release()`에서만 세운다.
-- 자연 종료는 DSP 잔여분까지 쓴 뒤 AudioTrack 재생 헤드가 따라올 때까지 기다린다. write 완료를 재생 완료로 보지 않으며, pause·시크·해제는 대기와 늦은 종료 콜백을 무효화한다.
 - 알림 종료는 제목·재생 상태 양쪽 변경에서 판정하고, 서비스 종료 요청 전에 `stopping`을 세워 재등록을 막는다.
 - `StemMixPlayer.renderChunk`는 양수를 반환한다. 입력이 없으면 무음, 닫힌 리더 예외는 스템별로 처리한다.
 - `ensureLoaded`는 `separatedTier`·`stemsDir` 변경 시 믹서를 다시 연다. 게인·키·배속은 setter로 적용한다.
-- 재분리 시작 시 `release()`를 호출하지 않는다. 기존 스템 리더는 파일 교체 중에도 유지하고, 완료 후 `ensureLoaded`로 위치·재생 상태를 이어 새 스템을 연다.
 - 화면 편집값은 곡을 처음 열 때 저장값으로 초기화한다. 같은 곡의 엔진 재준비는 현재 편집값을 유지한다.
 - 플레이어의 곡 로딩과 실제 곡 부재를 구분한다. 곡 부재는 안내와 라이브러리 이동을 제공하고, 처음 읽은 목록 캐시를 편집값 초기화에 재사용하지 않는다.
 - A-B 반복은 오디오 스레드에서 처리한다. 곡 전환은 `setLoop(..., apply=false)` 후 새 엔진에 적용한다.
 - write 후 트랙 재시작은 `stateLock` 안에서 `isPlaying`을 확인해 pause와 직렬화한다.
-- AudioTrack write의 0 반환은 일시적 중단일 수 있다. 재생 의도가 남으면 트랙을 시작해 같은 데이터를 재시도하고, 음수 오류와 구분한다.
 - pause의 flush만 제거하지 않는다. 변경하려면 재개 시 트랙 시작, `stopEngine`의 join 전 flush, 스테일 청크 flush도 함께 처리한다. 현재 최대 버퍼만큼의 위치 스킵은 허용된 동작이다.
 - 배속은 `AudioTrack.setPlaybackParams(speed, pitch=1)`로만 적용하고 시크·재개 때 다시 건다.
 
 ## DSP
 
 - 시크는 `processorsDirty`만 세운다. 오디오 스레드가 `framePos`·곡끝 판정·렌더 전에 제자리 리셋한다. UI 스레드에서 DSP를 리셋하지 않는다.
-- 키 변경은 요청값만 기록하고 피치 상태는 오디오 스레드의 청크 경계에서 적용한다. 키 변경만으로 제거 DSP를 리셋하지 않는다.
 - 체인 객체 교체는 muteMask 변경 시에만 한다. `chain`은 `@Volatile`을 유지한다.
-- AI 전용 스템의 0% 설정은 보존하되 DSP 처리·drain에서는 제외한다. AI 전용 비트만 있으면 체인 입력 PCM을 그대로 내보내고 drain 출력을 만들지 않는다.
 - `SpectralStage.reset()`은 `magHist`까지 비운다. 리셋 출력은 새 체인 출력과 같아야 한다.
 - 0반음 피치는 패스스루. 기본 형식은 interleaved stereo PCM16이며 모노는 `chCount=1`을 처리한다.
 - WAV·FOURCC는 little-endian. 파이프라인과 ms↔프레임 수학은 `PIPELINE_SAMPLE_RATE`(44.1kHz) 고정이며 불일치 스템은 제외한다.
 
 ## 파일·캐시
 
-- 시작 고아 정리의 DB 목록 조회부터 삭제 완료까지는 `startupCleanup`으로 새 파일 작업과 분리한다. `MixCache.prepare`와 유튜브 원본 생성·재사용은 이 신호를 기다리며, 이후의 사전 변환 전체를 기다리지 않는다. 시작 작업의 실패·실행 전 취소도 대기를 해제해야 한다.
 - 내부 산출물 승격은 `FilePromote`를 사용한다. 복사 실패 시 목적지를 지우며, 분리 중 기존 정식 스템을 먼저 지우지 않는다.
-- 스템 교체 백업은 고아 삭제 전에 복원한다. 복원 실패 시 백업을 보존하고, 재생·스템 내보내기는 `startupCleanup` 뒤에 파일을 연다.
-- WAV의 버퍼 출력·헤더 작성 실패는 전파하고 승격하지 않는다. 분리는 작성기를 모두 닫으며, 기존 오류·취소가 있으면 닫기 실패를 suppressed로 보존한다.
 - MixCache는 디코딩을 `.part`의 WavWriter에 직접 쓰는 1패스. close 후 승격하고, 0프레임은 거부한다(44바이트 헤더는 일반 파일 검사·WavReader를 통과한다).
 - 열 수 없거나 길이가 0인 캐시는 `MixCache.delete`로 WAV·peaks를 함께 버린다.
-- MixCache의 곡별 잠금은 suspend 가능한 Mutex로 유지한다. 캐시 승격은 `withStemMutation` 안에서 DB에 곡이 남아 있는지 확인한 뒤 수행해, 곡 삭제 이후 정식 캐시가 다시 생기지 않게 한다. 디코딩 전체를 확정 잠금으로 감싸지 않는다.
-- 로컬 곡 등록 후의 캐시 사전 변환은 `appScope`에서 실행해 화면 이탈로 중단하지 않는다. 취소 확인은 그 작업의 코루틴 컨텍스트에 연결하고, 취소 예외는 일반 실패로 삼키지 않는다.
 - 캐시 표시 용량·버튼·삭제 대상은 `CacheStorage.clearable*`로 맞춘다. 집계·삭제는 같은 술어를 쓰고, 일반 정리에서 작업 중 `.part/.tmp`를 제외한다.
-- 캐시·스템 삭제 실패를 성공으로 표시하지 않는다. 전체 스템 삭제가 일부 실패해도 부분 삭제된 곡의 분리 표시는 내린 뒤 오류를 전달한다.
-- 재생 캐시 비우기는 시작 사전 변환과 기존 재생 준비에 디코딩 취소를 전달하고 둘 다 종료한 뒤 삭제한다. 정리는 `appScope`에서 완료해 설정 화면 이탈로 중단하지 않는다. 일반 재생 해제는 완료 콜백만 무효화하며, 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
+- 재생 캐시 비우기는 시작 사전 변환과 기존 재생 준비에 디코딩 취소를 전달하고 둘 다 종료한 뒤 삭제한다. 일반 재생 해제는 완료 콜백만 무효화하며, 곡 추가·내보내기가 요청한 캐시 생성은 일괄 차단하지 않는다.
 - 전체 스템 삭제는 분리를 취소하고 `withStemMutation` 안에서 `.part` 포함 삭제(`includeInFlight`)와 DB 해제를 함께 수행한다.
 - 스템 경로는 `StemFiles`로 통일한다. 분리·고아 정리·용량 집계·삭제에서 별도로 조합하지 않는다.
 - 파형 `.peaks`는 FilePromote 대상에서 제외한다. 막대 수·원본 크기 불일치나 손상 시 재계산하며 표시용 파일 오류는 전파하지 않는다.
-- 파형 상태는 songId로 remember한다. 준비 상태 변화로 비우지 않으며 캐시 대기는 `MixCache.awaitReady`를 쓴다. 원본 재생 모드에서는 재생기의 준비 결과를 기다리고, 스템 재생 모드에서만 파형이 캐시 생성을 요청한다.
+- 파형 상태는 songId로 remember한다. 준비 상태 변화로 비우지 않으며 캐시 대기는 `MixCache.awaitReady`를 쓴다.
 
 ## 분리·유튜브
 
@@ -100,15 +87,13 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - `OrtSession`은 분리마다 열고 닫는다. 세션 캐시는 금지한다.
 - 추론은 `Tier.segmentSamples` 고정 shape, 마지막 청크는 0 패딩. 동적 축은 사용하지 않는다.
 - 취소는 `currentCoroutineContext()[Job]`으로 판정한다. 새 분리는 이전 Job을 join한 뒤 시작한다.
-- 입력 디코딩은 진행률·출력 유무와 무관하게 반복마다 취소를 확인하고, 캐시 승격 전에도 다시 확인한다. `MixCache.prepare`의 취소 확인은 `checkCancelled` 이름 인자로 전달한다(마지막 람다는 진행률 콜백).
+- 입력 디코딩은 진행률·출력 유무와 무관하게 반복마다 취소를 확인하고, 캐시 승격 전에도 다시 확인한다.
 - 마지막 추론 후·결과 반환 전에도 취소를 확인한다. 승격·DB 갱신은 `commitSeparation`의 짧은 `NonCancellable` 구간에서 확정한다. 추론 전체를 감싸지 않는다.
-- 스템 승격도 확정 잠금 안에서 곡 존재를 확인한다. 삭제가 먼저 끝났으면 승격·DB 갱신을 건너뛰고 분리 작업이 임시 산출물을 정리한다.
 - `SepBus`는 마지막 시도의 진행·오류만 담고, 완료 여부는 `Song.isSeparated`로 판단한다.
 - 모델 다운로드는 Range 이어받기. `.tmp`는 네트워크 실패 시 보존하고 무결성 실패 시 삭제한다.
 - 같은 유튜브 영상도 키·배속을 따로 설정할 수 있게 매번 새 Song으로 등록한다. 중복 등록은 의도된 기능이며, 버그 수정 명목으로 기존 행 재사용이나 중복 차단으로 바꾸지 않는다.
 - 유튜브 원본 파일은 있으면 재사용하고 없으면 다시 받는다. 같은 영상의 DB 행이 있다는 이유로 다운로드 경로를 건너뛰지 않는다.
-- 길이 미상 다운로드도 수신 중 연결 오류는 실패로 처리해 부분 파일을 버린다. 정상 EOF·전량 수신과 수신 완료 후 입력 close 예외를 구분한다.
-- 유튜브 추가 실패·취소 시 이번 신규 행과 캐시만 롤백한다. 기존 곡·설정·캐시는 보존하고, 완성된 다운로드 원본은 같은 실행 안의 재시도용으로 남긴다. 재시작 시 DB 참조가 없는 원본은 고아 정리 대상이다.
+- 유튜브 추가 실패·취소 시 이번 신규 행과 캐시만 롤백한다. 기존 곡·설정·캐시는 보존하고, 완성된 다운로드 원본은 재시도용으로 남긴다.
 - 유튜브 작업은 `importMutex`로 정리까지 직렬화하고 작업별 임시 파일을 사용한다. 늦은 상태 콜백은 현재 활성 Job만 허용한다.
 - 시작 상태 `Resolving`은 Job 등록 후 `next.start()` 전에 발행한다. 대기 UI 누락과 즉시 실패 상태 덮어쓰기를 막는다.
 - 유튜브 임포트·모델 다운로드는 `appScope`에서 실행한다(FGS 아님).
@@ -120,13 +105,8 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 믹스 내보내기는 전체 곡·원곡 템포. 볼륨·키만 적용하고 배속·A-B는 제외한다. 피치는 `PitchShifter.renderTo`를 공유한다. 스템 개별 내보내기는 분리 WAV를 그대로 복사한다.
 - `writeMixWav`는 저장마다 고유 임시 WAV를 쓰며, close·취소 확인 후 목적지로 복사한다.
 - 스템 개별 저장은 열기·복사·close 실패 시 현재 문서만 삭제하고 앞서 완료한 파일은 보존한다. 성공 개수는 close 후 올린다.
-- 스템 내보내기는 입력을 `withStemMutation` 안에서 모두 열고 복사는 잠금 밖에서 수행해 재분리 결과가 섞이지 않게 한다.
-- 로컬 파일 권한 획득·등록과 마지막 참조 삭제·권한 반납은 같은 확정 잠금으로 직렬화한다. 공유 URI의 권한은 유지하고 시작 시 DB 참조 없는 잔여 권한도 정리한다.
 - `ModelConfig.stemOrder`는 `Tier.stemOrder`와 일치시킨다. 모델 규격·경로는 ModelCatalog/Tier를 기준으로 한다.
 - 모델 재업로드 시 `ModelCatalog.kt`의 SHA-256 핀을 갱신한다. [라이선스 고지](THIRD_PARTY_NOTICES.md)는 유지한다.
 - 기존 모델의 핀 검증은 IO에서 수행하고, 검증 전에는 분리에 공개하지 않는다. 다운로드 완료는 그동안의 수동 모델 선택을 덮지 않는다.
-- 다른 모델의 다운로드 버튼 잠금은 `ModelState.Downloading`도 확인해 설정 화면 재진입 후에도 유지한다.
-- 설정의 정리·모델 작업은 실패 시 오류를 표시하고 `finally`에서 버튼 잠금을 해제한다. `CancellationException`은 실패로 삼키지 않는다.
 - 플레이어는 모델 `Checking`을 미다운로드 오류로 처리하지 않는다. 확인 중에는 재생을 해제하지 않고 분리 버튼을 비활성화하며, 검증 완료를 관찰해 갱신한다.
-- 이전 id `balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.
-- 카탈로그에 없는 모델 ID는 `Tier.fromId`에서 null로 반환한다. 다른 모델로 대체하지 않고, 새 분리에는 설정에서 유효한 모델을 선택하도록 안내한다.
+- 이전 id `light`·`balanced`·`quality`는 6스템으로 읽는다. `Tier.of(FOUR, BALANCED)`는 Demucs 4스템이다.

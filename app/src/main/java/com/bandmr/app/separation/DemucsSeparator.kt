@@ -63,6 +63,11 @@ class DemucsSeparator {
         }
 
         val writers = LinkedHashMap<Stem, WavWriter>()
+        Stem.entries.forEach { stem ->
+            val idx = stemIndex[stem] ?: return@forEach
+            writers[stem] = WavWriter.create(File(outDir, "${stem.fileName}.wav"), sr)
+        }
+        require(writers.isNotEmpty()) { "모델 출력에 유효한 스템이 없습니다" }
 
         // 이전 구간 꼬리(fade 샘플) 보관용: [stem][L/R][fade]
         val carry = FloatArray(nStems * 2 * fade)
@@ -75,13 +80,7 @@ class DemucsSeparator {
         var chunkIdx = 0
         val inputName = session.inputNames.iterator().next()
 
-        var failure: Throwable? = null
         try {
-            Stem.entries.forEach { stem ->
-                if (stem !in stemIndex) return@forEach
-                writers[stem] = WavWriter.create(File(outDir, "${stem.fileName}.wav"), sr)
-            }
-            require(writers.isNotEmpty()) { "모델 출력에 유효한 스템이 없습니다" }
             WavReader(inputWav).use { reader ->
                 require(reader.sampleRate == sr && reader.channels == 2) {
                     "분리 입력은 ${sr}Hz 스테레오 WAV여야 합니다 (got ${reader.sampleRate}Hz/${reader.channels}ch)"
@@ -160,12 +159,8 @@ class DemucsSeparator {
                     if (truncated) break
                 }
             }
-            if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
-        } catch (t: Throwable) {
-            failure = t
-            throw t
         } finally {
-            closeWriters(writers.values, failure)
+            writers.values.forEach { runCatching { it.close() } }
         }
         if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
         return writers.keys.associateWith { File(outDir, "${it.fileName}.wav") }
@@ -174,20 +169,6 @@ class DemucsSeparator {
     internal companion object {
         internal const val FADE_DIVISOR = 4
         private const val INTRA_OP_THREADS = 4
-
-        /** 모두 닫고, 성공 경로의 닫기 실패는 전파한다. 기존 오류·취소가 있으면 그 원인에 덧붙인다. */
-        internal fun closeWriters(writers: Collection<WavWriter>, failure: Throwable?) {
-            var first = failure
-            for (writer in writers) {
-                try {
-                    writer.close()
-                } catch (closeFailure: Throwable) {
-                    if (first == null) first = closeFailure
-                    else if (first !== closeFailure) first.addSuppressed(closeFailure)
-                }
-            }
-            if (failure == null) first?.let { throw it }
-        }
 
         /** [chunkPlan]의 한 걸음. [pos]에서 [len]프레임을 읽어 [writable]프레임을 기록한다 */
         internal data class Chunk(

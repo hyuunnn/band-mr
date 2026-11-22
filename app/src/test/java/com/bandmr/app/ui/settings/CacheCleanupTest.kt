@@ -1,14 +1,11 @@
 package com.bandmr.app.ui.settings
 
 import com.bandmr.app.audio.SourcePreparation
-import com.bandmr.app.io.CacheCleanupException
 import com.bandmr.app.separation.AudioDecode
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
@@ -20,68 +17,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class CacheCleanupTest {
     @get:Rule val temp = TemporaryFolder()
-
-    @Test(timeout = 10_000)
-    fun `설정 화면을 닫아도 디코딩 종료를 기다린 뒤 캐시 삭제를 마친다`() = runBlocking {
-        val dir = temp.newFolder("mixcache")
-        val cached = File(dir, "1.wav").apply { writeBytes(byteArrayOf(1, 2, 3)) }
-        val part = File(dir, "2.wav.part")
-        val enteredDecode = CompletableDeferred<Unit>()
-        val resumeDecode = CountDownLatch(1)
-        val completed = CompletableDeferred<Long>()
-        val appJob = SupervisorJob()
-        val appScope = CoroutineScope(appJob + Dispatchers.Unconfined)
-        val screenJob = Job()
-        val screenScope = CoroutineScope(screenJob + Dispatchers.Unconfined)
-        val preCache = launch(Dispatchers.IO) {
-            val decodeContext = currentCoroutineContext()
-            try {
-                part.writeBytes(byteArrayOf(4, 5))
-                enteredDecode.complete(Unit)
-                AudioDecode.decodeUntilEos({ decodeContext.ensureActive() }) {
-                    check(resumeDecode.await(5, TimeUnit.SECONDS))
-                    true
-                }
-                check(part.renameTo(File(dir, "2.wav")))
-            } finally {
-                part.delete()
-            }
-        }
-        try {
-            enteredDecode.await()
-            val clearing = screenScope.launch {
-                runStorageCleanup(appScope) {
-                    clearMixCache(preCache, dir) {}.also { completed.complete(it) }
-                }
-            }
-            assertTrue(preCache.isCancelled)
-            assertFalse(completed.isCompleted)
-            assertTrue(cached.exists())
-
-            screenJob.cancelAndJoin()
-            assertTrue(clearing.isCancelled)
-            assertTrue(appJob.isActive)
-            assertTrue(part.exists())
-
-            resumeDecode.countDown()
-            appJob.children.toList().forEach { it.join() }
-            assertTrue("화면 종료 후에도 캐시 삭제가 완료되어야 한다", completed.isCompleted)
-            assertEquals(3L, completed.await())
-            assertTrue(preCache.isCompleted)
-            assertTrue(dir.listFiles()!!.isEmpty())
-        } finally {
-            resumeDecode.countDown()
-            screenJob.cancelAndJoin()
-            appJob.cancelAndJoin()
-            preCache.cancelAndJoin()
-        }
-    }
 
     @Test(timeout = 10_000)
     fun `사전 변환의 디코딩 취소와 임시 파일 정리가 끝나야 캐시를 삭제한다`() = runBlocking {
@@ -233,45 +173,5 @@ class CacheCleanupTest {
         assertTrue(released)
         assertEquals(5L, freed)
         assertTrue(dir.listFiles()!!.isEmpty())
-    }
-
-    @Test
-    fun `스템 부분 삭제에 실패해도 DB 분리 표시는 내리고 실패를 호출자에게 알린다`() = runBlocking {
-        val dir = temp.newFolder("stems")
-        val blocked = File(dir, "1/vocals.wav").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(64)) }
-        val removable = File(blocked.parentFile, "drums.wav").apply { writeBytes(ByteArray(32)) }
-        val refusing = object : File(blocked.path) { override fun delete() = false }
-        val child = object : File(blocked.parentFile!!.path) {
-            override fun listFiles(): Array<File> = arrayOf(refusing, removable)
-        }
-        val root = object : File(dir.path) { override fun listFiles(): Array<File> = arrayOf(child) }
-        val events = mutableListOf<String>()
-
-        val result = runCatching {
-            deleteAllStems(root, { events += "cancel" }, { events += "release" }) {
-                assertTrue(blocked.exists())
-                assertFalse(removable.exists())
-                events += "clear DB"
-            }
-        }
-
-        assertTrue(result.exceptionOrNull() is CacheCleanupException)
-        assertEquals(listOf("cancel", "release", "clear DB"), events)
-    }
-
-    @Test
-    fun `스템 삭제 실패와 DB 해제 실패를 함께 보존한다`() = runBlocking {
-        val dir = temp.newFolder("stems")
-        val child = File(dir, "1").apply { mkdirs() }
-        val refusing = object : File(child.path) { override fun delete() = false }
-        val root = object : File(dir.path) { override fun listFiles(): Array<File> = arrayOf(refusing) }
-        val recordFailure = IOException("DB failure")
-
-        val failure = runCatching {
-            deleteAllStems(root, {}, {}) { throw recordFailure }
-        }.exceptionOrNull()
-
-        assertTrue(failure is CacheCleanupException)
-        assertArrayEquals(arrayOf(recordFailure), failure!!.suppressed)
     }
 }

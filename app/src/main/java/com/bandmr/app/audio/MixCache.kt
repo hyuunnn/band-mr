@@ -2,19 +2,14 @@ package com.bandmr.app.audio
 
 import android.content.Context
 import android.net.Uri
-import com.bandmr.app.Locator
 import com.bandmr.app.io.FilePromote
 import com.bandmr.app.separation.AudioDecode
-import com.bandmr.app.separation.withStemMutation
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
@@ -52,7 +47,7 @@ object MixCache {
     }
 
     // 같은 곡을 앱 시작 프리캐시와 재생 시점 준비가 동시에 만들지 않도록 곡 단위 직렬화
-    private val locks = java.util.concurrent.ConcurrentHashMap<Long, Mutex>()
+    private val locks = java.util.concurrent.ConcurrentHashMap<Long, Any>()
 
     private val ready = CacheReadyGate()
 
@@ -72,11 +67,10 @@ object MixCache {
      * 디코딩 결과를 `.part`에 WAV로 곧바로 쓴다(중간 raw 파일 없음 — 쓰기량·피크 절반).
      * 헤더 크기 필드는 [WavWriter]가 close 시 패치하므로 총 길이를 미리 알 필요가 없다.
      * 승격([FilePromote])은 반드시 close 뒤에 일어나야 한다(헤더 패치 완료 후 공개).
-     * 시작 고아 정리가 끝날 때까지 중단한 뒤 파일을 확인·생성한다. 디코딩 자체는 블로킹이다.
      *
      * @return 캐시된 WAV 파일 (총 프레임 수는 [WavReader]로 확인)
      */
-    suspend fun prepare(
+    fun prepare(
         context: Context,
         songId: Long,
         sourceUri: Uri,
@@ -84,13 +78,11 @@ object MixCache {
         onProgress: (Float) -> Unit = {},
     ): File {
         checkCancelled()
-        Locator.awaitStartupCleanup()
-        val lock = locks.computeIfAbsent(songId) { Mutex() }
-        return lock.withLock {
+        val lock = locks.computeIfAbsent(songId) { Any() }
+        synchronized(lock) {
             checkCancelled()
-            check(Locator.songDao.get(songId) != null) { "삭제된 곡의 캐시는 만들 수 없습니다" }
             val final = cacheFile(context, songId)
-            if (final.exists()) return@withLock final
+            if (final.exists()) return final
             val dir = dir(context).apply { mkdirs() }
             val part = File(dir, "${final.name}.part")
             try {
@@ -105,11 +97,11 @@ object MixCache {
                 // 여기서 던지면 호출부의 실패 경로로 나간다(prepareFailedSongId·내보내기 오류).
                 check(frames > 0) { "곡에서 소리를 찾지 못했습니다 (빈 오디오)" }
                 checkCancelled()
-                commitMixCache(part, final) { Locator.songDao.get(songId) != null }
-                // 승격 뒤에만 알린다. awaitReady는 구독 직후와 이후의 모든 알림에서
-                // 파일을 다시 확인하므로 알림이 합쳐져도 완성을 놓치지 않는다.
+                FilePromote.file(part, final)
+                // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
+                // 이 emit을 놓쳐도 파일이 있으면 바로 끝난다
                 ready.signal(songId)
-                final
+                return final
             } finally {
                 // 성공 시 part는 이미 final로 rename됨. 실패 시 남은 부분 파일을
                 // final로 승격하면 손상 캐시가 재생에 쓰이므로 반드시 삭제만 한다.
@@ -119,24 +111,12 @@ object MixCache {
     }
 }
 
-/** 곡 삭제와 같은 확정 잠금 안에서 존재를 확인해야 삭제 뒤 캐시가 다시 생기지 않는다. */
-internal suspend fun commitMixCache(part: File, final: File, songExists: suspend () -> Boolean) {
-    withStemMutation {
-        check(songExists()) { "삭제된 곡의 캐시는 만들 수 없습니다" }
-        FilePromote.file(part, final)
-    }
-}
-
 /**
  * 곡 캐시 완료 신호. [signal]은 파일이 이미 보이는 뒤에만 호출한다.
  * [await]는 구독을 건 다음 현재 상태를 다시 확인해, signal과 exists 검사 사이 경쟁을 막는다.
- * 알림이 몰리면 최신 알림만 남기고 모든 대기자가 파일 상태를 다시 확인한다.
  */
 internal class CacheReadyGate {
-    private val ready = MutableSharedFlow<Long>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
+    private val ready = MutableSharedFlow<Long>(extraBufferCapacity = 16)
 
     /** 테스트에서 구독 시점 경쟁을 확인하는 용도 */
     @androidx.annotation.VisibleForTesting
@@ -153,7 +133,7 @@ internal class CacheReadyGate {
             val job = launch {
                 ready
                     .onSubscription { subscribed.complete(Unit) }
-                    .first { it == songId || isReady() }
+                    .first { it == songId }
             }
             subscribed.await()
             if (isReady()) job.cancel() else job.join()

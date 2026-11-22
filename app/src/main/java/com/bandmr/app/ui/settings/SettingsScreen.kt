@@ -1,6 +1,5 @@
 package com.bandmr.app.ui.settings
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +45,6 @@ import com.bandmr.app.Locator
 import com.bandmr.app.R
 import com.bandmr.app.audio.MixCache
 import com.bandmr.app.io.CacheStorage
-import com.bandmr.app.io.CacheCleanupException
 import com.bandmr.app.separation.ModelFamily
 import com.bandmr.app.separation.ModelState
 import com.bandmr.app.separation.SepBus
@@ -59,11 +57,8 @@ import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -75,7 +70,6 @@ fun SettingsScreen() {
     val modelStates by Locator.modelManager.states.collectAsState()
     var busyTier by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<Tier?>(null) }
-    var modelError by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         DesignBackdrop()
@@ -105,52 +99,26 @@ fun SettingsScreen() {
                         tier = tier,
                         state = modelStates[tier],
                         selected = currentTier == tier.id,
-                        busy = busyTier != null || modelStates.values.any { it is ModelState.Downloading },
+                        busy = busyTier != null,
                         onSelect = {
                             if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
-                                modelError = null
-                                scope.launch {
-                                    try {
-                                        Locator.settings.setModelTier(tier.id)
-                                    } catch (cancelled: CancellationException) {
-                                        throw cancelled
-                                    } catch (failure: Exception) {
-                                        modelError = "모델 선택을 저장하지 못했습니다. 다시 선택해 주세요."
-                                        Log.w("Settings", "모델 선택 저장 실패", failure)
-                                    }
-                                }
+                                scope.launch { Locator.settings.setModelTier(tier.id) }
                             }
                         },
                         onDownload = {
                             busyTier = tier.id
-                            modelError = null
                             val selectionVersion = Locator.settings.modelSelectionVersion
                             // 화면을 벗어나도 다운로드가 중단되지 않도록 앱 스코프에서 실행
                             Locator.appScope.launch {
-                                try {
-                                    Locator.modelManager.download(tier)
-                                    Locator.settings.selectDownloadedModel(tier.id, selectionVersion)
-                                } catch (cancelled: CancellationException) {
-                                    throw cancelled
-                                } catch (failure: Exception) {
-                                    // 다운로드 실패는 카드의 ModelState.Failed로 표시한다.
-                                    if (Locator.modelManager.states.value[tier] !is ModelState.Failed) {
-                                        modelError = "모델 선택을 저장하지 못했습니다. 다시 선택해 주세요."
-                                    }
-                                    Log.w("Settings", "모델 다운로드 또는 선택 저장 실패", failure)
-                                } finally {
-                                    busyTier = null
-                                }
+                                runCatching { Locator.modelManager.download(tier) }
+                                    .onSuccess { Locator.settings.selectDownloadedModel(tier.id, selectionVersion) }
+                                busyTier = null
                             }
                         },
                         onDelete = { pendingDelete = tier },
                     )
                 }
             }
-        }
-
-        modelError?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -276,29 +244,16 @@ private fun StorageSection() {
     var busy by remember { mutableStateOf(false) }
     var confirmStems by remember { mutableStateOf(false) }
     var lastFreed by remember { mutableStateOf<String?>(null) }
-    var cleanupError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshKey) { usage = withContext(Dispatchers.IO) { readUsage() } }
 
     /** 정리 실행 → 회수량 표시 → 사용량 재조회. 두 버튼이 같은 절차를 쓴다 */
     fun runCleanup(clear: suspend () -> Long) {
         busy = true
-        lastFreed = null
-        cleanupError = null
         scope.launch {
-            try {
-                lastFreed = CacheStorage.formatBytes(runStorageCleanup(clear = clear))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                cleanupError = if (failure is CacheCleanupException) {
-                    "일부 파일을 삭제하지 못했습니다. 다시 시도해 주세요."
-                } else "정리를 완료하지 못했습니다. 다시 시도해 주세요."
-                Log.w("Settings", "저장공간 정리 실패", failure)
-            } finally {
-                refreshKey++
-                busy = false
-            }
+            lastFreed = CacheStorage.formatBytes(clear())
+            refreshKey++
+            busy = false
         }
     }
 
@@ -312,9 +267,6 @@ private fun StorageSection() {
         StorageRow("AI 분리 파일", usage?.stems)
         lastFreed?.let {
             StatusBadge("${it}를 비웠어요", active = true)
-        }
-        cleanupError?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         OutlinedButton(
             enabled = !busy && (usage?.mixCache ?: 0L) > 0L,
@@ -345,12 +297,6 @@ private fun StorageSection() {
         )
     }
 }
-
-/** 삭제는 앱 수명으로 마치고, 호출 화면은 결과 대기만 취소할 수 있다. */
-internal suspend fun runStorageCleanup(
-    scope: CoroutineScope = Locator.appScope,
-    clear: suspend () -> Long,
-): Long = scope.async { clear() }.await()
 
 /** 분리 결과 삭제 확인. 곡당 수 분이 드는 작업을 되돌리므로 되묻는다 */
 @Composable
@@ -388,37 +334,20 @@ internal suspend fun clearMixCache(
 }
 
 /** 모든 곡의 스템을 버리고 DB의 분리 표시도 내린다. @return 회수한 바이트 */
-internal suspend fun deleteAllStems(
-    stemsDir: File = StemFiles.dir(Locator.context),
-    stopSeparation: () -> Unit = {
-        if (SepBus.state.value is SepState.Running) SeparationService.cancel(Locator.context)
-    },
-    releasePlayback: () -> Unit = { Locator.playerController.release() },
-    clearSeparation: suspend () -> Unit = { Locator.songDao.clearAllSeparation() },
-): Long {
+private suspend fun deleteAllStems(): Long {
     // 진행 중인 분리를 취소하고 .part까지 지운다. 블로킹 추론이 아직 끝나지 않은
     // 경우에도 쓰던 디렉터리를 버려 고아 산출물을 남기지 않는다.
-    stopSeparation()
-    releasePlayback()
+    if (SepBus.state.value is SepState.Running) {
+        SeparationService.cancel(Locator.context)
+    }
+    Locator.playerController.release()
     return withContext(Dispatchers.IO) {
         // 확정 중인 분리는 파일·DB 기록까지 마친 뒤 지운다. 화면 이탈로 이 정리가
         // 취소되더라도 파일 삭제와 DB 표시 해제가 갈라지지 않도록 같은 확정 락을 쓴다.
         withStemMutation {
-            var failure: Throwable? = null
-            try {
-                CacheStorage.clearSubdirectories(stemsDir, includeInFlight = true)
-            } catch (error: Throwable) {
-                failure = error
-                throw error
-            } finally {
-                // 부분 삭제된 스템을 정상 결과로 재생하지 않는다. 실패는 DB 해제 뒤 UI에 전달한다.
-                try {
-                    clearSeparation()
-                } catch (recordError: Throwable) {
-                    if (failure == null) throw recordError
-                    failure.addSuppressed(recordError)
-                }
-            }
+            val freed = CacheStorage.clearSubdirectories(StemFiles.dir(Locator.context), includeInFlight = true)
+            Locator.songDao.clearAllSeparation()
+            freed
         }
     }
 }

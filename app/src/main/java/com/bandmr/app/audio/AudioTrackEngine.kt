@@ -5,8 +5,6 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
-import java.io.IOException
 
 /**
  * AudioTrack 기반 WAV 재생 엔진의 공통 골격.
@@ -37,7 +35,6 @@ abstract class AudioTrackEngine(
     // wait/notify가 필요한 모니터 객체 — kotlin.Any에는 이 메서드가 없어 java.lang.Object를 쓴다
     protected val stateLock = Object()
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
-    private val output = PlaybackDrain()
 
     /** 렌더 결과 버퍼. [renderChunk]가 채우고 [loop]가 트랙에 쓴다 */
     protected val outShort = ShortArray(CHUNK * 2)
@@ -70,12 +67,14 @@ abstract class AudioTrackEngine(
     /** [release]가 시작됐는지. 해제 중에 생기는 정상적인 실패(닫힌 리더 읽기 등)를 구분하는 데 쓴다 */
     protected val isReleased: Boolean get() = released
 
-    /**
-     * 키. 값은 여기만 두고, [PitchShifter] 반영은 오디오 스레드의 [prepareProcessors]가 한다.
-     * setter에서 시프터를 건드리면 재생 중이던 위상과 비율을 호출 스레드가 중간에 지운다.
-     */
     @Volatile
     var semitones: Int = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                shifter.semitones = value
+            }
+        }
 
     /** 재생 속도(0.25~2.0). 키와 독립 — AudioTrack 타임스트레치 */
     @Volatile
@@ -131,7 +130,6 @@ abstract class AudioTrackEngine(
     fun pause() {
         synchronized(stateLock) {
             isPlaying = false
-            resetOutput()
             // flush로 대기 중인 WRITE_BLOCKING write를 확실히 풀어준다 (스레드 정지 방지)
             track?.let { runCatching { it.pause(); it.flush() } }
         }
@@ -144,7 +142,6 @@ abstract class AudioTrackEngine(
             // 프로세서 리셋은 오디오 스레드가 렌더 직전에 제자리로 수행한다(스레드 안전성).
             // 여기서 객체를 새로 만들면 스크럽 중 초당 10회 × 180KB가 재할당된다.
             processorsDirty = true
-            resetOutput()
             track?.pause()
             track?.flush()
             if (isPlaying && totalFrames > 0) {
@@ -179,30 +176,12 @@ abstract class AudioTrackEngine(
     /** 보유 오디오 소스(WAV 리더 등)를 닫는다. [release]에서 stopEngine 뒤에 호출된다. */
     protected abstract fun closeSources()
 
-    /** DSP 잔여 출력도 일반 청크처럼 출력 프레임 수에 포함한다. 오디오 스레드에서만 호출한다. */
-    protected open fun drainProcessors(write: (ShortArray, Int) -> Unit) {}
-
-    /**
-     * write 완료는 버퍼 기록 완료일 뿐 재생 완료가 아니다. DSP 잔여분까지 쓴 뒤 실제 헤드를
-     * 기다려야 마지막 소리가 pause로 잘리지 않는다. 기다리는 중 시크·일시정지·해제는
-     * 출력 세대를 바꿔 이 종료를 무효화한다. stateLock을 놓고 기다리므로 조작은 막지 않는다.
-     */
-    protected open fun finish(epoch: Long) {
-        synchronized(stateLock) {
-            if (released || output.epoch != epoch || (track != null && !isPlaying)) return
-        }
-        drainProcessors { samples, count -> writeOutput(samples, count, epoch) }
-        if (!awaitOutput(epoch)) return
-        synchronized(stateLock) {
-            if (released || output.epoch != epoch) return
-            framePos = totalFrames
-            isPlaying = false
-            track?.pause()
-        }
+    /** 곡 끝 처리. 종료 전에 잔여 DSP flush가 필요하면 확장한다 */
+    protected open fun finish() {
+        synchronized(stateLock) { isPlaying = false }
+        track?.pause()
         // 대기 중 해제되거나 다시 재생됐으면 이전 종료 통보는 폐기한다.
-        postToMain {
-            if (!released && !isPlaying && output.epoch == epoch) onEndedCallback()
-        }
+        postToMain { if (!released && !isPlaying) onEndedCallback() }
     }
 
     /** 곡 끝 통보를 메인 큐에 전달한다. */
@@ -213,19 +192,16 @@ abstract class AudioTrackEngine(
     // ---------- 내부 ----------
 
     /**
-     * 시크 요청이 있었으면 프로세서를 제자리 리셋하고 요청된 키를 적용한다. 반드시 오디오 스레드에서,
+     * 시크 요청이 있었으면 프로세서를 제자리 리셋한다. 반드시 오디오 스레드에서,
      * framePos를 읽기 전에(그리고 곡 끝 판정보다도 먼저) stateLock 아래에서 호출할 것.
      * 순서가 뒤바뀌면 "pos 읽음 → 시크 끼어듦 → 리셋" 이 되어 방금 비운 체인에
      * 시크 이전 오디오가 들어간다 — 리셋이 막으려던 잡음을 리셋이 만든다.
      */
-    private fun prepareProcessors() {
-        if (processorsDirty) {
-            processorsDirty = false
-            shifter.reset()
-            resetProcessors()
-        }
-        // 같은 키는 PitchShifter의 setter가 건너뛴다. 키 변경만으로 다른 DSP를 리셋하지 않는다.
-        shifter.semitones = semitones
+    private fun consumeResetRequest() {
+        if (!processorsDirty) return
+        processorsDirty = false
+        shifter.reset()
+        resetProcessors()
     }
 
     /** interleaved shorts [frames]프레임 → 피치 적용해 [outShort]에 기록 */
@@ -251,150 +227,61 @@ abstract class AudioTrackEngine(
         }
     }
 
-    private fun wrapOrFinish(epoch: Long) {
-        val restart = synchronized(stateLock) {
-            if (output.epoch != epoch) return
-            PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
-        }
-        if (restart != null) {
-            synchronized(stateLock) {
-                if (output.epoch == epoch) seekToFrame(restart)
-            }
-        } else finish(epoch)
+    private fun wrapOrFinish() {
+        val restart = PlaybackLoop.restartFrame(loopStartFrame, loopEndFrame)
+        if (restart != null) seekToFrame(restart) else finish()
     }
 
     private fun loop() {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+        track = buildTrack()
+        applySpeed()
         var writeFailed = false
-        try {
-            track = buildTrack()
-            applySpeed()
-            while (running) {
-                if (!awaitPlayback()) break
-                if (track == null) continue
+        while (running) {
+            if (!awaitPlayback()) break
+            if (track == null) continue
 
-                val pos: Long
-                val limit: Long
-                val epoch: Long
-                // 리셋 소비는 framePos·limit 읽기와 원자적이어야 한다(위 prepareProcessors 주석 참조)
-                synchronized(stateLock) {
-                    prepareProcessors()
-                    pos = framePos
-                    limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
-                    epoch = output.epoch
-                }
-                if (pos >= limit) {
-                    wrapOrFinish(epoch)
-                    continue
-                }
-                val request = PlaybackLoop.chunkFrames(pos, limit, CHUNK)
-                val produced = renderChunk(pos, request)
-                if (produced <= 0) {
-                    wrapOrFinish(epoch)
-                    continue
-                }
-                if (!writeOutput(outShort, produced * 2, epoch)) continue
-                // 진행 중 시크가 끼어들었으면(framePos 변경) 스테일 값으로 덮어쓰지 않는다
-                synchronized(stateLock) {
-                    if (output.epoch == epoch && framePos == pos) framePos += produced
-                    // 이 바퀴 도중 pause()가 끼었으면(위 write가 flush로 풀린 것일 수 있다) 트랙을
-                    // 다시 켜지 않는다. 판정·재시작을 pause()의 track.pause()와 같은 락 안에서
-                    // 직렬화하지 않으면 그 사이에 pause가 끼어 isPlaying=false인데 트랙만
-                    // PLAYING으로 남고, flush로 비워진 큐에 쓴 청크 하나가 pause 뒤에 새어 들린다.
-                    // 정상 경로(첫 시작·재개)는 play()/seekToFrame이 먼저 isPlaying=true를 세우므로
-                    // 가드에 걸리지 않는다
-                    if (isPlaying && track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                        track?.play()
-                        applySpeed()
-                    }
-                }
+            val pos: Long
+            val limit: Long
+            // 리셋 소비는 framePos·limit 읽기와 원자적이어야 한다(위 consumeResetRequest 주석 참조)
+            synchronized(stateLock) {
+                consumeResetRequest()
+                pos = framePos
+                limit = PlaybackLoop.limitFrames(totalFrames, loopStartFrame, loopEndFrame)
             }
-        } catch (failure: Exception) {
-            if (!released) {
-                Log.w("AudioTrackEngine", "오디오 출력 실패", failure)
+            if (pos >= limit) {
+                wrapOrFinish()
+                continue
+            }
+            val request = PlaybackLoop.chunkFrames(pos, limit, CHUNK)
+            val produced = renderChunk(pos, request)
+            if (produced <= 0) {
+                wrapOrFinish()
+                continue
+            }
+            val wrote = track?.write(outShort, 0, produced * 2, AudioTrack.WRITE_BLOCKING) ?: 0
+            if (wrote < 0) {
                 writeFailed = true
+                break
             }
-        } finally {
-            track?.let { runCatching { it.release() } }
-            track = null
+            // 진행 중 시크가 끼어들었으면(framePos 변경) 스테일 값으로 덮어쓰지 않는다
+            synchronized(stateLock) {
+                if (framePos == pos) framePos += produced
+                // 이 바퀴 도중 pause()가 끼었으면(위 write가 flush로 풀린 것일 수 있다) 트랙을
+                // 다시 켜지 않는다. 판정·재시작을 pause()의 track.pause()와 같은 락 안에서
+                // 직렬화하지 않으면 그 사이에 pause가 끼어 isPlaying=false인데 트랙만
+                // PLAYING으로 남고, flush로 비워진 큐에 쓴 청크 하나가 pause 뒤에 새어 들린다.
+                // 정상 경로(첫 시작·재개)는 play()/seekToFrame이 먼저 isPlaying=true를 세우므로
+                // 가드에 걸리지 않는다
+                if (isPlaying && track?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                    track?.play()
+                    applySpeed()
+                }
+            }
         }
+        track?.release()
+        track = null
         if (writeFailed) onOutputError()
-    }
-
-    /** 실제로 기록된 프레임만 센다. 시크/flush와 겹친 스테일 쓰기는 버리고 새 출력에 섞지 않는다. */
-    private fun writeOutput(samples: ShortArray, count: Int, epoch: Long): Boolean {
-        var offset = 0
-        var lastProgress = System.nanoTime()
-        while (offset < count) {
-            val sink = synchronized(stateLock) {
-                if (!running || !isPlaying || output.epoch != epoch) return false
-                track ?: return false
-            }
-            val wrote = sink.write(samples, offset, count - offset, AudioTrack.WRITE_BLOCKING)
-            synchronized(stateLock) {
-                if (output.epoch != epoch) {
-                    // flush 직후에도 이전 write가 일부를 남길 수 있다. 새 청크를 쓰기 전에
-                    // 다시 비우고 재생 의도가 남아 있을 때만 트랙을 시작한다.
-                    resetOutput()
-                    sink.pause()
-                    sink.flush()
-                    if (running && isPlaying) {
-                        sink.play()
-                        applySpeed()
-                    }
-                    return false
-                }
-                if (wrote < 0) throw IOException("오디오 쓰기 실패: $wrote")
-                if (wrote == 0) {
-                    // pause 직후의 write는 에러 없이 0을 반환할 수 있다. 재개 시엔 버퍼가
-                    // 찬 상태의 write를 먼저 기다리지 말고 트랙을 시작한 뒤 같은 데이터를 쓴다.
-                    if (sink.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                        sink.play()
-                        applySpeed()
-                    }
-                    if (System.nanoTime() - lastProgress > OUTPUT_STALL_TIMEOUT_NS) {
-                        throw IOException("오디오 쓰기가 진행되지 않습니다")
-                    }
-                    stateLock.wait(10)
-                } else {
-                    output.recordWrite(wrote)
-                    lastProgress = System.nanoTime()
-                }
-            }
-            offset += wrote
-        }
-        return true
-    }
-
-    private fun awaitOutput(epoch: Long): Boolean {
-        val sink = track ?: return true
-        synchronized(stateLock) {
-            if (!running || !isPlaying || output.epoch != epoch) return false
-            // 아주 짧은 곡은 기본 시작 임계치보다 작다. 끝에선 남은 소리만으로도 시작하게 한다.
-            sink.setStartThresholdInFrames(1)
-        }
-        var lastPending = -1L
-        var lastProgress = System.nanoTime()
-        while (true) {
-            synchronized(stateLock) {
-                if (!running || !isPlaying || output.epoch != epoch) return false
-                val pending = output.pendingFrames(sink.playbackHeadPosition)
-                if (pending == 0L) return true
-                if (pending != lastPending) {
-                    lastPending = pending
-                    lastProgress = System.nanoTime()
-                } else if (System.nanoTime() - lastProgress > OUTPUT_STALL_TIMEOUT_NS) {
-                    throw IOException("오디오 출력이 진행되지 않습니다")
-                }
-                stateLock.wait(10)
-            }
-        }
-    }
-
-    /** stateLock 안에서 호출한다. 기다리는 종료도 즉시 깨워 이전 세대를 폐기한다. */
-    private fun resetOutput() {
-        output.reset()
-        stateLock.notifyAll()
     }
 
     /** 실패한 트랙을 닫은 뒤 호출한다. 곡 끝의 DSP flush 없이 위치를 보존해 재시도할 수 있다. */
@@ -402,7 +289,6 @@ abstract class AudioTrackEngine(
         synchronized(stateLock) {
             isPlaying = false
             running = false
-            resetOutput()
             // 중단 통보 직후 재생을 누르면, 아직 반환 중인 이전 스레드 대신 새 트랙을 연다.
             thread = null
         }
@@ -419,9 +305,7 @@ abstract class AudioTrackEngine(
         synchronized(stateLock) {
             isPlaying = false
             running = false
-            resetOutput()
-            // 블로킹 write와 곡끝 대기를 먼저 풀어야 join 중에 UI를 붙잡지 않는다.
-            track?.let { runCatching { it.pause(); it.flush() } }
+            stateLock.notifyAll()
         }
         thread?.join(500)
         thread = null
@@ -458,6 +342,5 @@ abstract class AudioTrackEngine(
 
     companion object {
         protected const val CHUNK = 2048
-        private const val OUTPUT_STALL_TIMEOUT_NS = 5_000_000_000L
     }
 }

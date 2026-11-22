@@ -1,19 +1,14 @@
 package com.bandmr.app.audio
 
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CacheReadyGateTest {
 
     @Test
@@ -52,64 +47,6 @@ class CacheReadyGateTest {
         withTimeout(1000) {
             gate.await(3L) { !firstCheck.getAndSet(false) }
         }
-    }
-
-    @Test
-    fun `완료 알림이 몰려도 마지막 곡의 대기를 끝낸다`() = runTest {
-        val gate = CacheReadyGate()
-        var ready = false
-        val waiting = backgroundScope.async { gate.await(999L) { ready } }
-        runCurrent()
-        assertFalse(waiting.isCompleted)
-
-        repeat(32) { gate.signal(it.toLong()) }
-        ready = true
-        gate.signal(999L)
-        runCurrent()
-
-        assertTrue("버퍼가 차도 완료 신호를 잃으면 안 된다", waiting.isCompleted)
-        waiting.await()
-    }
-
-    @Test
-    fun `해당 곡 알림 뒤 다른 알림이 몰려도 파일 상태를 확인해 대기를 끝낸다`() = runTest {
-        val gate = CacheReadyGate()
-        var ready = false
-        val waiting = backgroundScope.async { gate.await(999L) { ready } }
-        runCurrent()
-        assertFalse(waiting.isCompleted)
-
-        ready = true
-        gate.signal(999L)
-        repeat(32) { gate.signal(it.toLong()) }
-        runCurrent()
-
-        assertTrue("다른 곡 알림만 남아도 완성 파일을 확인해야 한다", waiting.isCompleted)
-        waiting.await()
-    }
-
-    @Test
-    fun `알림 폭주 시 완성된 곡들만 깨우고 취소된 대기의 구독은 해제한다`() = runTest {
-        val gate = CacheReadyGate()
-        val ready = mutableSetOf<Long>()
-        val waiting = (1L..3L).map { id ->
-            backgroundScope.async { gate.await(id) { id in ready } }
-        }
-        runCurrent()
-        assertEquals(3, gate.subscriberCount.value)
-
-        ready += setOf(1L, 2L)
-        gate.signal(1L)
-        gate.signal(2L)
-        repeat(64) { gate.signal(100L + it) }
-        runCurrent()
-
-        assertTrue(waiting[0].isCompleted)
-        assertTrue(waiting[1].isCompleted)
-        assertFalse(waiting[2].isCompleted)
-        assertEquals(1, gate.subscriberCount.value)
-        waiting[2].cancelAndJoin()
-        assertEquals(0, gate.subscriberCount.value)
     }
 
     private suspend fun waitUntilSubscribed(gate: CacheReadyGate) {
