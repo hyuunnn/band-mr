@@ -99,7 +99,7 @@ fun SettingsScreen() {
                         tier = tier,
                         state = modelStates[tier],
                         selected = currentTier == tier.id,
-                        busy = busyTier != null,
+                        busy = busyTier != null || modelStates.values.any { it is ModelState.Downloading },
                         onSelect = {
                             if (Locator.modelManager.isDownloaded(tier) || modelStates[tier] is ModelState.Ready) {
                                 scope.launch { Locator.settings.setModelTier(tier.id) }
