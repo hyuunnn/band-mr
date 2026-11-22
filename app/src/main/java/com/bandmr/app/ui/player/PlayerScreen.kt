@@ -88,6 +88,7 @@ import com.bandmr.app.ui.components.PlayerHeading
 import com.bandmr.app.ui.components.SectionHeading
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.StudioPanel
+import com.bandmr.app.ui.components.formatTime
 import com.bandmr.app.ui.theme.LocalAppDesign
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
@@ -179,7 +180,6 @@ fun PlayerScreen(songId: Long, onLibrary: () -> Unit) {
                             checkCancelled = { waveformContext.ensureActive() },
                         )
                     },
-                    awaitReady = { MixCache.awaitReady(Locator.context, songId) },
                 )
             }
         } catch (cancelled: CancellationException) {
@@ -488,10 +488,8 @@ internal suspend fun prepareWaveformPeaks(
     file: File,
     peaksFile: File,
     prepare: suspend () -> Unit,
-    awaitReady: suspend () -> Unit,
 ): FloatArray {
     if (!file.exists()) prepare()
-    awaitReady()
     return WaveformPeaks.fromWavCached(file, peaksFile)
 }
 
@@ -704,11 +702,6 @@ private fun PlayerTabs(selected: Int, exporting: Boolean, onSelect: (Int) -> Uni
 
 /** 시크 리셋(DSP/시프터)이 너무 잦지 않게 드래그 중 시크 간격 */
 private const val SCRUB_SEEK_INTERVAL_MS = 100L
-
-internal fun formatTime(ms: Long): String {
-    val totalSec = ms / 1000
-    return "%d:%02d".format(totalSec / 60, totalSec % 60)
-}
 
 @Composable
 private fun ModeCard(

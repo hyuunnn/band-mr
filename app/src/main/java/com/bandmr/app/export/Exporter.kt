@@ -37,19 +37,17 @@ class Exporter(private val context: Context) {
         vocalStrength: Float = 1f,
         onProgress: (Float) -> Unit = {},
     ): Unit = withExportDestination(discard = { discardMixDestination(dest) }) {
-        withContext(Dispatchers.IO) {
-            if (aiOn && song.isSeparated) {
-                exportMixFromStems(song, stemGainsPacked, semitones, dest, onProgress)
-            } else {
-                exportMixFromOriginal(
-                    song,
-                    Stem.muteMaskFromPacked(stemGainsPacked),
-                    semitones,
-                    vocalStrength,
-                    dest,
-                    onProgress,
-                )
-            }
+        if (aiOn && song.isSeparated) {
+            exportMixFromStems(song, stemGainsPacked, semitones, dest, onProgress)
+        } else {
+            exportMixFromOriginal(
+                song,
+                Stem.muteMaskFromPacked(stemGainsPacked),
+                semitones,
+                vocalStrength,
+                dest,
+                onProgress,
+            )
         }
     }
 

@@ -10,16 +10,15 @@ import com.bandmr.app.data.Stem
  * export 로그의 `model.sources`와 일치해야 한다.
  */
 enum class StemLayout(
-    val id: String,
     val label: String,
     val stemOrder: List<String>,
 ) {
     FOUR(
-        "4s", "4스템",
+        "4스템",
         listOf("drums", "bass", "other", "vocals"),
     ),
     SIX(
-        "6s", "6스템",
+        "6스템",
         listOf("drums", "bass", "other", "vocals", "guitar", "piano"),
     );
 
@@ -68,18 +67,17 @@ enum class ModelFamily(
 
 /** 세그먼트 길이로만 나눈 품질 등급. Demucs 가중치는 레이아웃마다 하나다. */
 enum class Quality(
-    val id: String,
     val label: String,
     val description: String,
     val segmentSamples: Int,
 ) {
     BALANCED(
-        "balanced", "균형형",
+        "균형형",
         "처리 속도와 분리 품질의 균형을 맞췄어요.",
         262_144,
     ),
     QUALITY(
-        "quality", "품질 우선",
+        "품질 우선",
         "더 정교하게 분리해요. 시간과 메모리가 더 필요해요.",
         344_064,
     ),
@@ -174,12 +172,8 @@ enum class Tier(
         ?: if (layout == StemLayout.SIX) "model-6s.onnx" else "model-4s.onnx"
 
     companion object {
-        fun fromId(id: String?): Tier = when (id) {
-            // 경량(light) 폐지. 이미 받은 파일은 ModelManager가 지우고, 설정·DB는 6스템 균형형으로
-            "light", "balanced", null, "" -> S6_BALANCED
-            "quality" -> S6_QUALITY
-            else -> entries.firstOrNull { it.id == id } ?: S6_BALANCED
-        }
+        /** 폐지된 경량(light)과 모르는 id는 6스템 균형형으로 읽는다. 예전 `balanced`·`quality`는 6스템 id 그대로다. */
+        fun fromId(id: String?): Tier = entries.firstOrNull { it.id == id } ?: S6_BALANCED
 
         /** Demucs 레이아웃×품질. SCNet은 같은 FOUR/BALANCED를 쓰므로 제외한다. */
         fun of(layout: StemLayout, quality: Quality): Tier =

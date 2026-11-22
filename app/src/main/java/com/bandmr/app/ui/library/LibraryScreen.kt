@@ -80,6 +80,7 @@ import com.bandmr.app.separation.Tier
 import com.bandmr.app.ui.components.DesignBackdrop
 import com.bandmr.app.ui.components.StatusBadge
 import com.bandmr.app.ui.components.TrackArtwork
+import com.bandmr.app.ui.components.formatTime
 import com.bandmr.app.ui.theme.LocalAppDesign
 import com.bandmr.app.youtube.ImportState
 import com.bandmr.app.youtube.YouTubeImport
@@ -469,7 +470,7 @@ private fun SongRow(song: Song, onClick: () -> Unit, onDelete: () -> Unit) {
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        formatDuration(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
+                        formatTime(song.durationMs) + if (song.isSeparated) " · AI ${Tier.fromId(song.separatedTier).chipLabel}" else " · 원본 오디오",
                         style = MaterialTheme.typography.labelMedium,
                         color = if (song.isSeparated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -497,11 +498,6 @@ internal fun songsMatchingQuery(songs: List<Song>, query: String): List<Song> {
     val needle = query.trim()
     if (needle.isEmpty()) return songs
     return songs.filter { it.title.contains(needle, ignoreCase = true) }
-}
-
-internal fun formatDuration(ms: Long): String {
-    val totalSec = ms / 1000
-    return "%d:%02d".format(totalSec / 60, totalSec % 60)
 }
 
 private suspend fun readMetadata(uri: Uri): Pair<String, Long> =

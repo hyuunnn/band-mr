@@ -82,7 +82,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 전체 스템 삭제는 분리를 취소하고 `withStemMutation` 안에서 `.part` 포함 삭제(`includeInFlight`)와 DB 해제를 함께 수행한다.
 - 스템 경로는 `StemFiles`로 통일한다. 분리·고아 정리·용량 집계·삭제에서 별도로 조합하지 않는다.
 - 파형 `.peaks`는 FilePromote 대상에서 제외한다. 막대 수·원본 크기 불일치나 손상 시 재계산하며 표시용 파일 오류는 전파하지 않는다.
-- 파형 상태는 songId로 remember한다. 준비 상태 변화로 비우지 않으며 캐시 대기는 `MixCache.awaitReady`를 쓴다.
+- 파형 상태는 songId로 remember한다. 준비 상태 변화로 비우지 않으며, 캐시가 없으면 `MixCache.prepare`로 만든 뒤 읽는다.
 
 ## 분리·유튜브
 

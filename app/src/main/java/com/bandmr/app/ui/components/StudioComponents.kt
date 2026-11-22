@@ -328,3 +328,9 @@ fun TrackArtwork(seed: Long, modifier: Modifier = Modifier, size: Dp = 56.dp, la
         }
     }
 }
+
+/** 재생 위치·곡 길이 표시 (분:초) */
+internal fun formatTime(ms: Long): String {
+    val totalSec = ms / 1000
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+}

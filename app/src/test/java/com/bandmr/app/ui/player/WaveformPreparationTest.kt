@@ -17,12 +17,9 @@ class WaveformPreparationTest {
     fun `재생기가 캐시를 만들지 않는 AI ON도 파형 입력을 준비한다`() = runTest {
         val wav = File(tmp.root, "song.wav")
         val peaksFile = File(tmp.root, "song.peaks")
-        val events = mutableListOf<String>()
-        val peaks = prepareWaveformPeaks(wav, peaksFile,
-            prepare = { events += "prepare"; writeWav(wav) },
-            awaitReady = { assertTrue(wav.exists()); events += "ready" },
-        )
-        assertEquals(listOf("prepare", "ready"), events)
+        var prepared = 0
+        val peaks = prepareWaveformPeaks(wav, peaksFile, prepare = { prepared++; writeWav(wav) })
+        assertEquals(1, prepared)
         assertTrue(peaks.isNotEmpty())
         assertTrue(peaksFile.exists())
     }
@@ -32,22 +29,21 @@ class WaveformPreparationTest {
         val wav = File(tmp.root, "song.wav")
         writeWav(wav)
         val peaks = prepareWaveformPeaks(wav, File(tmp.root, "song.peaks"),
-            prepare = { error("중복 디코딩") }, awaitReady = {},
+            prepare = { error("중복 디코딩") },
         )
         assertTrue(peaks.isNotEmpty())
     }
 
     @Test
-    fun `입력 준비가 실패하면 완료 신호를 기다리지 않는다`() = runTest {
-        var waited = false
+    fun `입력 준비가 실패하면 파형을 만들지 않고 실패를 전달한다`() = runTest {
+        val peaksFile = File(tmp.root, "song.peaks")
         try {
-            prepareWaveformPeaks(File(tmp.root, "song.wav"), File(tmp.root, "song.peaks"),
+            prepareWaveformPeaks(File(tmp.root, "song.wav"), peaksFile,
                 prepare = { throw IOException("source unavailable") },
-                awaitReady = { waited = true },
             )
             fail("준비 실패가 전달돼야 한다")
         } catch (expected: IOException) {
-            assertFalse(waited)
+            assertFalse(peaksFile.exists())
         }
     }
 

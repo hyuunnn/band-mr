@@ -4,12 +4,6 @@ import android.content.Context
 import android.net.Uri
 import com.bandmr.app.io.FilePromote
 import com.bandmr.app.separation.AudioDecode
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.onSubscription
-import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -48,16 +42,6 @@ object MixCache {
 
     // 같은 곡을 곡 추가 시점 변환과 재생 시점 준비가 동시에 만들지 않도록 곡 단위 직렬화
     private val locks = java.util.concurrent.ConcurrentHashMap<Long, Any>()
-
-    private val ready = CacheReadyGate()
-
-    /**
-     * 캐시 WAV가 생길 때까지 중단한다. 이미 있으면 즉시 반환.
-     * [prepare]가 정식 이름으로 승격한 뒤에만 깨운다. 화면을 떠나면 호출 코루틴 취소로 끝난다.
-     */
-    suspend fun awaitReady(context: Context, songId: Long) {
-        ready.await(songId) { cacheFile(context, songId).exists() }
-    }
 
     /**
      * [sourceUri]를 디코딩해 `mixcache/<songId>.wav`로 저장한다.
@@ -98,45 +82,12 @@ object MixCache {
                 check(frames > 0) { "곡에서 소리를 찾지 못했습니다 (빈 오디오)" }
                 checkCancelled()
                 FilePromote.file(part, final)
-                // 승격 뒤에만 알린다 — awaitReady는 구독 후 exists를 다시 봐서
-                // 이 emit을 놓쳐도 파일이 있으면 바로 끝난다
-                ready.signal(songId)
                 return final
             } finally {
                 // 성공 시 part는 이미 final로 rename됨. 실패 시 남은 부분 파일을
                 // final로 승격하면 손상 캐시가 재생에 쓰이므로 반드시 삭제만 한다.
                 part.delete()
             }
-        }
-    }
-}
-
-/**
- * 곡 캐시 완료 신호. [signal]은 파일이 이미 보이는 뒤에만 호출한다.
- * [await]는 구독을 건 다음 현재 상태를 다시 확인해, signal과 exists 검사 사이 경쟁을 막는다.
- */
-internal class CacheReadyGate {
-    private val ready = MutableSharedFlow<Long>(extraBufferCapacity = 16)
-
-    /** 테스트에서 구독 시점 경쟁을 확인하는 용도 */
-    @androidx.annotation.VisibleForTesting
-    val subscriberCount get() = ready.subscriptionCount
-
-    fun signal(songId: Long) {
-        ready.tryEmit(songId)
-    }
-
-    suspend fun await(songId: Long, isReady: () -> Boolean) {
-        if (isReady()) return
-        val subscribed = CompletableDeferred<Unit>()
-        coroutineScope {
-            val job = launch {
-                ready
-                    .onSubscription { subscribed.complete(Unit) }
-                    .first { it == songId }
-            }
-            subscribed.await()
-            if (isReady()) job.cancel() else job.join()
         }
     }
 }
