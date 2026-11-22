@@ -7,6 +7,7 @@ import com.bandmr.app.audio.DspChain
 import com.bandmr.app.audio.WavReader
 import com.bandmr.app.audio.WavWriter
 import com.bandmr.app.data.Stem
+import java.io.Closeable
 import java.io.File
 import java.nio.FloatBuffer
 
@@ -64,7 +65,7 @@ class DemucsSeparator {
 
         val writers = LinkedHashMap<Stem, WavWriter>()
         Stem.entries.forEach { stem ->
-            val idx = stemIndex[stem] ?: return@forEach
+            if (stem !in stemIndex) return@forEach
             writers[stem] = WavWriter.create(File(outDir, "${stem.fileName}.wav"), sr)
         }
         require(writers.isNotEmpty()) { "모델 출력에 유효한 스템이 없습니다" }
@@ -80,6 +81,7 @@ class DemucsSeparator {
         var chunkIdx = 0
         val inputName = session.inputNames.iterator().next()
 
+        var completed = false
         try {
             WavReader(inputWav).use { reader ->
                 require(reader.sampleRate == sr && reader.channels == 2) {
@@ -159,8 +161,9 @@ class DemucsSeparator {
                     if (truncated) break
                 }
             }
+            completed = true
         } finally {
-            writers.values.forEach { runCatching { it.close() } }
+            closeWriters(writers.values, rethrow = completed)
         }
         if (isCancelled()) throw java.util.concurrent.CancellationException("사용자가 취소했습니다")
         return writers.keys.associateWith { File(outDir, "${it.fileName}.wav") }
@@ -169,6 +172,15 @@ class DemucsSeparator {
     internal companion object {
         internal const val FADE_DIVISOR = 4
         private const val INTRA_OP_THREADS = 4
+
+        /**
+         * 전부 닫은 뒤 첫 닫기 실패를 던진다. 닫기 실패(남은 버퍼 flush·헤더 패치)를 삼키면
+         * 잘린 스템이 분리 완료로 확정된다. 앞선 예외가 있으면([rethrow]=false) 그 예외를 가리지 않는다.
+         */
+        internal fun closeWriters(writers: Collection<Closeable>, rethrow: Boolean) {
+            val failure = writers.mapNotNull { runCatching { it.close() }.exceptionOrNull() }.firstOrNull()
+            if (rethrow && failure != null) throw failure
+        }
 
         /** [chunkPlan]의 한 걸음. [pos]에서 [len]프레임을 읽어 [writable]프레임을 기록한다 */
         internal data class Chunk(

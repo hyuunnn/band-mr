@@ -2,8 +2,11 @@ package com.bandmr.app.audio
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 
 class WavIoTest {
@@ -97,5 +100,23 @@ class WavIoTest {
             assertEquals(10, r.read(40, buf, 30))
         }
         f.delete()
+    }
+
+    @Test
+    fun `헤더 크기를 기록하지 못하면 close가 실패를 전파한다`() {
+        val f = File.createTempFile("wavtest4", ".wav")
+        try {
+            val writer = WavWriter.create(f, 44100)
+            writer.writeShorts(ShortArray(8), 8)
+            // 본문 flush는 열린 스트림으로 끝나지만, 헤더를 다시 열 경로가 파일이 아니게 만든다
+            assertTrue(f.delete() && f.mkdir())
+            try {
+                writer.close()
+                fail("크기 필드가 0인 WAV를 정상 종료로 보고하면 안 된다")
+            } catch (expected: IOException) {
+            }
+        } finally {
+            f.deleteRecursively()
+        }
     }
 }
