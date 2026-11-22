@@ -31,7 +31,7 @@ private const val TAG = "PlayerController"
  *
  * AI OFF는 일부 기기에서 MediaCodec 스트리밍 디코딩이 깨지는 문제(무음·노이즈)가 있어
  * 압축 원본을 직접 스트리밍하지 않고, [MixCache]로 미리 디코딩해 둔 44.1kHz WAV를
- * AudioTrack으로 재생한다. 캐시는 곡 추가/앱 시작 때 백그라운드로 만들어지고,
+ * AudioTrack으로 재생한다. 캐시는 곡 추가 때 백그라운드로 만들어지고,
  * 없는 상태로 재생하면 그 자리에서 준비한 뒤([preparingSongId]) 자동으로 이어 재생한다.
  */
 class PlayerController(private val context: Context) {

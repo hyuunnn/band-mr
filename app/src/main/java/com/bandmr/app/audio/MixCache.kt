@@ -46,7 +46,7 @@ object MixCache {
         peaksFile(context, songId).delete()
     }
 
-    // 같은 곡을 앱 시작 프리캐시와 재생 시점 준비가 동시에 만들지 않도록 곡 단위 직렬화
+    // 같은 곡을 곡 추가 시점 변환과 재생 시점 준비가 동시에 만들지 않도록 곡 단위 직렬화
     private val locks = java.util.concurrent.ConcurrentHashMap<Long, Any>()
 
     private val ready = CacheReadyGate()

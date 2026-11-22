@@ -15,10 +15,7 @@ import com.bandmr.app.separation.StemFiles
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -33,36 +30,23 @@ class BandMrApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Locator.init(this)
-        preCacheMixes()
+        cleanUpStaleFiles()
     }
 
-    /** 캐시 없는 기존 곡들을 백그라운드로 미리 변환해 첫 재생이 즉시 되도록 한다 */
-    private fun preCacheMixes() {
-        Locator.startupPreCacheJob = Locator.appScope.launch(Dispatchers.IO) {
+    /**
+     * 시작할 때 잔여 파일만 정리한다. 재생 캐시는 곡 추가 때 만들고, 없으면 재생·분리·내보내기가
+     * 그 자리에서 만든다 — 여기서 전 곡을 다시 변환하면 사용자가 비운 캐시가 다음 실행에 되살아난다.
+     */
+    private fun cleanUpStaleFiles() {
+        Locator.appScope.launch(Dispatchers.IO) {
             try {
-                val preCacheContext = currentCoroutineContext()
                 val songs = Locator.songDao.getAllOnce()
                 cleanUpOrphans(songs.mapTo(HashSet()) { it.id })
                 cleanUpSourceFiles(songs)
-                songs.forEach { song ->
-                    preCacheContext.ensureActive()
-                    if (!MixCache.cacheFile(this@BandMrApp, song.id).exists()) {
-                        try {
-                            MixCache.prepare(
-                                this@BandMrApp, song.id, song.uri.toUri(),
-                                checkCancelled = { preCacheContext.ensureActive() },
-                            )
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (failure: Throwable) {
-                            Log.w(TAG, "곡 ${song.id} 캐시 준비 실패", failure)
-                        }
-                    }
-                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
-                Log.w(TAG, "시작 캐시 준비 실패", failure)
+                Log.w(TAG, "시작 정리 실패", failure)
             }
         }
     }
@@ -108,11 +92,8 @@ class BandMrApp : Application() {
 object Locator {
     private lateinit var appContext: Application
 
-    /** 화면 수명과 무관하게 끝까지 실행되어야 하는 작업용 (모델 다운로드, 캐시 프리페치 등) */
+    /** 화면 수명과 무관하게 끝까지 실행되어야 하는 작업용 (모델 다운로드, 유튜브 임포트 등) */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-
-    /** 캐시 비우기가 취소·종료를 기다릴 대상. 앱 시작 때 한 번만 등록한다. */
-    internal var startupPreCacheJob: Job? = null
 
     fun init(app: Application) {
         appContext = app
