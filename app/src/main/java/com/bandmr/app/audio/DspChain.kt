@@ -49,6 +49,7 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
 
     private var floatIn = FloatArray(BUF)
     private var floatOut = FloatArray(BUF)
+    private var latencySamples = 0
 
     init {
         rebuild()
@@ -75,6 +76,12 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
             hpL[i].reset(); hpR[i].reset(); dipL[i].reset(); dipR[i].reset()
         }
         spectral.reset()
+        // 작은 입력에서도 첫 STFT 블록을 모을 수 있도록 지연은 한 블록으로 고정한다.
+        // 청크 끝을 무음으로 채우면 호출 크기마다 소리가 끊기는 위치가 달라진다.
+        val mask = muteMask
+        latencySamples = if (drumsOn(mask) || bassOn(mask) || vocalOn(mask)) {
+            SpectralStage.BLOCK * channels
+        } else 0
     }
 
     /** interleaved shorts [n]개를 제자리 처리 */
@@ -86,7 +93,10 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
         for (i in 0 until n) floatIn[i] = data[i] / 32768f
         spectral.feed(floatIn, 0, n, drumsOn(mask), bassOn(mask), vocalOn(mask))
 
-        var got = spectral.read(floatOut, 0, n)
+        val silent = minOf(n, latencySamples)
+        java.util.Arrays.fill(floatOut, 0, silent, 0f)
+        latencySamples -= silent
+        var got = silent + spectral.read(floatOut, silent, n - silent)
         while (got < n) floatOut[got++] = 0f
 
         applyTimeDomain(floatOut, n, mask)
@@ -136,6 +146,14 @@ class DspChain(private val sampleRate: Int, private val channels: Int) {
         val zeros = FloatArray(SpectralStage.HOP * 2)
         // floatOut은 ensureBuffers로 BUF보다 커질 수 있으므로 크기를 맞춘다
         val out = ShortArray(floatOut.size)
+        // 짧은 곡도 초기 지연을 끝낸 뒤 마지막 STFT 출력을 내보내야 한다.
+        if (latencySamples > 0) {
+            java.util.Arrays.fill(floatOut, 0, latencySamples, 0f)
+            applyTimeDomain(floatOut, latencySamples, mask)
+            for (i in 0 until latencySamples) out[i] = clampShort(floatOut[i])
+            sink(out, latencySamples)
+            latencySamples = 0
+        }
         var emitted = 0
         while (emitted < flushSamples) {
             val chunk = minOf(zeros.size, flushSamples - emitted)

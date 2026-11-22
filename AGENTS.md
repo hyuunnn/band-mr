@@ -66,6 +66,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 시크는 `processorsDirty`만 세운다. 오디오 스레드가 `framePos`·곡끝 판정·렌더 전에 제자리 리셋한다. UI 스레드에서 DSP를 리셋하지 않는다.
 - 체인 객체 교체는 muteMask 변경 시에만 한다. `chain`은 `@Volatile`을 유지한다.
 - `SpectralStage.reset()`은 `magHist`까지 비운다. 리셋 출력은 새 체인 출력과 같아야 한다.
+- 스펙트럼 단계의 지연은 리셋 직후 한 블록의 고정 무음으로 둔다. 청크 끝을 무음으로 채우지 않으며, 전체 출력은 청크 크기와 무관해야 한다.
 - 0반음 피치는 패스스루. 기본 형식은 interleaved stereo PCM16이며 모노는 `chCount=1`을 처리한다.
 - WAV·FOURCC는 little-endian. 파이프라인과 ms↔프레임 수학은 `PIPELINE_SAMPLE_RATE`(44.1kHz) 고정이며 불일치 스템은 제외한다.
 
