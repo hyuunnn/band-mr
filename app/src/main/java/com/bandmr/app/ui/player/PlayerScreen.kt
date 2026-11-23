@@ -999,7 +999,7 @@ private fun ExportCard(
     val exporting = status?.running == true
 
     val mixLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("audio/wav")
+        ActivityResultContracts.CreateDocument(Exporter.WAV_MIME)
     ) { uri ->
         if (uri != null) {
             val started = tasks.start(song.id) {

@@ -107,6 +107,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - Song 저장은 컬럼별 UPDATE만 사용한다. `get → copy → update`는 금지한다.
 - 볼륨 기준은 `stemGainsPacked`. AI ON 게인과 AI OFF 체크·muteMask는 `Stem` 변환 함수로 파생한다. DB의 muteMask 컬럼은 이전 마이그레이션 전용이다.
 - 믹스 내보내기는 전체 곡·원곡 템포. 볼륨·키만 적용하고 배속·A-B는 제외한다. 피치는 `PitchShifter.renderTo`를 공유한다. 스템 개별 내보내기는 분리 WAV를 그대로 복사한다.
+- 저장 문서 MIME은 `Exporter.WAV_MIME`(`audio/x-wav`)을 쓴다. `audio/wav`는 `.wav`와 연결되지 않아 같은 이름 저장 시 `….wav (1)`이 되고 오디오로 인식되지 않는다.
 - `writeMixWav`는 저장마다 고유 임시 WAV를 쓰며, close·취소 확인 후 목적지로 복사한다.
 - 스템 개별 저장은 열기·복사·close 실패 시 현재 문서만 삭제하고 앞서 완료한 파일은 보존한다. 성공 개수는 close 후 올린다.
 - `ModelConfig.stemOrder`는 `Tier.stemOrder`와 일치시킨다. 모델 규격·경로는 ModelCatalog/Tier를 기준으로 한다.

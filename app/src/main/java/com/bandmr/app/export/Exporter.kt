@@ -178,7 +178,7 @@ class Exporter(private val context: Context) {
         copyStemFiles(
             dir = dir,
             createDestination = { stem ->
-                tree.createFile("audio/wav", "${base}_${stem.fileName}.wav")
+                tree.createFile(WAV_MIME, "${base}_${stem.fileName}.wav")
             },
             openDestination = { context.contentResolver.openOutputStream(it.uri, "wt") },
             discardDestination = {
@@ -195,6 +195,7 @@ class Exporter(private val context: Context) {
     }
 
     companion object {
+        const val WAV_MIME = "audio/x-wav"
         private const val CHUNK = 8192
 
         /** 캐시를 새로 만들어야 할 때 디코딩이 차지하는 진행률 비중 */
